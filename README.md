@@ -1,0 +1,107 @@
+# DJI Mini 4 Pro - Flight Planner
+
+## Project Description
+
+This is a web-based Flight Planner application designed specifically for DJI drones, with an initial focus on the DJI Mini 4 Pro. It allows users to plan waypoint flight missions, define Points of Interest (POIs), configure camera actions, and adapt waypoint altitudes to follow the terrain (AGL - Above Ground Level).
+
+The planner exports flight plans in various formats, including a WPML-compatible KMZ format for import into DJI drones (via file replacement procedures on the DJI Fly app) and a standard KML format for 3D visualization in Google Earth.
+
+**Live Demo (hosted on Netlify):** [https://dji-mini-4-pro-flight-planner.netlify.app/](https://dji-mini-4-pro-flight-planner.netlify.app/)
+
+## Main Features
+
+*   **Interactive Waypoint Creation:** Add, move (drag & drop), and select waypoints directly on the map.
+*   **Detailed Waypoint Settings:**
+    *   Altitude (relative to the takeoff point)
+    *   Hover Time
+    *   Gimbal Pitch
+    *   Heading Control (Auto, Fixed, Pointing towards a specific POI)
+    *   Camera Actions (Take Photo, Start/Stop Video Recording)
+*   **Point of Interest (POI) Management:**
+    *   Add and name POIs on the map.
+    *   Select a specific POI as a target for a waypoint's heading or for orbit creation.
+*   **Multiple Waypoint Editing:** Select multiple waypoints and apply changes ação batch (heading, camera action, gimbal pitch, hover time).
+*   **Terrain & Orbit Tools:**
+    *   **AGL Adaptation:** Automatically calculates and adapts waypoint altitudes to maintain a constant height above ground level (AGL), using elevation data from an external API (OpenTopoData) via a serverless proxy.
+    *   **POI Orbit Creation:** Automatically generates waypoints to create an orbit around a selected POI.
+*   **Flight Statistics:** Real-time display of total distance, estimated flight time, number of waypoints, and POIs.
+*   **Flight Plan Export:**
+    *   **JSON:** To save and reload the complete state of the planner.
+    *   **DJI WPML (.kmz):** Compatible format for importing into DJI drones that support Waypoint Flight Markup Language.
+    *   **Google Earth (.kml):** To visualize the flight path and waypoints in 3D.
+*   **Flight Plan Import:** Load previously saved flight plans in JSON format.
+*   **Advanced Map Interface:**
+    *   Street and satellite map layers.
+    *   Detailed zoom.
+    *   "Fit View" function to adjust the view to waypoints/POIs.
+    *   "My Location" function to center the map on the user's current location.
+
+## Technologies Used
+
+*   **Frontend:** HTML5, CSS3, JavaScript (Vanilla JS)
+*   **Interactive Map:** [Leaflet.js](https://leafletjs.com/)
+*   **KMZ Archive Creation:** [JSZip](https://stuk.github.io/jszip/)
+*   **Elevation Data (for AGL):** [OpenTopoData API](https://www.opentopodata.org/)
+*   **CORS Proxy (for Elevation API):** Netlify Function (Node.js, Axios)
+*   **Frontend Hosting:** [Netlify](https://www.netlify.com/)
+*   **Version Control:** [Git](https://git-scm.com/) & [GitHub](https://github.com)
+
+## How to Use
+
+1.  **Access:** Open the web application at the provided URL: [https://dji-mini-4-pro-flight-planner.netlify.app/](https://dji-mini-4-pro-flight-planner.netlify.app/)
+2.  **Flight Settings:** Configure the default altitude and flight speed.
+3.  **Add Waypoints:** Click on the map to add waypoints.
+4.  **Add POIs:** Hold `Ctrl` and click on the map to add a Point of Interest. Name the POI in the input field before clicking.
+5.  **Edit Waypoints:**
+    *   **Single:** Click on a waypoint on the map or in the list to select it. The "Waypoint Settings" panel will appear, allowing you to edit altitude, hover time, gimbal pitch, heading (including pointing to a specific POI), and camera actions.
+    *   **Multiple:** Use the checkboxes in the waypoint list to select multiple waypoints. The "Edit X Selected Waypoints" panel will appear to apply batch changes.
+6.  **AGL Adaptation:**
+    *   Enter the MSL elevation of your takeoff point (or use "Use WP1 Elev." if your first waypoint is your takeoff point).
+    *   Enter the desired AGL height.
+    *   Click "Adapt Waypoint Altitudes to AGL". Waypoint altitudes will be recalculated.
+7.  **Create POI Orbit:**
+    *   Ensure you have created at least one POI.
+    *   Click "Create POI Orbit".
+    *   Select the center POI and set the radius and number of points in the dialog.
+8.  **File Operations:**
+    *   Use the buttons in the "File Operations" section to import JSON plans or export to JSON, DJI WPML (.kmz), or Google Earth (.kml).
+9.  **KMZ Export for DJI Fly:**
+    *   Importing KMZ/WPML files directly into the DJI Fly app for consumer drones like the Mini 4 Pro is not officially supported. The common workaround is:
+        1.  Create any waypoint mission directly in the DJI Fly app on your mobile device and save it.
+        2.  Locate the KMZ file for that mission in your phone's storage (the exact path may vary).
+        3.  Replace that KMZ file with the one generated by our Flight Planner (ensuring they have the same name).
+        4.  Reopen the mission in the DJI Fly app. This procedure may not always be reliable and can vary depending on app versions. **Use with caution and at your own risk.**
+
+## Running Locally (for Development)
+
+If you want to run the project locally:
+
+1.  **Clone the Repository:**
+    ```bash
+    git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
+    cd YOUR_REPOSITORY
+    ```
+2.  **CORS Proxy:**
+    *   This planner relies on a CORS proxy to access the OpenTopoData elevation API. You will need an instance of the proxy running. You can use:
+        *   The Node.js/Express proxy provided in a separate repository (if you created it, e.g., on Replit or locally).
+        *   A Netlify Function (if you deployed the project with the proxy function included, this is the current setup).
+        *   Another CORS proxy service.
+    *   Ensure the `proxyBaseUrl` variable in the `getElevationsBatch()` function within `script.js` points to the correct URL of your running proxy.
+3.  **Serve HTML/CSS/JS Files:**
+    *   Use a simple HTTP server to serve the project folder. If you have Python:
+        ```bash
+        # Python 3
+        python -m http.server
+        # Python 2
+        # python -m SimpleHTTPServer
+        ```
+    *   Or use `http-server` (requires Node.js):
+        ```bash
+        npm install -g http-server
+        http-server
+        ```
+    *   Open `http://localhost:8000` (or the indicated port) in your browser.
+
+## Contributions
+
+Contributions are welcome! Please open an issue or a pull request.
