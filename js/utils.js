@@ -1,13 +1,15 @@
 // js/utils.js
 import * as DOM from './domElements.js';
-// Importa _tr da i18n.js per usarlo qui
-import { _tr as i18n_tr } from './i18n.js';
+import { _tr } from './i18n.js'; // Importa _tr da i18n.js
 
-
-export function showCustomAlert(message, title = i18n_tr("alertInfo")) {
+export function showCustomAlert(message, titleKey = "alertInfo") { 
+    const title = _tr(titleKey); 
     if (DOM.customAlertMessageEl && DOM.customAlertOverlayEl && DOM.customAlertTitleEl) {
         DOM.customAlertTitleEl.textContent = title;
-        DOM.customAlertMessageEl.textContent = message;
+        // Se il messaggio è una chiave di traduzione, traducila, altrimenti usala così com'è.
+        // Per semplicità, assumiamo che 'message' sia già tradotto o sia una stringa diretta.
+        // Se vuoi passare chiavi per 'message', dovresti tradurle prima di chiamare showCustomAlert.
+        DOM.customAlertMessageEl.textContent = message; 
         DOM.customAlertOverlayEl.style.display = 'flex';
     } else { 
         console.error("Custom alert elements not found for utils.showCustomAlert!");
@@ -58,7 +60,7 @@ export function createSmoothPath(pointsArray) {
     return smoothed;
 }
 
-export function getCameraActionKey(action) { // Restituisce la chiave per la traduzione
+export function getCameraActionKey(action) { 
     switch(action) {
         case 'takePhoto': return 'cameraActionTakePhoto';
         case 'startRecord': return 'cameraActionStartRecord';
