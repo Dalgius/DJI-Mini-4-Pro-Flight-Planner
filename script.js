@@ -1027,10 +1027,12 @@ async function getElevationsBatch(locationsArray) {
         }).join('|');
 
         const targetUrl = `https://api.opentopodata.org/v1/srtm90m?locations=${locationsString}&interpolation=cubic`;
-        const proxyBaseUrl = 'https://88ff4290-4368-4064-a7f1-e896f1d6bad8-00-py4zt0lbfv5j.worf.replit.dev/proxy'; 
-        const apiUrl = `${proxyBaseUrl}?url=${encodeURIComponent(targetUrl)}`;
+            
+            // NUOVO URL DEL PROXY - Percorso relativo alla Netlify Function
+            const proxyBaseUrl = '/.netlify/functions/elevation-proxy'; 
+            const apiUrl = `${proxyBaseUrl}?url=${encodeURIComponent(targetUrl)}`;
 
-        console.log(`Batch request (block ${Math.floor(i/batchSize) + 1}, size ${batch.length}) via proxy.`);
+            console.log(`Richiesta batch via Netlify Function a: ${targetUrl}`);
 
         try {
             const response = await fetch(apiUrl, { method: 'GET' });
