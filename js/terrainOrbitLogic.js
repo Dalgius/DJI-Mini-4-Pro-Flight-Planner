@@ -1,10 +1,13 @@
 // js/terrainOrbitLogic.js
 import * as DOM from './domElements.js';
 import * as State from './state.js';
+import { dispatchStateChangeEvent } from './state.js'; // Import the dispatcher
 import { PROXY_URL } from './config.js';
 // Importa le funzioni necessarie da waypointPOILogic (assumendo che addWaypoint, selectWaypoint, fitMapToWaypoints siano esportate da lì)
 import { addWaypoint as addWp, selectWaypoint as selectWp, fitMapToWaypoints as fitMap } from './waypointPOILogic.js';
-import { populatePoiSelectDropdownForUI } from './uiControls.js'; // Se showOrbitDialog la usa direttamente
+// populatePoiSelectDropdownForUI from uiControls is okay here if it's for populating a dialog *within* this module's logic,
+// not for general UI updates that should be event-driven.
+import { populatePoiSelectDropdownForUI } from './uiControls.js';
 import { showCustomAlert, _tr } from './utils.js';
 
 
@@ -111,32 +114,57 @@ export async function adaptAltitudesToAGL() {
 
     const waypointCoords = State.getWaypoints().map(wp => ({ lat: wp.latlng.lat, lng: wp.latlng.lng }));
     const groundElevations = await getElevationsBatch(waypointCoords);
+    const waypoints = State.getWaypoints(); // Get a reference to the array
 
     let successCount = 0;
-    if (groundElevations && groundElevations.length === State.getWaypoints().length) {
-        State.getWaypoints().forEach((wp, index) => {
+    if (groundElevations && groundElevations.length === waypoints.length) {
+        waypoints.forEach((wp, index) => { // Modify the array obtained from State
             const groundElevation = groundElevations[index];
-            DOM.loadingOverlayEl.textContent = `${_tr("loadingAGLText")} (WP ${index+1}/${State.getWaypoints().length})`;
+            DOM.loadingOverlayEl.textContent = `${_tr("loadingAGLText")} (WP ${index+1}/${waypoints.length})`;
             if (groundElevation !== null) {
                 const newExecuteHeight = (groundElevation + aglDesired) - homeElevationMSL;
-                wp.altitude = Math.max(5, Math.round(newExecuteHeight)); 
+                wp.altitude = Math.max(5, Math.round(newExecuteHeight));
                 successCount++;
             } else {
                 console.warn(`Could not get elevation for waypoint ${wp.id}. Altitude not changed.`);
             }
         });
+        // After all modifications, call setWaypoints to trigger a single state change event
+        State.setWaypoints(waypoints); 
+        // Note: If individual properties being updated need to trigger events for finer-grained UI updates,
+        // then state.js would need functions like `updateWaypointAltitude(id, newAltitude)` which dispatch events.
+        // For now, this batch update is simpler.
     } else {
         console.error("Error fetching elevations in batch or length mismatch.");
     }
 
-    import('./uiControls.js').then(ui => ui.updateWaypointListDisplay()); // Assicurati che questo import sia corretto
-    if (State.getSelectedWaypoint()) { 
-        const currentSelected = State.getWaypoints().find(wp => wp.id === State.getSelectedWaypoint().id);
-        if (currentSelected) selectWp(currentSelected); 
-        else if (State.getWaypoints().length > 0) selectWp(State.getWaypoints()[0]);
-        else if (DOM.waypointControlsDiv) DOM.waypointControlsDiv.style.display = 'none';
+    // REMOVED DYNAMIC IMPORTS AND DIRECT CALLS:
+    // import('./uiControls.js').then(ui => ui.updateWaypointListDisplay()); 
+    // import('./uiControls.js').then(ui => ui.updateFlightStatisticsDisplay()); 
+
+    // The selection logic should ideally be handled by UI reacting to waypointsModified or a specific AGL completion event.
+    // For now, if a waypoint was selected, re-selecting it (if it still exists) will trigger its own state events.
+    const currentSelectedId = State.getSelectedWaypoint() ? State.getSelectedWaypoint().id : null;
+    if (currentSelectedId) {
+        const currentSelected = waypoints.find(wp => wp.id === currentSelectedId);
+        if (currentSelected) {
+            selectWp(currentSelected); // selectWp uses State.setSelectedWaypoint, which dispatches an event
+        } else if (waypoints.length > 0) {
+            selectWp(waypoints[0]);
+        } else if (DOM.waypointControlsDiv) {
+            DOM.waypointControlsDiv.style.display = 'none'; // This is a direct DOM manipulation, ideally also event-driven
+        }
+    } else if (waypoints.length > 0) {
+        // If nothing was selected but now we have waypoints, maybe select the first one.
+        // This could also be a reaction in uiControls to waypointsModified when no waypoint is selected.
+        selectWp(waypoints[0]);
+    } else if (DOM.waypointControlsDiv) {
+        DOM.waypointControlsDiv.style.display = 'none'; // Direct DOM manipulation
     }
-    import('./uiControls.js').then(ui => ui.updateFlightStatisticsDisplay()); 
+    
+    // Dispatch a custom event for AGL adaptation completion, if specific UI reactions are needed beyond list/stats refresh
+    dispatchStateChangeEvent({ aglAdaptationCompleted: true, successCount: successCount, totalWaypoints: waypoints.length });
+
     DOM.loadingOverlayEl.style.display = 'none';
     if (DOM.adaptToAGLBtnEl) DOM.adaptToAGLBtnEl.disabled = false;
     if(homeButton) homeButton.disabled = false;

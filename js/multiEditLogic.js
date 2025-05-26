@@ -1,144 +1,161 @@
 // js/multiEditLogic.js
 import * as DOM from './domElements.js';
 import * as State from './state.js';
-import { updateWaypointListDisplay, populatePoiSelectDropdownForUI, updateFlightStatisticsDisplay } from './uiControls.js';
-import { updateMarkerIcon, selectWaypoint as logicSelectWaypoint } from './waypointPOILogic.js'; // Importa selectWaypoint da waypointPOILogic
+// Removed direct uiControls imports:
+// import { updateWaypointListDisplay, populatePoiSelectDropdownForUI, updateFlightStatisticsDisplay } from './uiControls.js';
+import { populatePoiSelectDropdownForUI } from './uiControls.js'; // Still needed for internal logic of showing panel
+// updateMarkerIcon is a map concern, ideally mapLogic listens to multiEditSelectionChanged.
+// For now, uiControls will react to multiEditSelectionChanged and call updateMarkerIcon.
+// import { updateMarkerIcon, selectWaypoint as logicSelectWaypoint } from './waypointPOILogic.js';
 import { showCustomAlert, _tr } from './utils.js';
 
-export function toggleMultiSelectWaypoint(waypointId, isChecked) { 
-    const waypoint = State.getWaypoints().find(wp => wp.id === waypointId);
-    if (!waypoint) return;
+export function toggleMultiSelectWaypoint(waypointId, isChecked) {
+    // const waypoint = State.getWaypoints().find(wp => wp.id === waypointId); // Not needed if only dispatching
+    // if (!waypoint) return; // State functions will handle non-existent IDs if necessary
 
     if (isChecked) {
-        State.selectedForMultiEdit.add(waypointId);
+        // State.selectedForMultiEdit.add(waypointId); // Direct mutation
+        State.addWaypointToMultiEdit(waypointId); // Via state.js - dispatches event
     } else {
-        State.selectedForMultiEdit.delete(waypointId);
+        // State.selectedForMultiEdit.delete(waypointId); // Direct mutation
+        State.removeWaypointFromMultiEdit(waypointId); // Via state.js - dispatches event
     }
     
-    updateMarkerIcon(waypoint); 
+    // updateMarkerIcon(waypoint); // mapLogic or uiControls should handle this
     
-    if (State.getSelectedWaypoint() && State.getSelectedWaypoint().id === waypointId) {
-        updateMarkerIcon(State.getSelectedWaypoint());
-    }
+    // if (State.getSelectedWaypoint() && State.getSelectedWaypoint().id === waypointId) {
+    //     updateMarkerIcon(State.getSelectedWaypoint()); // mapLogic or uiControls should handle this
+    // }
 
-    const allWaypointsSelected = State.getWaypoints().length > 0 && State.getWaypoints().every(wp => State.selectedForMultiEdit.has(wp.id));
-    DOM.selectAllWaypointsCheckboxEl.checked = allWaypointsSelected;
+    // const allWaypointsSelected = State.getWaypoints().length > 0 && State.getWaypoints().every(wp => State.selectedForMultiEdit.has(wp.id));
+    // DOM.selectAllWaypointsCheckboxEl.checked = allWaypointsSelected; // uiControls should handle this
     
-    updateWaypointListDisplay(); 
-    updateMultiEditPanelVisibility();
+    // updateWaypointListDisplay(); // uiControls handles this via stateChange
+    // updateMultiEditPanelVisibility(); // uiControls handles this via stateChange
 }
 
-export function toggleSelectAllWaypoints(isChecked) { 
-    State.selectedForMultiEdit.clear();
+export function toggleSelectAllWaypoints(isChecked) {
+    // State.selectedForMultiEdit.clear(); // Direct mutation
+    const currentSelection = State.getSelectedForMultiEdit();
+    const allWaypointIds = State.getWaypoints().map(wp => wp.id);
+    
     if (isChecked) {
-        State.getWaypoints().forEach(wp => State.selectedForMultiEdit.add(wp.id));
+        let changed = false;
+        allWaypointIds.forEach(id => {
+            if (!currentSelection.has(id)) {
+                State.addWaypointToMultiEdit(id); // Dispatches event for each addition
+                changed = true;
+            }
+        });
+        // If individual add events are too noisy, State could have a batch add function for multi-select.
+        // For now, relying on individual events.
+    } else {
+        if (currentSelection.size > 0) {
+            State.clearMultiEditSelection(); // Dispatches one event for clear
+        }
     }
-    State.getWaypoints().forEach(wp => updateMarkerIcon(wp)); 
-    updateWaypointListDisplay();
-    updateMultiEditPanelVisibility();
-}
-
-export function clearMultiSelection() { 
-    const previouslyMultiSelectedIds = new Set(State.selectedForMultiEdit);
-    State.selectedForMultiEdit.clear();
-    if(DOM.selectAllWaypointsCheckboxEl) DOM.selectAllWaypointsCheckboxEl.checked = false;
     
-    previouslyMultiSelectedIds.forEach(id => {
-        const waypoint = State.getWaypoints().find(wp => wp.id === id);
-        if(waypoint) updateMarkerIcon(waypoint); 
-    });
-
-    updateWaypointListDisplay(); 
-    updateMultiEditPanelVisibility();
+    // State.getWaypoints().forEach(wp => updateMarkerIcon(wp)); // mapLogic or uiControls should handle this
+    // updateWaypointListDisplay(); // uiControls handles this
+    // updateMultiEditPanelVisibility(); // uiControls handles this
 }
 
-export function updateMultiEditPanelVisibility() { 
-    const count = State.selectedForMultiEdit.size;
+export function clearMultiSelection() {
+    // const previouslyMultiSelectedIds = new Set(State.selectedForMultiEdit); // Not needed if only dispatching
+    State.clearMultiEditSelection(); // Via state.js - dispatches event
+    // if(DOM.selectAllWaypointsCheckboxEl) DOM.selectAllWaypointsCheckboxEl.checked = false; // uiControls handles this
+    
+    // previouslyMultiSelectedIds.forEach(id => { // mapLogic or uiControls should handle marker updates
+    //     const waypoint = State.getWaypoints().find(wp => wp.id === id);
+    //     if(waypoint) updateMarkerIcon(waypoint); 
+    // });
+
+    // updateWaypointListDisplay(); // uiControls handles this
+    // updateMultiEditPanelVisibility(); // uiControls handles this
+}
+
+export function updateMultiEditPanelVisibility() { // This function is called by uiControls.js's handleStateChange
+    const count = State.getSelectedForMultiEdit().size;
+    // This function is CALLED by uiControls.js in response to state changes.
+    // It should primarily update the DOM based on the current state.
     if (count > 0) {
         DOM.multiWaypointEditControlsDiv.style.display = 'block';
         DOM.selectedWaypointsCountEl.textContent = count;
-        if (DOM.waypointControlsDiv) DOM.waypointControlsDiv.style.display = 'none';
-        // State.setSelectedWaypoint(null); // Potrebbe essere meglio non deselezionare qui
+        if (DOM.waypointControlsDiv) DOM.waypointControlsDiv.style.display = 'none'; // Hide single edit
         
+        // Populate POI dropdown if needed
         if (DOM.multiHeadingControlSelect.value === 'poi_track') {
-            populatePoiSelectDropdownForUI(DOM.multiTargetPoiSelect, null, true, _tr("selectPoiDropdownDefault", "Select POI for all"));
+            populatePoiSelectDropdownForUI(DOM.multiTargetPoiSelect, null, true, _tr("selectPoiDropdownDefault"));
             DOM.multiTargetPoiForHeadingGroupDiv.style.display = 'block';
         } else {
             DOM.multiTargetPoiForHeadingGroupDiv.style.display = 'none';
         }
     } else {
         DOM.multiWaypointEditControlsDiv.style.display = 'none';
+        // Show single edit panel if a waypoint is selected
         if (State.getSelectedWaypoint() && DOM.waypointControlsDiv) {
             DOM.waypointControlsDiv.style.display = 'block';
-        } else if (DOM.waypointControlsDiv) {
+        } else if (DOM.waypointControlsDiv) { // No selection, hide single edit too
              DOM.waypointControlsDiv.style.display = 'none';
         }
     }
+    // Update the "Select/Deselect All" checkbox state
+    const allWaypoints = State.getWaypoints();
+    DOM.selectAllWaypointsCheckboxEl.checked = allWaypoints.length > 0 && count === allWaypoints.length;
+    DOM.selectAllWaypointsCheckboxEl.disabled = allWaypoints.length === 0;
 }
 
-export function applyMultiEdit() { 
-    if (State.selectedForMultiEdit.size === 0) {
+export function applyMultiEdit() {
+    const selectedIds = State.getSelectedForMultiEdit();
+    if (selectedIds.size === 0) {
         showCustomAlert(_tr("alertNoWpMultiEdit"), _tr("alertWarning"));
         return;
     }
 
-    const newHeadingControl = DOM.multiHeadingControlSelect.value;
-    const newFixedHeading = parseInt(DOM.multiFixedHeadingSlider.value);
-    const newCameraAction = DOM.multiCameraActionSelect.value;
-    const changeGimbal = DOM.multiChangeGimbalPitchCheckbox.checked;
-    const newGimbalPitch = parseInt(DOM.multiGimbalPitchSlider.value);
-    const changeHover = DOM.multiChangeHoverTimeCheckbox.checked;
-    const newHoverTime = parseInt(DOM.multiHoverTimeSlider.value);
-    const newTargetPoiId = (newHeadingControl === 'poi_track' && DOM.multiTargetPoiSelect.value) 
-                            ? parseInt(DOM.multiTargetPoiSelect.value) 
-                            : null;
+    const changes = [];
+    let requiresTargetPoi = false;
 
-    let changesMadeToAtLeastOneWp = false;
-
-    State.getWaypoints().forEach(wp => {
-        if (State.selectedForMultiEdit.has(wp.id)) {
-            let wpChangedThisIteration = false;
-            if (newHeadingControl) {
-                wp.headingControl = newHeadingControl;
-                if (newHeadingControl === 'fixed') {
-                    wp.fixedHeading = newFixedHeading;
-                    wp.targetPoiId = null; 
-                } else if (newHeadingControl === 'poi_track') {
-                    wp.targetPoiId = newTargetPoiId;
-                } else { 
-                    wp.targetPoiId = null; 
-                }
-                wpChangedThisIteration = true;
+    if (DOM.multiHeadingControlSelect.value) {
+        changes.push({ property: 'headingControl', value: DOM.multiHeadingControlSelect.value });
+        if (DOM.multiHeadingControlSelect.value === 'fixed') {
+            changes.push({ property: 'fixedHeading', value: parseInt(DOM.multiFixedHeadingSlider.value) });
+            changes.push({ property: 'targetPoiId', value: null }); // Clear POI target if fixed
+        } else if (DOM.multiHeadingControlSelect.value === 'poi_track') {
+            requiresTargetPoi = true;
+            const poiId = DOM.multiTargetPoiSelect.value ? parseInt(DOM.multiTargetPoiSelect.value) : null;
+            if (poiId === null) { // Check if a POI is actually selected
+                 showCustomAlert(_tr("selectPoiDropdownDefault"), _tr("alertInputError")); // Or a more specific message
+                 return;
             }
-            if (newCameraAction) {
-                wp.cameraAction = newCameraAction;
-                wpChangedThisIteration = true;
-            }
-            if (changeGimbal) {
-                wp.gimbalPitch = newGimbalPitch;
-                wpChangedThisIteration = true;
-            }
-            if (changeHover) {
-                wp.hoverTime = newHoverTime;
-                wpChangedThisIteration = true;
-            }
-            if(wpChangedThisIteration) changesMadeToAtLeastOneWp = true;
+            changes.push({ property: 'targetPoiId', value: poiId });
+        } else { // 'auto' or other modes
+            changes.push({ property: 'targetPoiId', value: null }); // Clear POI target
         }
+    }
+    if (DOM.multiCameraActionSelect.value) {
+        changes.push({ property: 'cameraAction', value: DOM.multiCameraActionSelect.value });
+    }
+    if (DOM.multiChangeGimbalPitchCheckbox.checked) {
+        changes.push({ property: 'gimbalPitch', value: parseInt(DOM.multiGimbalPitchSlider.value) });
+    }
+    if (DOM.multiChangeHoverTimeCheckbox.checked) {
+        changes.push({ property: 'hoverTime', value: parseInt(DOM.multiHoverTimeSlider.value) });
+    }
+
+    if (changes.length === 0) {
+        showCustomAlert(_tr("alertMultiNoChange"), _tr("alertInfo"));
+        return;
+    }
+
+    const waypointsToUpdate = Array.from(selectedIds).map(id => {
+        return { id, changes };
     });
 
-    if (changesMadeToAtLeastOneWp) {
-        updateWaypointListDisplay();
-        updateFlightStatisticsDisplay(); 
-        // Se il waypoint precedentemente selezionato per modifica singola è stato modificato in batch,
-        // aggiorna i suoi controlli individuali se il pannello torna visibile.
-        if (State.getSelectedWaypoint() && State.selectedForMultiEdit.has(State.getSelectedWaypoint().id)) {
-            // La logica di selectWaypoint(State.getSelectedWaypoint()) lo farà quando il pannello torna visibile.
-        }
-        showCustomAlert(_tr("alertMultiApplied", State.selectedForMultiEdit.size), _tr("alertInfo"));
-    } else {
-        showCustomAlert(_tr("alertMultiNoChange"), _tr("alertInfo"));
-    }
+    State.updateMultipleWaypointProperties(waypointsToUpdate); // New function in state.js
+
+    showCustomAlert(_tr("alertMultiApplied", selectedIds.size), _tr("alertInfo"));
     
+    // Reset multi-edit form elements
     DOM.multiHeadingControlSelect.value = "";
     DOM.multiFixedHeadingGroupDiv.style.display = 'none';
     DOM.multiTargetPoiForHeadingGroupDiv.style.display = 'none';
@@ -154,5 +171,6 @@ export function applyMultiEdit() {
     DOM.multiHoverTimeSlider.value = 0;
     DOM.multiHoverTimeValueEl.textContent = "0s";
 
-    clearMultiSelection(); 
+    // Clear selection after applying changes, this will also hide the panel via event
+    clearMultiSelection();
 }

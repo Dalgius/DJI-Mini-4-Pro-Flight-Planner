@@ -1,8 +1,10 @@
 // js/fileOperations.js
 import * as DOM from './domElements.js';
 import * as State from './state.js';
-import { updateWaypointListDisplay, updatePOIListDisplay, updateFlightStatisticsDisplay } from './uiControls.js';
-import { updateFlightPathDisplay, fitMapToWaypoints as fitMap } from './mapLogic.js';
+// Removed unused direct UI update imports
+// import { updateWaypointListDisplay, updatePOIListDisplay, updateFlightStatisticsDisplay } from './uiControls.js';
+// import { updateFlightPathDisplay, fitMapToWaypoints as fitMap } from './mapLogic.js';
+import { fitMapToWaypoints as fitMap } from './mapLogic.js'; // fitMap is still used
 import { selectWaypoint as selectWp, clearAllWaypointsLogic, addWaypoint as addWpFromFile, addPOI as addPoiFromFile, createWaypointIcon as createWpIconInternal } from './waypointPOILogic.js'; // Importa le funzioni logiche
 import { showCustomAlert, _tr, getCameraActionText as utilGetCameraActionText, haversineDistance } from './utils.js'; // Importa haversineDistance
 
@@ -56,15 +58,26 @@ export function loadFlightPlanData(plan) {
     // Ritarda leggermente gli aggiornamenti UI per dare tempo agli import dinamici (non ideale)
     // È meglio se le funzioni di aggiunta chiamano direttamente gli update UI necessari.
     // Per ora, questo timeout potrebbe essere rimosso se gli update sono già chiamati internamente.
-    setTimeout(() => {
-        updatePOIListDisplay(); 
-        updateWaypointListDisplay(); 
-        updateFlightPathDisplay(); 
-        updateFlightStatisticsDisplay(); 
-        fitMap();
-        if (State.getWaypoints().length > 0) selectWp(State.getWaypoints()[0]);
-        showCustomAlert(_tr("alertImportSuccess"), _tr("alertSuccess"));
-    }, 100); // Ridotto il timeout, potrebbe non essere necessario
+    // setTimeout(() => {
+    //     updatePOIListDisplay(); 
+    //     updateWaypointListDisplay(); 
+    //     updateFlightPathDisplay(); 
+    //     updateFlightStatisticsDisplay(); 
+    //     fitMap();
+    //     if (State.getWaypoints().length > 0) selectWp(State.getWaypoints()[0]);
+    //     showCustomAlert(_tr("alertImportSuccess"), _tr("alertSuccess"));
+    // }, 100); // Ridotto il timeout, potrebbe non essere necessario
+
+    // UI updates are now handled by components listening to stateChange events.
+    // State setters for waypoints, POIs, counters, etc., are already dispatching these events.
+    
+    fitMap(); // Fit map to new data
+    if (State.getWaypoints().length > 0) {
+        selectWp(State.getWaypoints()[0]); // Select the first waypoint, this will dispatch selectedWaypointChanged
+    } else {
+        State.setSelectedWaypoint(null); // Ensure nothing is selected if no waypoints, dispatches event
+    }
+    showCustomAlert(_tr("alertImportSuccess"), _tr("alertSuccess"));
 }
 
 export function exportFlightPlan() { 
@@ -85,7 +98,9 @@ export function exportFlightPlan() {
             defaultAltitude: parseInt(DOM.defaultAltitudeSlider.value), 
             flightSpeed: parseFloat(DOM.flightSpeedSlider.value), 
             pathType: DOM.pathTypeSelect.value, 
-            nextWaypointId: State.waypointCounter, nextPoiId: State.poiCounter 
+            // Use getters for state variables for consistency if they exist, though direct access is also possible here for counters
+            nextWaypointId: State.getWaypointCounter(), // Assuming getter exists
+            nextPoiId: State.getPoiCounter() // Assuming getter exists
         }
     };
     const a = document.createElement('a');

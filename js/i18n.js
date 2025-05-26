@@ -1,6 +1,7 @@
 // js/i18n.js
-import * as DOM from './domElements.js'; 
-import * as State from './state.js'; 
+import * as DOM from './domElements.js';
+import * as State from './state.js';
+import { dispatchStateChangeEvent } from './state.js'; // Import the dispatcher
 // Non importiamo più funzioni di update UI direttamente qui per evitare cicli,
 // l'aggiornamento UI dopo il cambio lingua sarà gestito da main.js o uiControls.js
 
@@ -295,11 +296,14 @@ export function applyTranslations() {
     
     // Importa dinamicamente le funzioni di update UI per evitare dipendenze circolari all'inizio
     // Questo è un po' un hack, idealmente l'aggiornamento UI dovrebbe essere più centralizzato o event-driven.
-    import('./uiControls.js').then(uiControls => {
-        uiControls.updateWaypointListDisplay(); 
-        uiControls.updatePOIListDisplay();      
-    });
+    // REMOVED DYNAMIC IMPORT AND DIRECT CALLS:
+    // import('./uiControls.js').then(uiControls => {
+    //     uiControls.updateWaypointListDisplay(); 
+    //     uiControls.updatePOIListDisplay();      
+    // });
 
+    // Dispatch an event to notify that the language has changed
+    dispatchStateChangeEvent({ languageChanged: true, newLang: currentLang });
 
     if (DOM.pathTypeSelect) {
         DOM.pathTypeSelect.options[0].textContent = _tr("pathTypeStraight");

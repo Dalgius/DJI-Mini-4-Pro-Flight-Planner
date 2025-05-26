@@ -1,9 +1,14 @@
 // js/waypointPOILogic.js
 import * as State from './state.js';
 import * as DOM from './domElements.js';
-import { updateWaypointListDisplay, updatePOIListDisplay, updateFlightStatisticsDisplay, populatePoiSelectDropdownForUI } from './uiControls.js';
-import { updateFlightPathDisplay } from './mapLogic.js';
+// Removed direct imports from uiControls:
+// import { updateWaypointListDisplay, updatePOIListDisplay, updateFlightStatisticsDisplay, populatePoiSelectDropdownForUI } from './uiControls.js';
+// updateFlightPathDisplay is primarily a map concern, if waypointPOILogic affects the path, it should be via state changes that mapLogic listens to.
+// For now, assuming updateFlightPathDisplay is handled by mapLogic reacting to state.selectedWaypointChanged or state.waypointsModified
+// import { updateFlightPathDisplay } from './mapLogic.js'; 
 import { showCustomAlert, _tr } from './utils.js';
+// DOM elements are still needed for things like defaultAltitudeSlider if addWaypoint defaults depend on it.
+// However, direct DOM manipulation for UI state (like hiding/showing panels) should be avoided here.
 
 export function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false) {
     let bgColor = '#3498db'; 
@@ -81,146 +86,144 @@ export function addWaypoint(latlng) {
     marker.on('drag', () => { newWaypointData.latlng = marker.getLatLng(); updateFlightPathDisplay(); });
     
     State.addWaypointToArray(newWaypointData);
-    updateWaypointListDisplay(); 
-    updateFlightPathDisplay(); 
-    updateFlightStatisticsDisplay(); 
-    selectWaypoint(newWaypointData);
+    // UI update calls like updateWaypointListDisplay, updateFlightPathDisplay, updateFlightStatisticsDisplay
+    // are removed because these should be triggered by stateChange events handled in uiControls.js or mapLogic.js
+    // State.addWaypointToArray already dispatches a stateChange event.
+    // State.setSelectedWaypoint (called by selectWaypoint) also dispatches an event.
+    selectWaypoint(newWaypointData); // This will set the new waypoint as selected
 }
 
-export function addPOI(latlng) { 
+export function addPOI(latlng) {
     if (State.getPois().length === 0) {
-        State.poiCounter = 1; 
+        State.resetPoiCounter(); // Use new state function
     }
-    const name = DOM.poiNameInput.value.trim() || `POI ${State.poiCounter}`;
-    const newPoiData = { 
-        id: State.poiCounter++, 
-        name, 
-        latlng: L.latLng(latlng.lat, latlng.lng), 
-        altitude: 0 
-    }; 
+    const name = DOM.poiNameInput.value.trim() || `POI ${State.getPoiCounter()}`;
+    const newPoiData = {
+        id: State.incrementPoiCounter(), // Use new state function
+        name,
+        latlng: L.latLng(latlng.lat, latlng.lng),
+        altitude: 0 // Assuming default POI altitude is 0 or fetched later
+    };
     const marker = L.marker(newPoiData.latlng, { draggable: true, icon: L.divIcon({ className: 'poi-marker', html: `<div style="background: #f39c12; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; border: 2px solid white;">🎯</div>`, iconSize: [20, 20], iconAnchor: [10, 10] }) }).addTo(State.getMap());
     marker.bindPopup(`<strong>${newPoiData.name}</strong>`);
-    marker.on('dragend', () => newPoiData.latlng = marker.getLatLng());
+    marker.on('dragend', () => {
+        newPoiData.latlng = marker.getLatLng();
+        // Manually dispatch if POI position change needs immediate reaction beyond map marker drag.
+        // For now, assuming this is sufficient.
+        State.dispatchStateChangeEvent({ poisModified: true, action: 'update_internal', poiUpdated: newPoiData.id });
+    });
     newPoiData.marker = marker;
-    State.addPoiToArray(newPoiData);
+    State.addPoiToArray(newPoiData); // This dispatches { poisModified: true, action: 'add', ... }
 
-    updatePOIListDisplay(); 
-    populatePoiSelectDropdownForUI(DOM.targetPoiSelect, State.getSelectedWaypoint() ? State.getSelectedWaypoint().targetPoiId : null, true, _tr("selectPoiDropdownDefault", "Select POI for Heading"));
-    populatePoiSelectDropdownForUI(DOM.multiTargetPoiSelect, null, true, _tr("selectPoiDropdownDefault", "Select POI for all"));
-    populatePoiSelectDropdownForUI(DOM.orbitPoiSelectEl, null, false);
-
-
-    updateFlightStatisticsDisplay(); 
+    // Removed direct calls to uiControls for populating dropdowns or updating lists.
+    // These will be handled by uiControls listening to 'stateChange' with 'poisModified'.
     DOM.poiNameInput.value = '';
 }
 
-export function selectWaypoint(waypoint) { 
-    // clearMultiSelection(); // Chiamata da uiControls se necessario
-
-    if (State.getSelectedWaypoint() && State.getSelectedWaypoint().marker) {
-        updateMarkerIcon(State.getSelectedWaypoint()); // Aggiorna icona del precedente
+export function selectWaypoint(waypoint) {
+    const currentSelected = State.getSelectedWaypoint();
+    if (currentSelected && currentSelected.marker) {
+        updateMarkerIcon(currentSelected); // Update icon of the previously selected
     }
-    State.setSelectedWaypoint(waypoint);
-    if (State.getSelectedWaypoint() && State.getSelectedWaypoint().marker) {
-       updateMarkerIcon(State.getSelectedWaypoint()); // Aggiorna icona del nuovo
-    }
+    State.setSelectedWaypoint(waypoint); // This dispatches 'selectedWaypointChanged'
     
-    DOM.waypointAltitudeSlider.value = State.getSelectedWaypoint().altitude;
-    DOM.waypointAltitudeValueEl.textContent = State.getSelectedWaypoint().altitude + 'm';
-    DOM.hoverTimeSlider.value = State.getSelectedWaypoint().hoverTime;
-    DOM.hoverTimeValueEl.textContent = State.getSelectedWaypoint().hoverTime + 's';
-    DOM.gimbalPitchSlider.value = State.getSelectedWaypoint().gimbalPitch;
-    DOM.gimbalPitchValueEl.textContent = State.getSelectedWaypoint().gimbalPitch + '°';
-    DOM.headingControlSelect.value = State.getSelectedWaypoint().headingControl;
-    DOM.fixedHeadingSlider.value = State.getSelectedWaypoint().fixedHeading;
-    DOM.fixedHeadingValueEl.textContent = State.getSelectedWaypoint().fixedHeading + '°';
-    DOM.cameraActionSelect.value = State.getSelectedWaypoint().cameraAction || 'none'; 
-    
-    DOM.fixedHeadingGroupDiv.style.display = State.getSelectedWaypoint().headingControl === 'fixed' ? 'block' : 'none';
-    const showPoiSelect = State.getSelectedWaypoint().headingControl === 'poi_track';
-    DOM.targetPoiForHeadingGroupDiv.style.display = showPoiSelect ? 'block' : 'none';
-    if (showPoiSelect) {
-        populatePoiSelectDropdownForUI(DOM.targetPoiSelect, State.getSelectedWaypoint().targetPoiId, true, _tr("selectPoiDropdownDefault", "Select POI for Heading"));
+    if (waypoint && waypoint.marker) {
+       updateMarkerIcon(waypoint); // Update icon of the newly selected
+       // DOM updates for waypoint controls are now handled by uiControls listening to 'selectedWaypointChanged'
+       // State.getMap().panTo(waypoint.latlng); // Panning can remain, or also be a reaction
     }
-
-    DOM.waypointControlsDiv.style.display = 'block';
-    updateWaypointListDisplay(); 
-    if(State.getSelectedWaypoint().marker) State.getMap().panTo(State.getSelectedWaypoint().latlng);
+    // All DOM updates for waypoint controls (sliders, inputs) are removed from here.
+    // They should be in uiControls.js, reacting to the 'selectedWaypointChanged' event.
+    // updateWaypointListDisplay(); // Removed, handled by uiControls reacting to selectedWaypointChanged or waypointsModified
 }
 
-export function deleteSelectedWaypointLogic() { 
-    if (!State.getSelectedWaypoint()) {
+
+// Renamed to avoid conflict if old name was used as a direct event handler by mistake.
+function executeDeleteSelectedWaypoint() {
+    const waypointToDelete = State.getSelectedWaypoint();
+    if (!waypointToDelete) {
         showCustomAlert(_tr("alertNoWpSelected"), _tr("alertInfo"));
         return;
     }
-    if (State.getSelectedWaypoint().marker) {
-        State.getMap().removeLayer(State.getSelectedWaypoint().marker);
+    if (waypointToDelete.marker) {
+        State.getMap().removeLayer(waypointToDelete.marker);
     }
-    const deletedWaypointId = State.getSelectedWaypoint().id;
-    State.setWaypoints(State.getWaypoints().filter(wp => wp.id !== deletedWaypointId));
-    State.setSelectedWaypoint(null);
-    DOM.waypointControlsDiv.style.display = 'none';
+    const deletedWaypointId = waypointToDelete.id;
+    // Filter out the deleted waypoint and update the state
+    const newWaypoints = State.getWaypoints().filter(wp => wp.id !== deletedWaypointId);
+    State.setWaypoints(newWaypoints); // Dispatches { waypointsModified: true, action: 'set', ... }
+    
+    State.setSelectedWaypoint(null); // Dispatches { selectedWaypointChanged: true, selectedWaypointId: null, ... }
 
-    if (State.selectedForMultiEdit.has(deletedWaypointId)) {
-        State.selectedForMultiEdit.delete(deletedWaypointId);
-        // updateMultiEditPanelVisibility(); // Sarà chiamata da updateWaypointList se necessario
+    // State.selectedForMultiEdit is a Set. Direct mutation is fine if it's not exported or if its modification is wrapped by state.js functions.
+    // Assuming selectedForMultiEdit is managed by State.removeWaypointFromMultiEdit if needed elsewhere.
+    if (State.getSelectedForMultiEdit().has(deletedWaypointId)) {
+        State.removeWaypointFromMultiEdit(deletedWaypointId); // This will dispatch its own event
     }
-    updateWaypointListDisplay(); 
-    updateFlightPathDisplay(); 
-    updateFlightStatisticsDisplay();
+    
+    // DOM.waypointControlsDiv.style.display = 'none'; // This should be handled by uiControls reacting to selectedWaypointChanged (being null)
+    // Removed updateWaypointListDisplay, updateFlightPathDisplay, updateFlightStatisticsDisplay
     showCustomAlert(_tr("alertWpDeleted"), _tr("alertSuccess"));
 }
 
-export function clearAllWaypointsLogic() { 
+// Renamed for clarity
+function executeClearAllWaypoints() {
     State.getWaypoints().forEach(wp => {
         if (wp.marker) State.getMap().removeLayer(wp.marker);
     });
-    State.setWaypoints([]); 
-    State.setSelectedWaypoint(null); 
-    State.waypointCounter = 1;
-    State.actionGroupCounter = 1; 
-    State.actionCounter = 1;
+    State.setWaypoints([]); // Dispatches { waypointsModified: true, action: 'set', count: 0 }
+    State.setSelectedWaypoint(null); // Dispatches { selectedWaypointChanged: true, selectedWaypointId: null, ... }
+    State.resetWaypointCounter(); // Dispatches its own event
+    State.resetActionGroupCounter(); // Dispatches its own event
+    State.resetActionCounter(); // Dispatches its own event
     
-    if (DOM.waypointControlsDiv) DOM.waypointControlsDiv.style.display = 'none';
-    // clearMultiSelection(); // Chiamato da uiControls
-    updateWaypointListDisplay(); 
-    updateFlightPathDisplay(); 
-    updateFlightStatisticsDisplay();
+    // DOM.waypointControlsDiv.style.display = 'none'; // uiControls handles this
+    // State.clearMultiEditSelection(); // If this is part of state.js, it dispatches its own event. If not, it should be.
+    // For now, assume clearMultiEditSelection in state.js handles events if it's a stateful operation.
+    // Or multiEditLogic listens to waypointsModified with count 0.
+    // Removed updateWaypointListDisplay, updateFlightPathDisplay, updateFlightStatisticsDisplay
 }
 
-export function deletePoiLogic(poiId) { 
+export function deletePOI(poiId) { // Renamed from deletePoiLogic to deletePOI for consistency
     const poisArray = State.getPois();
     const poiIndex = poisArray.findIndex(p => p.id === poiId);
     if (poiIndex > -1) {
         if(poisArray[poiIndex].marker) State.getMap().removeLayer(poisArray[poiIndex].marker);
-        const deletedPoiId = poisArray[poiIndex].id; 
-        poisArray.splice(poiIndex, 1); // Modifica l'array direttamente
+        const deletedPoiId = poisArray[poiIndex].id;
         
-        updatePOIListDisplay(); 
-        updateFlightStatisticsDisplay();
+        // Create a new array without the deleted POI
+        const newPois = poisArray.filter(p => p.id !== poiId);
+        State.setPois(newPois); // Dispatches { poisModified: true, action: 'set', ... }
         
-        State.getWaypoints().forEach(wp => {
-            if (wp.targetPoiId === deletedPoiId) { 
-                wp.targetPoiId = null;
-                if (State.getSelectedWaypoint() && State.getSelectedWaypoint().id === wp.id) {
-                   DOM.targetPoiForHeadingGroupDiv.style.display = 'none'; 
-                   populatePoiSelectDropdownForUI(DOM.targetPoiSelect, null, true, _tr("selectPoiDropdownDefault", "Select POI for Heading"));
-                }
+        // Check if any waypoint was targeting this POI
+        let waypointsWereModified = false;
+        const currentWaypoints = State.getWaypoints();
+        currentWaypoints.forEach(wp => {
+            if (wp.targetPoiId === deletedPoiId) {
+                wp.targetPoiId = null; // Modify waypoint property directly
+                waypointsWereModified = true;
+                // Dispatch an event for this specific waypoint update if granular updates are needed
+                // State.dispatchStateChangeEvent({ waypointsModified: true, action: 'update_internal', waypointUpdated: wp.id });
             }
         });
-        // Aggiorna i select dei POI
-        populatePoiSelectDropdownForUI(DOM.targetPoiSelect, State.getSelectedWaypoint() ? State.getSelectedWaypoint().targetPoiId : null, true, _tr("selectPoiDropdownDefault", "Select POI for Heading"));
-        populatePoiSelectDropdownForUI(DOM.multiTargetPoiSelect, null, true, _tr("selectPoiDropdownDefault", "Select POI for all"));
-        populatePoiSelectDropdownForUI(DOM.orbitPoiSelectEl, null, false);
-
-        updateWaypointListDisplay();
+        if (waypointsWereModified) {
+            // If direct modification of waypoints array elements happened,
+            // and these changes need to be broadly communicated for UI refresh (e.g. waypoint list showing target POI),
+            // then we should signal that waypoints were modified.
+            // A "soft" setWaypoints can do this, or a more specific event.
+            State.setWaypoints([...currentWaypoints]); // Re-set with a new array reference to ensure change is detected if === is used by listeners
+        }
+        // UI updates for POI lists and dependent dropdowns are handled by uiControls listening to 'poisModified'.
+        // UI updates for waypoint list (if it shows target POI) are handled by uiControls listening to 'waypointsModified'.
     }
 }
 
 
-export function handlePathClick(e) { // Logica per inserire waypoint cliccando sul percorso
-    const clickedLatLng = e.latlng; 
-    const currentWaypoints = State.getWaypoints();
+export function handlePathClick(e) {
+    const clickedLatLng = e.latlng;
+    const currentWaypoints = State.getWaypoints(); // Get a mutable reference if splice is used.
+                                                // If State.getWaypoints() returns a copy, this won't work as expected for splice.
+                                                // Assuming it returns a direct reference for now.
     if (currentWaypoints.length < 2) return;
 
     let closestSegmentIndex = -1;
@@ -241,45 +244,79 @@ export function handlePathClick(e) { // Logica per inserire waypoint cliccando s
     if (closestSegmentIndex !== -1) {
         const alt1 = currentWaypoints[closestSegmentIndex].altitude;
         const alt2 = currentWaypoints[closestSegmentIndex + 1].altitude;
-        let newWpAltitude = alt1; 
+        let newWpAltitude = alt1;
         const distToP1 = clickedLatLng.distanceTo(currentWaypoints[closestSegmentIndex].latlng);
         const segmentLength = currentWaypoints[closestSegmentIndex].latlng.distanceTo(currentWaypoints[closestSegmentIndex+1].latlng);
         if (segmentLength > 0) {
             const ratio = distToP1 / segmentLength;
             newWpAltitude = alt1 + (alt2 - alt1) * ratio;
         }
-         newWpAltitude = Math.round(Math.max(5, newWpAltitude));
+        newWpAltitude = Math.round(Math.max(5, newWpAltitude));
 
         const newWaypointData = {
-            id: State.waypointCounter++,
-            latlng: clickedLatLng, // Usiamo il punto cliccato sulla linea
+            id: State.incrementWaypointCounter(), // Use new state function
+            latlng: clickedLatLng,
             altitude: newWpAltitude,
             hoverTime: 0,
-            gimbalPitch: parseInt(DOM.gimbalPitchSlider.value),
+            gimbalPitch: parseInt(DOM.gimbalPitchSlider.value), // Assuming DOM is accessible and relevant here
             headingControl: 'auto',
             fixedHeading: 0,
             cameraAction: 'none',
             targetPoiId: null
         };
 
-        currentWaypoints.splice(closestSegmentIndex + 1, 0, newWaypointData);
-
-        const marker = L.marker(newWaypointData.latlng, { 
-            draggable: true, 
-            icon: createWaypointIcon(newWaypointData.id, false, false) 
+        // Instead of directly splicing, create a new array if State.setWaypoints expects a new reference
+        const newWaypointsArray = [
+            ...currentWaypoints.slice(0, closestSegmentIndex + 1),
+            newWaypointData,
+            ...currentWaypoints.slice(closestSegmentIndex + 1)
+        ];
+        
+        const marker = L.marker(newWaypointData.latlng, {
+            draggable: true,
+            icon: createWaypointIcon(newWaypointData.id, false, false)
         }).addTo(State.getMap());
         marker.on('click', ev => { L.DomEvent.stopPropagation(ev); selectWaypoint(newWaypointData); });
-        marker.on('dragend', () => { 
-            newWaypointData.latlng = marker.getLatLng(); 
-            updateFlightPathDisplay(); updateFlightStatisticsDisplay(); updateWaypointListDisplay(); 
+        marker.on('dragend', () => {
+            newWaypointData.latlng = marker.getLatLng();
+            // Manually dispatch event after drag, or mapLogic handles path update based on this.
+            State.dispatchStateChangeEvent({ waypointsModified: true, action: 'update_internal', waypointUpdated: newWaypointData.id });
+            // updateFlightPathDisplay(); // Let mapLogic handle this via stateChange
+            // updateFlightStatisticsDisplay(); // Let uiControls handle this via stateChange
+            // updateWaypointListDisplay(); // Let uiControls handle this via stateChange
         });
-        marker.on('drag', () => { newWaypointData.latlng = marker.getLatLng(); updateFlightPathDisplay(); });
+        marker.on('drag', () => { 
+            newWaypointData.latlng = marker.getLatLng(); 
+            State.dispatchStateChangeEvent({ waypointDragging: true, waypointId: newWaypointData.id, newLatLng: newWaypointData.latlng });
+            // updateFlightPathDisplay(); // mapLogic should react to waypointDragging or waypointsModified
+        });
         newWaypointData.marker = marker;
         
-        updateWaypointListDisplay();
-        updateFlightPathDisplay(); 
-        updateFlightStatisticsDisplay();
-        selectWaypoint(newWaypointData); 
+        State.setWaypoints(newWaypointsArray); // This dispatches { waypointsModified: true, action: 'set', ... }
+        selectWaypoint(newWaypointData); // This dispatches { selectedWaypointChanged: true, ... }
         showCustomAlert(_tr("alertWpInserted", newWaypointData.id), _tr("alertInfo"));
     }
 }
+
+// Event handler for user actions related to waypoints
+function handleUserWaypointAction(event) {
+    if (!event.detail || !event.detail.action) return;
+
+    switch (event.detail.action) {
+        case 'deleteSelectedWaypoint':
+            executeDeleteSelectedWaypoint();
+            break;
+        case 'clearAllWaypoints':
+            executeClearAllWaypoints();
+            break;
+        // Add other waypoint-related actions here if needed
+    }
+}
+
+// Initialize event listeners when the module is loaded
+function initializeWaypointActionListeners() {
+    document.addEventListener('userAction', handleUserWaypointAction);
+    console.log("Waypoint action listeners initialized.");
+}
+
+initializeWaypointActionListeners(); // Call the setup function
