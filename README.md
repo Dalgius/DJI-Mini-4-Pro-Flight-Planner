@@ -6,7 +6,7 @@ This is a web-based Flight Planner application designed specifically for DJI dro
 
 The planner exports flight plans in various formats, including a WPML-compatible KMZ format for import into DJI drones (via file replacement procedures on the DJI Fly app) and a standard KML format for 3D visualization in Google Earth.
 
-**Live Demo (hosted on Netlify):** [https://dji-mini-4-pro-flight-planner.netlify.app/](https://dji-mini-4-pro-flight-planner.netlify.app/)
+**Live Demo (hosted on Netlify):** https://m4p-flightplanner.netlify.app/
 
 ## Main Features
 
