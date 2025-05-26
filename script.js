@@ -579,9 +579,15 @@ function updateMarkerIcon(waypoint) {
         const isSelectedSingle = selectedWaypoint && selectedWaypoint.id === waypoint.id;
         const isMultiSelected = selectedForMultiEdit.has(waypoint.id);
         waypoint.marker.setIcon(createWaypointIcon(waypoint.id, isSelectedSingle, isMultiSelected));
-        waypoint.marker.setZIndexOffset(
-            isSelectedSingle ? 1000 : (isMultiSelected ? 500 : 0)
-        );
+        
+        // Determina lo z-index basandoti sulla priorità di selezione
+        let zOffset = 0;
+        if (isSelectedSingle) {
+            zOffset = 1000;
+        } else if (isMultiSelected) {
+            zOffset = 500;
+        }
+        waypoint.marker.setZIndexOffset(zOffset);
     }
 }
 
