@@ -629,17 +629,19 @@ function deleteSelectedWaypoint() {
         map.removeLayer(selectedWaypoint.marker);
     }
     const deletedWaypointId = selectedWaypoint.id;
-    waypoints = waypoints.filter(wp => wp.id !== selectedWaypoint.id);
+    waypoints = waypoints.filter(wp => wp.id !== deletedWaypointId);
     selectedWaypoint = null;
     waypointControlsDiv.style.display = 'none';
 
+    // Rimuovi dall'insieme multi-select se presente
     if (selectedForMultiEdit.has(deletedWaypointId)) {
         selectedForMultiEdit.delete(deletedWaypointId);
-        updateMultiEditPanelVisibility(); 
     }
+
     updateWaypointList(); 
     updateFlightPath(); 
     updateFlightStatistics();
+    updateMultiEditPanelVisibility(); // Aggiorna il pannello multi-edit
     showCustomAlert("Waypoint deleted.", "Success");
 }
 
@@ -652,9 +654,10 @@ function clearWaypoints() {
     waypointCounter = 1;
     actionGroupCounter = 1; 
     actionCounter = 1;
-
+    
+    clearMultiSelection(); // Questo si occuperà di aggiornare le icone e la UI
+    
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
-    clearMultiSelection(); 
     updateWaypointList(); 
     updateFlightPath(); 
     updateFlightStatistics();
