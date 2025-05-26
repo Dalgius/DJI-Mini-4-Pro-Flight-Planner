@@ -1,9 +1,8 @@
 // js/i18n.js
 import * as DOM from './domElements.js'; 
-import * as State from './state.js'; // Necessario se aggiorni placeholder basati sullo stato
-// Rimosso l'import problematico di getCameraActionText da uiControls
-// Importiamo le funzioni di update UI per poterle richiamare dopo il cambio lingua
-import { updateWaypointListDisplay, updatePOIListDisplay } from './uiControls.js'; 
+import * as State from './state.js'; 
+// Non importiamo più funzioni di update UI direttamente qui per evitare cicli,
+// l'aggiornamento UI dopo il cambio lingua sarà gestito da main.js o uiControls.js
 
 const translations = {
     en: {
@@ -40,7 +39,7 @@ const translations = {
         fixedHeadingLabel: "Fixed Heading (°)",
         cameraActionsTitle: "📸 Camera Actions",
         cameraActionAtWaypointLabel: "Camera Action at Waypoint",
-        cameraActionNone: "No Action",
+        cameraActionNone: "No Action", // Usato anche da getCameraActionKey in utils.js
         cameraActionTakePhoto: "Take Photo",
         cameraActionStartRecord: "Start Recording",
         cameraActionStopRecord: "Stop Recording",
@@ -113,9 +112,9 @@ const translations = {
         alertApiErrorGeneric: (s) => `Elevation API Error: ${s}`,
         alertApiWarningNoData: (lat,lng) => `No elevation data available for coordinates ${lat.toFixed(4)}, ${lng.toFixed(4)} from API.`,
         alertFetchError: "Connection or parsing error during elevation request. Check console.",
-        actionLabel: "Action", // Aggiunto per UIControls
+        actionLabel: "Action",
     },
-    it: {
+    it: { // Assicurati che tutte le chiavi usate in 'en' siano presenti anche qui
         appSubtitle: "Pianificatore di Volo",
         flightSettingsTitle: "🛩️ Impostazioni di Volo",
         defaultAltitudeLabel: "Altitudine Predefinita (m) <span style=\"font-style: italic; color: #95a5a6;\">(Rel. a Decollo)</span>",
@@ -127,7 +126,7 @@ const translations = {
         selectAllWaypointsLabel: "Seleziona/Deseleziona Tutti",
         clearAllWaypointsBtn: "Cancella Tutti i Waypoint",
         waypointListPlaceholder: "Clicca sulla mappa per aggiungere waypoint",
-        multiEditTitle: "⚙️ Modifica <span id=\"selectedWaypointsCount\">0</span> Waypoint Selezionati", 
+        multiEditTitle: "⚙️ Modifica <span id=\"selectedWaypointsCount\">0</span> Waypoint Selezionati",
         multiEditNoChange: "-- Non Modificare --",
         multiEditHeadingLabel: "Nuovo Controllo Direzione",
         multiEditFixedHeadingLabel: "Nuova Direzione Fissa (°)",
@@ -222,7 +221,7 @@ const translations = {
         alertApiErrorGeneric: (s) => `Errore API Elevazione: ${s}`,
         alertApiWarningNoData: (lat,lng) => `Nessun dato di elevazione disponibile per le coordinate ${lat.toFixed(4)}, ${lng.toFixed(4)} dall'API.`,
         alertFetchError: "Errore di connessione o parsing durante la richiesta di elevazione. Controlla la console.",
-        actionLabel: "Azione", // Aggiunto per UIControls
+        actionLabel: "Azione",
     }
 };
 
@@ -254,6 +253,7 @@ export function loadLanguage() {
     if (DOM.langSelectEl) DOM.langSelectEl.value = currentLang;
 }
 
+
 export function _tr(key, params = null) { 
     let stringSet = translations[currentLang] || translations.en; 
     let string = stringSet[key] || key; 
@@ -274,20 +274,32 @@ export function applyTranslations() {
         } else if (element.placeholder && translations[currentLang] && translations[currentLang][`${key}Placeholder`]) {
             element.placeholder = _tr(`${key}Placeholder`);
         } else if ((element.tagName === 'INPUT' && element.type === 'button') || element.tagName === 'BUTTON') {
-             // Gestione speciale per il bottone satellite che cambia testo
             if (element.id === 'satelliteToggleBtn' && element.hasAttribute('data-i18n-target-text')) {
-                 // Il testo di questo bottone è gestito da toggleSatelliteView
+                 // Il testo di questo bottone è gestito da toggleSatelliteView in mapLogic.js
             } else {
                 element.value = translatedText; 
                 element.textContent = translatedText;
             }
-        } else {
+        } else if (element.tagName === 'LABEL' && element.htmlFor === 'selectAllWaypointsCheckbox') {
+            // Caso speciale per la label di "Seleziona tutti" per mantenere il checkbox
+            const checkbox = element.previousElementSibling;
+            element.textContent = translatedText;
+            if (checkbox && checkbox.type === 'checkbox') {
+                element.parentNode.insertBefore(checkbox, element); // Assicura che il checkbox rimanga prima
+            }
+        }
+        else {
             element.textContent = translatedText;
         }
     });
     
-    updateWaypointListDisplay(); 
-    updatePOIListDisplay();      
+    // Importa dinamicamente le funzioni di update UI per evitare dipendenze circolari all'inizio
+    // Questo è un po' un hack, idealmente l'aggiornamento UI dovrebbe essere più centralizzato o event-driven.
+    import('./uiControls.js').then(uiControls => {
+        uiControls.updateWaypointListDisplay(); 
+        uiControls.updatePOIListDisplay();      
+    });
+
 
     if (DOM.pathTypeSelect) {
         DOM.pathTypeSelect.options[0].textContent = _tr("pathTypeStraight");
@@ -317,8 +329,7 @@ export function applyTranslations() {
         DOM.multiCameraActionSelect.options[3].textContent = _tr("cameraActionStartRecord");
         DOM.multiCameraActionSelect.options[4].textContent = _tr("cameraActionStopRecord");
     }
-     // Aggiorna il testo del bottone satellite se è già stato inizializzato
-    if (DOM.satelliteToggleBtn) {
+    if (DOM.satelliteToggleBtn) { // Aggiorna testo bottone satellite
         DOM.satelliteToggleBtn.innerHTML = State.satelliteView ? _tr("mapBtnMap") : _tr("mapBtnSatellite");
     }
 }
