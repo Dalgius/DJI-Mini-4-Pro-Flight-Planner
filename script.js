@@ -491,12 +491,53 @@ function addWaypoint(latlng) {
     updateWaypointList(); updateFlightPath(); updateFlightStatistics(); selectWaypoint(waypoint);
 }
 
-function createWaypointIcon(id, isSelected) { 
-    const bgColor = isSelected ? '#e74c3c' : '#3498db';
+// Modifichiamo createWaypointIcon
+function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false) { // Aggiunto isMultiSelected
+    let bgColor = '#3498db'; // Default (blu)
+    let zIndexOffset = 0;
+    let scale = 1;
+    let border = '2px solid white';
+
+    if (isMultiSelected) {
+        bgColor = '#f39c12'; // Arancione per multi-selezione
+        zIndexOffset = 500;    // Un po' sopra il normale, sotto il singolo selezionato
+        scale = 1.1;
+        border = '2px solid #ffeb3b'; // Giallo brillante per il bordo
+    }
+    if (isSelectedSingle && !isMultiSelected) { // Solo se è selezionato singolo E NON multi-selezionato
+        bgColor = '#e74c3c'; // Rosso per selezione singola
+        zIndexOffset = 1000;   // Davanti a tutto
+        scale = 1.2;
+        border = '2px solid white';
+    }
+    
+    // Se un elemento è sia selezionato singolarmente CHE per multi-edit,
+    // potremmo dare priorità allo stile di multi-selezione o a quello singolo.
+    // Al momento, se isMultiSelected è true, quello stile ha la precedenza per il colore.
+    // Potremmo anche combinare gli stili o avere uno stile dedicato "selezionato singolo E multi".
+    // Per ora, lasciamo che multi-selezione (arancione) sovrascriva il rosso.
+    // O meglio, facciamo che il rosso (selezione singola attiva) abbia la precedenza sull'arancione.
+    if (isSelectedSingle) { // Se è il waypoint attivo per la modifica singola
+         bgColor = '#e74c3c'; 
+         zIndexOffset = 1000;  
+         scale = 1.2;
+         border = '2px solid white';
+         if (isMultiSelected) { // Se è ANCHE parte della selezione multipla, aggiungi un dettaglio
+             border = '2px solid #f39c12'; // Bordo arancione per indicare entrambe le selezioni
+         }
+    } else if (isMultiSelected) { // Altrimenti, se è solo multi-selezionato
+        bgColor = '#f39c12'; 
+        zIndexOffset = 500;   
+        scale = 1.1;
+        border = '2px solid #ffeb3b';
+    }
+
+
     return L.divIcon({
-        className: `waypoint-marker ${isSelected ? 'selected' : ''}`,
-        html: `<div style="background: ${bgColor}; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${id}</div>`,
-        iconSize: [24, 24], iconAnchor: [12, 12]
+        className: `waypoint-marker ${isSelectedSingle ? 'selected-single' : ''} ${isMultiSelected ? 'selected-multi' : ''}`,
+        html: `<div style="background: ${bgColor}; color: white; border-radius: 50%; width: ${24 * scale}px; height: ${24 * scale}px; display: flex; align-items: center; justify-content: center; font-size: ${12 * scale}px; font-weight: bold; border: ${border}; box-shadow: 0 2px 4px rgba(0,0,0,0.3); transform: scale(${scale}); transition: transform 0.1s ease-out;">${id}</div>`,
+        iconSize: [24 * scale, 24 * scale],
+        iconAnchor: [12 * scale, 12 * scale]
     });
 }
 
@@ -527,19 +568,35 @@ function addPOI(latlng) {
     poiNameInput.value = '';
 }
 
-function selectWaypoint(waypoint) { 
-    clearMultiSelection(); 
-
-    if (selectedWaypoint && selectedWaypoint.marker) {
-        selectedWaypoint.marker.setIcon(createWaypointIcon(selectedWaypoint.id, false));
-        selectedWaypoint.marker.setZIndexOffset(0);
+// Funzione helper per aggiornare l'icona di un singolo marker
+function updateMarkerIcon(waypoint) {
+    if (waypoint && waypoint.marker) {
+        const isSelectedSingle = selectedWaypoint && selectedWaypoint.id === waypoint.id;
+        const isMultiSelected = selectedForMultiEdit.has(waypoint.id);
+        waypoint.marker.setIcon(createWaypointIcon(waypoint.id, isSelectedSingle, isMultiSelected));
+        waypoint.marker.setZIndexOffset(
+            isSelectedSingle ? 1000 : (isMultiSelected ? 500 : 0)
+        );
     }
+}
+
+function selectWaypoint(waypoint) {
+    const previouslySelectedSingle = selectedWaypoint; // Salva il riferimento al precedente
+    clearMultiSelection(); // Questo già chiama updateWaypointList -> updateMarkerIcon per i multi-selezionati
+
+    if (previouslySelectedSingle && previouslySelectedSingle.id !== waypoint.id) {
+        updateMarkerIcon(previouslySelectedSingle); // Ripristina l'icona del precedente
+    }
+    
     selectedWaypoint = waypoint;
-    if (selectedWaypoint && selectedWaypoint.marker) {
-        selectedWaypoint.marker.setIcon(createWaypointIcon(selectedWaypoint.id, true));
-        selectedWaypoint.marker.setZIndexOffset(1000);
-    }
+    
+    // Aggiorna tutti i marker (questo assicura che solo quello corrente sia "rosso")
+    waypoints.forEach(wp => updateMarkerIcon(wp)); 
+    // Nello specifico, la riga sopra assicura che se c'era un selectedWaypoint,
+    // e poi si clicca su un altro, il precedente torna normale.
+    // E quello nuovo diventa rosso.
 
+    // ... (resto della logica di selectWaypoint per aggiornare i controlli della sidebar) ...
     waypointAltitudeSlider.value = selectedWaypoint.altitude;
     waypointAltitudeValueEl.textContent = selectedWaypoint.altitude + 'm';
     hoverTimeSlider.value = selectedWaypoint.hoverTime;
@@ -550,7 +607,7 @@ function selectWaypoint(waypoint) {
     fixedHeadingSlider.value = selectedWaypoint.fixedHeading;
     fixedHeadingValueEl.textContent = selectedWaypoint.fixedHeading + '°';
     cameraActionSelect.value = selectedWaypoint.cameraAction || 'none'; 
-
+    
     fixedHeadingGroupDiv.style.display = selectedWaypoint.headingControl === 'fixed' ? 'block' : 'none';
     const showPoiSelect = selectedWaypoint.headingControl === 'poi_track';
     targetPoiForHeadingGroupDiv.style.display = showPoiSelect ? 'block' : 'none';
@@ -559,8 +616,8 @@ function selectWaypoint(waypoint) {
     }
 
     waypointControlsDiv.style.display = 'block';
-    updateWaypointList(); 
-    map.panTo(selectedWaypoint.latlng);
+    updateWaypointList(); // Questo già ridisegna la lista
+    if(selectedWaypoint.marker) map.panTo(selectedWaypoint.latlng);
 }
 
 function deleteSelectedWaypoint() { 
@@ -688,31 +745,52 @@ function handleWaypointListClick(wpId){
     if(wp) selectWaypoint(wp); 
 }
 
-function toggleMultiSelectWaypoint(waypointId, isChecked) { 
+function toggleMultiSelectWaypoint(waypointId, isChecked) {
+    const waypoint = waypoints.find(wp => wp.id === waypointId);
+    if (!waypoint) return;
+
     if (isChecked) {
         selectedForMultiEdit.add(waypointId);
     } else {
         selectedForMultiEdit.delete(waypointId);
     }
+    
+    updateMarkerIcon(waypoint); // Aggiorna l'icona del marker specifico
+    
+    // Se il waypoint (de)selezionato per multi-edit era anche il 'selectedWaypoint' per modifica singola,
+    // dobbiamo aggiornare anche lui per riflettere lo stato combinato o singolo.
+    if (selectedWaypoint && selectedWaypoint.id === waypointId) {
+        updateMarkerIcon(selectedWaypoint);
+    }
+
+
     const allWaypointsSelected = waypoints.length > 0 && waypoints.every(wp => selectedForMultiEdit.has(wp.id));
     selectAllWaypointsCheckboxEl.checked = allWaypointsSelected;
-
+    
     updateWaypointList(); 
     updateMultiEditPanelVisibility();
 }
 
-function toggleSelectAllWaypoints(isChecked) { 
+function toggleSelectAllWaypoints(isChecked) {
     selectedForMultiEdit.clear();
     if (isChecked) {
         waypoints.forEach(wp => selectedForMultiEdit.add(wp.id));
     }
+    waypoints.forEach(wp => updateMarkerIcon(wp)); // Aggiorna tutte le icone dei marker
     updateWaypointList();
     updateMultiEditPanelVisibility();
 }
 
-function clearMultiSelection() { 
+function clearMultiSelection() {
+    const previouslyMultiSelectedIds = new Set(selectedForMultiEdit); // Copia gli ID prima di pulire
     selectedForMultiEdit.clear();
     selectAllWaypointsCheckboxEl.checked = false;
+    
+    previouslyMultiSelectedIds.forEach(id => {
+        const waypoint = waypoints.find(wp => wp.id === id);
+        updateMarkerIcon(waypoint); // Ripristina l'icona di quelli precedentemente multi-selezionati
+    });
+
     updateWaypointList(); 
     updateMultiEditPanelVisibility();
 }
