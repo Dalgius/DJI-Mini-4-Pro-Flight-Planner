@@ -492,52 +492,57 @@ function addWaypoint(latlng) {
 }
 
 // Modifichiamo createWaypointIcon
-function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false) { // Aggiunto isMultiSelected
+// SOSTITUISCI LA TUA FUNZIONE createWaypointIcon ESISTENTE CON QUESTA:
+function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false) {
     let bgColor = '#3498db'; // Default (blu)
     let zIndexOffset = 0;
-    let scale = 1;
-    let border = '2px solid white';
+    let scaleFactor = 1.0; // Fattore di scala per dimensione e font
+    let borderStyle = '2px solid white';
+    let classNameSuffix = '';
 
-    if (isMultiSelected) {
-        bgColor = '#f39c12'; // Arancione per multi-selezione
-        zIndexOffset = 500;    // Un po' sopra il normale, sotto il singolo selezionato
-        scale = 1.1;
-        border = '2px solid #ffeb3b'; // Giallo brillante per il bordo
-    }
-    if (isSelectedSingle && !isMultiSelected) { // Solo se è selezionato singolo E NON multi-selezionato
-        bgColor = '#e74c3c'; // Rosso per selezione singola
-        zIndexOffset = 1000;   // Davanti a tutto
-        scale = 1.2;
-        border = '2px solid white';
-    }
-    
-    // Se un elemento è sia selezionato singolarmente CHE per multi-edit,
-    // potremmo dare priorità allo stile di multi-selezione o a quello singolo.
-    // Al momento, se isMultiSelected è true, quello stile ha la precedenza per il colore.
-    // Potremmo anche combinare gli stili o avere uno stile dedicato "selezionato singolo E multi".
-    // Per ora, lasciamo che multi-selezione (arancione) sovrascriva il rosso.
-    // O meglio, facciamo che il rosso (selezione singola attiva) abbia la precedenza sull'arancione.
     if (isSelectedSingle) { // Se è il waypoint attivo per la modifica singola
-         bgColor = '#e74c3c'; 
-         zIndexOffset = 1000;  
-         scale = 1.2;
-         border = '2px solid white';
-         if (isMultiSelected) { // Se è ANCHE parte della selezione multipla, aggiungi un dettaglio
-             border = '2px solid #f39c12'; // Bordo arancione per indicare entrambe le selezioni
-         }
-    } else if (isMultiSelected) { // Altrimenti, se è solo multi-selezionato
-        bgColor = '#f39c12'; 
-        zIndexOffset = 500;   
-        scale = 1.1;
-        border = '2px solid #ffeb3b';
+        bgColor = '#e74c3c'; // Rosso
+        zIndexOffset = 1000;  // Più in alto
+        scaleFactor = 1.2;   // Più grande
+        classNameSuffix = 'selected-single';
+        if (isMultiSelected) { // Se è ANCHE parte della selezione multipla
+            // Potremmo voler uno stile che combina i due, es. bordo diverso
+            borderStyle = '3px solid #f39c12'; // Bordo arancione più spesso per indicare entrambe
+            // Oppure, se vuoi che multi-selezione abbia priorità visiva quando anche selezionato singolarmente:
+            // bgColor = '#f39c12'; 
+        }
+    } else if (isMultiSelected) { // Altrimenti, se è solo multi-selezionato (non è il current selectedWaypoint)
+        bgColor = '#f39c12'; // Arancione
+        zIndexOffset = 500;   // Tra normale e selezionato singolo
+        scaleFactor = 1.1;   // Leggermente più grande
+        borderStyle = '2px solid #ffeb3b'; // Bordo giallo
+        classNameSuffix = 'selected-multi';
     }
 
+    const size = 24 * scaleFactor;
+    const fontSize = 12 * scaleFactor;
 
     return L.divIcon({
-        className: `waypoint-marker ${isSelectedSingle ? 'selected-single' : ''} ${isMultiSelected ? 'selected-multi' : ''}`,
-        html: `<div style="background: ${bgColor}; color: white; border-radius: 50%; width: ${24 * scale}px; height: ${24 * scale}px; display: flex; align-items: center; justify-content: center; font-size: ${12 * scale}px; font-weight: bold; border: ${border}; box-shadow: 0 2px 4px rgba(0,0,0,0.3); transform: scale(${scale}); transition: transform 0.1s ease-out;">${id}</div>`,
-        iconSize: [24 * scale, 24 * scale],
-        iconAnchor: [12 * scale, 12 * scale]
+        className: `waypoint-marker ${classNameSuffix}`, // Aggiungi classi per stili CSS se necessario
+        html: `<div style="
+                    background: ${bgColor}; 
+                    color: white; 
+                    border-radius: 50%; 
+                    width: ${size}px; 
+                    height: ${size}px; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    font-size: ${fontSize.toFixed(0)}px; 
+                    font-weight: bold; 
+                    border: ${borderStyle}; 
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.3); 
+                    transform: scale(1); /* La scala è già applicata a width/height */
+                    transition: all 0.1s ease-out;
+                ">${id}</div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        popupAnchor: [0, -size / 2] // Aggiustamento per il popup se necessario
     });
 }
 
