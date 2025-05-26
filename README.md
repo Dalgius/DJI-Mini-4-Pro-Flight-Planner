@@ -7,7 +7,6 @@ Questo è un'applicazione web Flight Planner progettata specificamente per droni
 Il planner esporta i piani di volo in diversi formati, incluso un formato KMZ compatibile con WPML per l'importazione su droni DJI (tramite procedure di sostituzione file sull'app DJI Fly) e un formato KML standard per la visualizzazione 3D su Google Earth.
 
 **Demo Live (ospitata su Netlify):** [https://dji-mini-4-pro-flight-planner.netlify.app/](https://dji-mini-4-pro-flight-planner.netlify.app/)
-*(Assicurati di sostituire questo URL con quello effettivo del tuo deploy Netlify se è diverso)*
 
 ## Funzionalità Principali
 
