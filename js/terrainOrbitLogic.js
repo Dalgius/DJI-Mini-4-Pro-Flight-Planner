@@ -2,10 +2,12 @@
 import * as DOM from './domElements.js';
 import * as State from './state.js';
 import { PROXY_URL } from './config.js';
-// Importa le funzioni necessarie da waypointPOILogic (assumendo che addWaypoint, selectWaypoint, fitMapToWaypoints siano esportate da lì)
-import { addWaypoint as addWp, selectWaypoint as selectWp, fitMapToWaypoints as fitMap } from './waypointPOILogic.js';
-import { populatePoiSelectDropdownForUI } from './uiControls.js'; // Se showOrbitDialog la usa direttamente
-import { showCustomAlert, _tr } from './utils.js';
+// Importa le funzioni necessarie dai moduli corretti
+import { addWaypoint as addWp, selectWaypoint as selectWp } from './waypointPOILogic.js'; // Rinominate per evitare conflitti
+import { fitMapToWaypoints as fitMap } from './mapLogic.js'; // Importa fitMapToWaypoints
+import { populatePoiSelectDropdownForUI } from './uiControls.js'; 
+import { showCustomAlert } from './utils.js'; // showCustomAlert è in utils.js
+import { _tr } from './i18n.js';         // _tr è in i18n.js
 
 
 export async function getElevationsBatch(locationsArray) { 
@@ -62,7 +64,7 @@ export async function getElevationsBatch(locationsArray) {
 
 export async function getHomeElevationFromFirstWaypoint() {
     if (State.getWaypoints().length === 0) {
-        showCustomAlert(_tr("alertNoWpForAGL", "Add at least one waypoint to estimate takeoff point elevation."), _tr("alertInfo"));
+        showCustomAlert(_tr("alertNoWpForAGL"), _tr("alertInfo")); // Passa stringhe tradotte
         return;
     }
     DOM.loadingOverlayEl.style.display = 'flex';
