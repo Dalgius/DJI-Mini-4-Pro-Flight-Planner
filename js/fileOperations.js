@@ -7,9 +7,9 @@ import { updateFlightPathDisplay, fitMapToWaypoints as fitMap } from './mapLogic
 import { 
     selectWaypoint as selectWp, 
     clearAllWaypointsLogic, 
-    addWaypointFromFile, // Funzione specifica per l'import
-    addPoiFromFile,      // Funzione specifica per l'import
-    createWaypointIcon   // Potrebbe servire per l'import se ricrei i marker
+    addWaypointFromFile, // Assumendo che questa sia esportata correttamente
+    addPOI,              // <<<< MODIFICA QUI: Importa addPOI
+    createWaypointIcon
 } from './waypointPOILogic.js'; 
 import { showCustomAlert, getCameraActionKey, haversineDistance } from './utils.js'; // Importa getCameraActionKey
 import { _tr } from './i18n.js'; // <<<<<< IMPORT CORRETTO PER _TR
@@ -51,7 +51,8 @@ export function loadFlightPlanData(plan) {
 
     if (plan.pois) {
         plan.pois.forEach(pData => {
-            addPoiFromFile(L.latLng(pData.lat, pData.lng), pData.name, pData.id, pData.altitude);
+            // Chiama direttamente addPOI, che è progettata per gestire i parametri opzionali
+            addPOI(L.latLng(pData.lat, pData.lng), pData.name, pData.id, pData.altitude);
         });
     }
     if (plan.waypoints) {
