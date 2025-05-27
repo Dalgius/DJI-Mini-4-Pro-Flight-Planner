@@ -1,16 +1,44 @@
 // js/uiControls.js
 import * as DOM from './domElements.js';
 import * as State from './state.js';
-import { _tr, getCameraActionText } from './utils.js'; // Importa _tr e getCameraActionText
-import { selectWaypoint as logicSelectWaypoint, deletePOI as logicDeletePOI } from './waypointPOILogic.js'; // Per handleWaypointListClick e il pulsante delete POI nella lista
-import { toggleMultiSelectWaypoint as logicToggleMultiSelectWaypoint, toggleSelectAllWaypoints as logicToggleSelectAllWaypoints, clearMultiSelection as logicClearMultiSelection, applyMultiEdit as logicApplyMultiEdit, updateMultiEditPanelVisibility as logicUpdateMultiEditPanel } from './multiEditLogic.js';
-import { populatePoiSelectDropdown } from './waypointPOILogic.js'; // Corretto: populatePoiSelectDropdown è in waypointPOILogic ora se la usi lì, o la centralizziamo
+import { _tr } from './i18n.js'; // Importa _tr da i18n.js
+import { getCameraActionKey, showCustomAlert, haversineDistance } from './utils.js'; // Importa getCameraActionKey da utils
+import { 
+    selectWaypoint as logicSelectWaypoint, 
+    deletePOI as logicDeletePOI 
+} from './waypointPOILogic.js';
+import { 
+    toggleMultiSelectWaypoint as logicToggleMultiSelectWaypoint, 
+    toggleSelectAllWaypoints as logicToggleSelectAllWaypoints, 
+    clearMultiSelection as logicClearMultiSelection, 
+    applyMultiEdit as logicApplyMultiEdit, 
+    updateMultiEditPanelVisibility as logicUpdateMultiEditPanel 
+} from './multiEditLogic.js';
+import { 
+    getHomeElevationFromFirstWaypoint as logicGetHomeElevation, 
+    adaptAltitudesToAGL as logicAdaptAGL, 
+    showOrbitDialog as logicShowOrbit, 
+    handleConfirmOrbit as logicHandleConfirmOrbit 
+} from './terrainOrbitLogic.js';
+import { 
+    triggerImport as logicTriggerImport, 
+    handleFileImport, 
+    exportFlightPlan as logicExportJson, 
+    exportToDjiWpmlKmz as logicExportKmz, 
+    exportToGoogleEarth as logicExportKml 
+} from './fileOperations.js';
+import { 
+    toggleSatelliteView as logicToggleSatellite, 
+    fitMapToWaypoints as logicFitMap, 
+    showCurrentLocation as logicShowLocation, 
+    updateFlightPathDisplay 
+} from './mapLogic.js';
 
-// Funzione per popolare i dropdown dei POI, potrebbe stare in utils.js o qui se specifica per UI
+
 export function populatePoiSelectDropdownForUI(selectElement, selectedPoiId = null, addDefaultOption = true, defaultOptionTextKey = "selectPoiDropdownDefault") {
     if (!selectElement) return;
     const defaultText = _tr(defaultOptionTextKey);
-    selectElement.innerHTML = ''; 
+    selectElement.innerHTML = '';
     if (addDefaultOption) {
         const defaultOpt = document.createElement('option');
         defaultOpt.value = "";
@@ -18,12 +46,12 @@ export function populatePoiSelectDropdownForUI(selectElement, selectedPoiId = nu
         selectElement.appendChild(defaultOpt);
     }
     if (State.getPois().length === 0) {
-         selectElement.disabled = true;
-         if(addDefaultOption && selectElement.options[0]) selectElement.options[0].textContent = _tr("noPoisAvailableDropdown");
-         return;
+        selectElement.disabled = true;
+        if (addDefaultOption && selectElement.options[0]) selectElement.options[0].textContent = _tr("noPoisAvailableDropdown");
+        return;
     }
     selectElement.disabled = false;
-    if(addDefaultOption && selectElement.options[0] && selectElement.options[0].textContent === _tr("noPoisAvailableDropdown") ) {
+    if (addDefaultOption && selectElement.options[0] && selectElement.options[0].textContent === _tr("noPoisAvailableDropdown")) {
         selectElement.options[0].textContent = defaultText;
     }
 
@@ -31,13 +59,12 @@ export function populatePoiSelectDropdownForUI(selectElement, selectedPoiId = nu
         const option = document.createElement('option');
         option.value = poi.id;
         option.textContent = `${poi.name} (ID: ${poi.id})`;
-        if (selectedPoiId != null && poi.id === parseInt(selectedPoiId)) { 
+        if (selectedPoiId != null && poi.id === parseInt(selectedPoiId)) {
             option.selected = true;
         }
         selectElement.appendChild(option);
     });
 }
-
 
 export function setupAllEventListeners() {
     // Flight Settings
@@ -46,8 +73,7 @@ export function setupAllEventListeners() {
         DOM.flightSpeedValueEl.textContent = DOM.flightSpeedSlider.value + ' m/s';
         updateFlightStatisticsDisplay();
     });
-    DOM.pathTypeSelect.addEventListener('change', () => import('./mapLogic.js').then(mapLogic => mapLogic.updateFlightPathDisplay()));
-
+    DOM.pathTypeSelect.addEventListener('change', updateFlightPathDisplay);
 
     // Selected Waypoint Controls
     DOM.waypointAltitudeSlider.addEventListener('input', () => {
@@ -79,7 +105,7 @@ export function setupAllEventListeners() {
         DOM.targetPoiForHeadingGroupDiv.style.display = this.value === 'poi_track' ? 'block' : 'none';
         State.getSelectedWaypoint().headingControl = this.value;
         if (this.value === 'poi_track') {
-            populatePoiSelectDropdownForUI(DOM.targetPoiSelect, State.getSelectedWaypoint().targetPoiId, true, _tr("selectPoiDropdownDefault", "Select POI for Heading"));
+            populatePoiSelectDropdownForUI(DOM.targetPoiSelect, State.getSelectedWaypoint().targetPoiId, true, "selectPoiDropdownDefault");
         } else {
             State.getSelectedWaypoint().targetPoiId = null; 
         }
@@ -99,13 +125,14 @@ export function setupAllEventListeners() {
     });
     DOM.deleteSelectedWaypointBtn.addEventListener('click', () => import('./waypointPOILogic.js').then(mod => mod.deleteSelectedWaypointLogic()));
 
+
     // Multi-Waypoint Edit Controls
     DOM.selectAllWaypointsCheckboxEl.addEventListener('change', (e) => logicToggleSelectAllWaypoints(e.target.checked));
     DOM.multiHeadingControlSelect.addEventListener('change', function() {
         DOM.multiFixedHeadingGroupDiv.style.display = this.value === 'fixed' ? 'block' : 'none';
         DOM.multiTargetPoiForHeadingGroupDiv.style.display = this.value === 'poi_track' ? 'block' : 'none';
         if (this.value === 'poi_track') {
-            populatePoiSelectDropdownForUI(DOM.multiTargetPoiSelect, null, true, _tr("selectPoiDropdownDefault", "Select POI for all"));
+            populatePoiSelectDropdownForUI(DOM.multiTargetPoiSelect, null, true, "selectPoiDropdownDefault");
         }
     });
     DOM.multiFixedHeadingSlider.addEventListener('input', function() { DOM.multiFixedHeadingValueEl.textContent = this.value + '°'; });
@@ -126,52 +153,56 @@ export function setupAllEventListeners() {
 
     // Sidebar Buttons
     DOM.clearWaypointsBtn.addEventListener('click', () => import('./waypointPOILogic.js').then(mod => mod.clearAllWaypointsLogic()));
-    DOM.getHomeElevationBtn.addEventListener('click', () => import('./terrainOrbitLogic.js').then(mod => mod.getHomeElevationFromFirstWaypoint()));
-    DOM.adaptToAGLBtnEl.addEventListener('click', () => import('./terrainOrbitLogic.js').then(mod => mod.adaptAltitudesToAGL()));
-    DOM.createOrbitBtn.addEventListener('click', () => import('./terrainOrbitLogic.js').then(mod => mod.showOrbitDialog()));
+    DOM.getHomeElevationBtn.addEventListener('click', logicGetHomeElevation);
+    DOM.adaptToAGLBtnEl.addEventListener('click', logicAdaptAGL);
+    DOM.createOrbitBtn.addEventListener('click', logicShowOrbit);
     
-    DOM.importJsonBtn.addEventListener('click', () => import('./fileOperations.js').then(mod => mod.triggerImport()));
-    DOM.exportJsonBtn.addEventListener('click', () => import('./fileOperations.js').then(mod => mod.exportFlightPlan()));
-    DOM.exportKmzBtn.addEventListener('click', () => import('./fileOperations.js').then(mod => mod.exportToDjiWpmlKmz()));
-    DOM.exportGoogleEarthBtn.addEventListener('click', () => import('./fileOperations.js').then(mod => mod.exportToGoogleEarth()));
+    DOM.importJsonBtn.addEventListener('click', logicTriggerImport);
+    DOM.exportJsonBtn.addEventListener('click', logicExportJson);
+    DOM.exportKmzBtn.addEventListener('click', logicExportKmz);
+    DOM.exportGoogleEarthBtn.addEventListener('click', logicExportKml);
     
-    document.getElementById('fileInput').addEventListener('change', (event) => import('./fileOperations.js').then(mod => mod.handleFileImport(event)));
+    document.getElementById('fileInput').addEventListener('change', handleFileImport);
 
     // Map Buttons
-    DOM.satelliteToggleBtn.addEventListener('click', () => import('./mapLogic.js').then(mod => mod.toggleSatelliteView()));
-    DOM.fitMapBtn.addEventListener('click', () => import('./mapLogic.js').then(mod => mod.fitMapToWaypoints()));
-    DOM.myLocationBtn.addEventListener('click', () => import('./mapLogic.js').then(mod => mod.showCurrentLocation()));
+    DOM.satelliteToggleBtn.addEventListener('click', logicToggleSatellite);
+    DOM.fitMapBtn.addEventListener('click', logicFitMap);
+    DOM.myLocationBtn.addEventListener('click', logicShowLocation);
 
     // Custom Modals
     if(DOM.customAlertOkButtonEl) DOM.customAlertOkButtonEl.addEventListener('click', () => {
         if(DOM.customAlertOverlayEl) DOM.customAlertOverlayEl.style.display = 'none';
     });
-    if(DOM.confirmOrbitBtnEl) DOM.confirmOrbitBtnEl.addEventListener('click', () => import('./terrainOrbitLogic.js').then(mod => mod.handleConfirmOrbit()));
+    if(DOM.confirmOrbitBtnEl) DOM.confirmOrbitBtnEl.addEventListener('click', logicHandleConfirmOrbit);
     if(DOM.cancelOrbitBtnEl) DOM.cancelOrbitBtnEl.addEventListener('click', () => {
        if(DOM.orbitModalOverlayEl) DOM.orbitModalOverlayEl.style.display = 'none';
     });
     if(DOM.langSelectEl) DOM.langSelectEl.addEventListener('change', (event) => import('./i18n.js').then(mod => mod.setLanguage(event.target.value)));
 }
 
+
 export function updateWaypointListDisplay() {
+    if (!DOM.waypointListEl || !DOM.selectAllWaypointsCheckboxEl) return; 
+
     if (State.getWaypoints().length === 0) {
         DOM.waypointListEl.innerHTML = `<div style="text-align: center; color: #95a5a6; font-size: 12px; padding: 20px;">${_tr("waypointListPlaceholder")}</div>`;
         DOM.selectAllWaypointsCheckboxEl.checked = false;
         DOM.selectAllWaypointsCheckboxEl.disabled = true;
-        // logicUpdateMultiEditPanel(); // Chiamato da chi chiama questa funzione o da toggle
+        if (State.selectedForMultiEdit.size === 0) logicUpdateMultiEditPanel(); 
         return;
     }
     DOM.selectAllWaypointsCheckboxEl.disabled = false;
 
     DOM.waypointListEl.innerHTML = State.getWaypoints().map(wp => {
-        let actionText = utilGetCameraActionText(wp.cameraAction); // Usa la funzione importata rinominata
+        let actionKey = getCameraActionKey(wp.cameraAction); 
+        let actionText = _tr(actionKey); 
         let hoverText = wp.hoverTime > 0 ? ` | Hover: ${wp.hoverTime}s` : '';
         let poiTargetText = '';
         if (wp.headingControl === 'poi_track' && wp.targetPoiId != null) {
             const target = State.getPois().find(p => p.id === wp.targetPoiId);
             poiTargetText = target ? ` | Target: ${target.name}` : ` | Target: POI ID ${wp.targetPoiId} (not found)`;
         }
-        let actionInfo = actionText ? `<div class="waypoint-action-info">${_tr("actionLabel")}: ${actionText}${poiTargetText}</div>` : (poiTargetText ? `<div class="waypoint-action-info">${poiTargetText.substring(3)}</div>` : '');
+        let actionInfo = actionText !== _tr('cameraActionNone') ? `<div class="waypoint-action-info">${_tr("actionLabel")}: ${actionText}${poiTargetText}</div>` : (poiTargetText ? `<div class="waypoint-action-info">${poiTargetText.substring(3)}</div>` : '');
 
 
         const isSelectedForMulti = State.selectedForMultiEdit.has(wp.id);
@@ -181,9 +212,6 @@ export function updateWaypointListDisplay() {
         }
         if (isSelectedForMulti) itemClasses += " multi-selected-item";
 
-        // Nota: l'onclick qui chiama una funzione definita globalmente o una importata e riesportata.
-        // Per una modularizzazione più spinta, l'event listener andrebbe aggiunto dinamicamente qui.
-        // Ma per ora, lasciamo l'onclick inline e assicuriamoci che handleWaypointListClick sia globale.
         return `
         <div class="${itemClasses}" data-wp-id="${wp.id}">
             <div style="display: flex; align-items: center;">
@@ -199,19 +227,19 @@ export function updateWaypointListDisplay() {
         </div>`;
     }).join('');
 
-    // Aggiungi event listener dinamicamente agli item della lista e ai checkbox
     DOM.waypointListEl.querySelectorAll('.waypoint-item').forEach(item => {
-        item.addEventListener('click', () => logicSelectWaypoint(State.getWaypoints().find(w => w.id === parseInt(item.dataset.wpId))) );
+        item.addEventListener('click', () => {
+            const wpId = parseInt(item.dataset.wpId);
+            logicSelectWaypoint(State.getWaypoints().find(w => w.id === wpId));
+        });
     });
     DOM.waypointListEl.querySelectorAll('.waypoint-multi-select-cb').forEach(cb => {
         cb.addEventListener('change', (e) => logicToggleMultiSelectWaypoint(parseInt(e.target.dataset.id), e.target.checked));
-        cb.addEventListener('click', (e) => e.stopPropagation()); // Evita che il click sul checkbox selezioni l'item
+        cb.addEventListener('click', (e) => e.stopPropagation());
     });
-
 
     if(State.getWaypoints().length === 0 && State.selectedForMultiEdit.size === 0) logicUpdateMultiEditPanel();
 }
-
 
 export function updatePOIListDisplay() { 
     const noPoiAvailableTextKey = "noPoisAvailableDropdown";
@@ -237,13 +265,12 @@ export function updatePOIListDisplay() {
     if (DOM.multiTargetPoiSelect) DOM.multiTargetPoiSelect.disabled = false;
     if (DOM.orbitPoiSelectEl) DOM.orbitPoiSelectEl.disabled = false;
 
+
     DOM.poiListEl.innerHTML = State.getPois().map(poi => `
-        <div class="poi-item">
-            <span class="poi-name">${poi.name} (ID: ${poi.id})</span>
-            <button class="poi-delete" data-poi-id="${poi.id}">✕</button>
+        <div class="poi-item"><span class="poi-name">${poi.name} (ID: ${poi.id})</span>
+        <button class="poi-delete" data-poi-id="${poi.id}">✕</button>
         </div>`).join('');
     
-    // Aggiungi listener ai nuovi pulsanti delete dei POI
     DOM.poiListEl.querySelectorAll('.poi-delete').forEach(btn => {
         btn.addEventListener('click', (e) => {
             logicDeletePOI(parseInt(e.target.dataset.poiId));
@@ -255,7 +282,7 @@ export function updateFlightStatisticsDisplay() {
     let totalDist = 0;
     const speed = parseFloat(DOM.flightSpeedSlider.value) || 1; 
     if (State.getWaypoints().length >= 2) {
-        const pathLatLngs = (DOM.pathTypeSelect.value === 'curved' && State.flightPath) ? State.flightPath.getLatLngs() : State.getWaypoints().map(wp => wp.latlng);
+        const pathLatLngs = (DOM.pathTypeSelect.value === 'curved' && State.getFlightPath()) ? State.getFlightPath().getLatLngs() : State.getWaypoints().map(wp => wp.latlng);
         for (let i = 0; i < pathLatLngs.length - 1; i++) totalDist += haversineDistance(pathLatLngs[i], pathLatLngs[i+1]);
     }
     let totalHover = State.getWaypoints().reduce((sum, wp) => sum + (wp.hoverTime || 0), 0);
@@ -267,6 +294,3 @@ export function updateFlightStatisticsDisplay() {
     DOM.waypointCountEl.textContent = State.getWaypoints().length;
     DOM.poiCountEl.textContent = State.getPois().length;
 }
-
-// Importa haversineDistance da utils
-import { haversineDistance } from './utils.js';
