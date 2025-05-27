@@ -1,4 +1,5 @@
 // js/uiControls.js
+import adaptAltitudesToAGL from './terrainOrbitLogic.js';
 import * as DOM from './domElements.js';
 import * as State from './state.js';
 import { _tr } from './i18n.js'; // Importa _tr da i18n.js
