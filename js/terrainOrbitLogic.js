@@ -1,4 +1,5 @@
-import { addWaypoint as addWp, selectWaypoint as selectWp, fitMapToWaypoints as fitMap } from './waypointPOILogic.js';
+import { addWaypoint as addWp, selectWaypoint as selectWp } from './waypointPOILogic.js';
+import { fitMapToWaypoints as fitMap } from './mapLogic.js';
 import { populatePoiSelectDropdownForUI } from './uiControls.js'; // Se showOrbitDialog la usa direttamente
 import { showCustomAlert } from './utils.js';
 import { _tr } from './i18n.js';
