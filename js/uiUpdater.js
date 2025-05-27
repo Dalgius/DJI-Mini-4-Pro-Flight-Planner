@@ -121,7 +121,7 @@ function updateWaypointList() {
                        onchange="handleWaypointListCheckboxChange(${wp.id}, this.checked)"
                        ${isSelectedForMulti ? 'checked' : ''}
                        style="margin-right: 10px; transform: scale(1.2);"
-                       onclick="event.stopPropagation();"> {/* Prevent click from bubbling to item's selectWaypoint */}
+                       onclick="event.stopPropagation();"> <!-- Prevent click from bubbling to item's selectWaypoint -->
                 <div>
                     <div class="waypoint-header"><span class="waypoint-name">Waypoint ${wp.id}</span></div>
                     <div class="waypoint-coords">Lat: ${wp.latlng.lat.toFixed(4)}, Lng: ${wp.latlng.lng.toFixed(4)}<br>Alt: ${wp.altitude}m${hoverText}</div>
