@@ -1,7 +1,9 @@
 // js/i18n.js
-import * as DOM from './domElements.js'; // Per aggiornare i select dopo il cambio lingua
-import { updateWaypointListDisplay, updatePOIListDisplay } from './uiControls.js'; // Per aggiornare placeholder
-import { getCameraActionText as utilGetCameraActionText } from './utils.js'; // Import from utils.js where it's actually defined
+import * as DOM from './domElements.js'; 
+import * as State from './state.js'; 
+// Importa le funzioni di UI che potrebbero aver bisogno di essere richiamate dopo il cambio lingua
+// per aggiornare testi dinamici non coperti da data-i18n-key
+import { updateWaypointListDisplay, updatePOIListDisplay } from './uiControls.js'; 
 
 const translations = {
     en: {
@@ -38,7 +40,7 @@ const translations = {
         fixedHeadingLabel: "Fixed Heading (°)",
         cameraActionsTitle: "📸 Camera Actions",
         cameraActionAtWaypointLabel: "Camera Action at Waypoint",
-        cameraActionNone: "No Action",
+        cameraActionNone: "No Action", 
         cameraActionTakePhoto: "Take Photo",
         cameraActionStartRecord: "Start Recording",
         cameraActionStopRecord: "Stop Recording",
@@ -111,8 +113,9 @@ const translations = {
         alertApiErrorGeneric: (s) => `Elevation API Error: ${s}`,
         alertApiWarningNoData: (lat,lng) => `No elevation data available for coordinates ${lat.toFixed(4)}, ${lng.toFixed(4)} from API.`,
         alertFetchError: "Connection or parsing error during elevation request. Check console.",
+        actionLabel: "Action",
     },
-    it: {
+    it: { // Assicurati che tutte le chiavi usate in 'en' siano presenti anche qui
         appSubtitle: "Pianificatore di Volo",
         flightSettingsTitle: "🛩️ Impostazioni di Volo",
         defaultAltitudeLabel: "Altitudine Predefinita (m) <span style=\"font-style: italic; color: #95a5a6;\">(Rel. a Decollo)</span>",
@@ -124,7 +127,7 @@ const translations = {
         selectAllWaypointsLabel: "Seleziona/Deseleziona Tutti",
         clearAllWaypointsBtn: "Cancella Tutti i Waypoint",
         waypointListPlaceholder: "Clicca sulla mappa per aggiungere waypoint",
-        multiEditTitle: "⚙️ Modifica <span id=\"selectedWaypointsCount\">0</span> Waypoint Selezionati", // L'ID span è gestito da JS
+        multiEditTitle: "⚙️ Modifica <span id=\"selectedWaypointsCount\">0</span> Waypoint Selezionati", 
         multiEditNoChange: "-- Non Modificare --",
         multiEditHeadingLabel: "Nuovo Controllo Direzione",
         multiEditFixedHeadingLabel: "Nuova Direzione Fissa (°)",
@@ -219,10 +222,11 @@ const translations = {
         alertApiErrorGeneric: (s) => `Errore API Elevazione: ${s}`,
         alertApiWarningNoData: (lat,lng) => `Nessun dato di elevazione disponibile per le coordinate ${lat.toFixed(4)}, ${lng.toFixed(4)} dall'API.`,
         alertFetchError: "Errore di connessione o parsing durante la richiesta di elevazione. Controlla la console.",
+        actionLabel: "Azione",
     }
 };
 
-export let currentLang = 'en'; // Lingua di default
+export let currentLang = 'en';
 
 export function setLanguage(lang) {
     if (translations[lang]) {
@@ -238,27 +242,35 @@ export function setLanguage(lang) {
 
 export function loadLanguage() {
     const savedLang = localStorage.getItem('flightPlannerLang');
-    const browserLang = navigator.language.split('-')[0]; // es. "en" da "en-US"
+    const browserLang = navigator.language.split('-')[0]; 
 
     if (savedLang && translations[savedLang]) {
         currentLang = savedLang;
     } else if (translations[browserLang]) {
         currentLang = browserLang;
     } else {
-        currentLang = 'en'; // Default finale
+        currentLang = 'en'; 
     }
     if (DOM.langSelectEl) DOM.langSelectEl.value = currentLang;
 }
 
+export function _tr(key, params = null) { 
+    let stringSet = translations[currentLang] || translations.en; 
+    let stringVal = stringSet[key];
 
-export function _tr(key, params = null) {
-    let stringSet = translations[currentLang] || translations.en; // Fallback a inglese se la lingua corrente non ha traduzioni
-    let string = stringSet[key] || key; // Fallback alla chiave stessa se la traduzione non esiste
-
-    if (typeof string === 'function' && params !== null) {
-        return string(...(Array.isArray(params) ? params : [params]));
+    // Se la chiave non esiste nella lingua corrente, prova con l'inglese come fallback
+    if (stringVal === undefined && currentLang !== 'en') {
+        stringVal = translations.en[key];
     }
-    return string;
+    // Se ancora non esiste, restituisci la chiave stessa
+    if (stringVal === undefined) {
+        stringVal = key;
+    }
+
+    if (typeof stringVal === 'function' && params !== null) {
+        return stringVal(...(Array.isArray(params) ? params : [params]));
+    }
+    return stringVal;
 }
 
 export function applyTranslations() {
@@ -267,22 +279,40 @@ export function applyTranslations() {
         const translatedText = _tr(key);
 
         if (element.hasAttribute('data-i18n-html')) {
-            element.innerHTML = translatedText; // Per chiavi che contengono HTML (es. span dentro label)
+            element.innerHTML = translatedText; 
         } else if (element.placeholder && translations[currentLang] && translations[currentLang][`${key}Placeholder`]) {
             element.placeholder = _tr(`${key}Placeholder`);
-        } else if (element.tagName === 'INPUT' && element.type === 'button' || element.tagName === 'BUTTON') {
+        } else if ((element.tagName === 'INPUT' && element.type === 'button') || element.tagName === 'BUTTON') {
             if (element.id === 'satelliteToggleBtn' && element.hasAttribute('data-i18n-target-text')) {
-                 // Non tradurre il testo di questo bottone qui, gestito da toggleSatelliteView
+                // Gestito da toggleSatelliteView
             } else {
                 element.value = translatedText; 
                 element.textContent = translatedText;
             }
-        } else {
+        } else if (element.tagName === 'LABEL' && element.htmlFor === 'selectAllWaypointsCheckbox') {
+            const checkbox = element.previousElementSibling;
+            element.textContent = translatedText;
+            if (checkbox && checkbox.type === 'checkbox' && element.parentNode) { // Aggiunto controllo per parentNode
+                // Non dovrebbe essere necessario riordinare se l'HTML è corretto
+                // element.parentNode.insertBefore(checkbox, element); 
+            }
+        }
+        else {
             element.textContent = translatedText;
         }
     });
+    
+    // Funzioni di update UI devono essere importate e chiamate da main.js o dal modulo che le contiene
+    // dopo il cambio lingua, per aggiornare contenuto dinamico (es. liste).
+    // Per ora, le chiamate a updateWaypointListDisplay e updatePOIListDisplay sono qui,
+    // ma potrebbero causare dipendenze circolari se uiControls importa da i18n.
+    // Soluzione migliore: main.js chiama applyTranslations e poi le funzioni di update UI.
+    // Rimuovo le chiamate dirette a update UI da qui per ora, andranno in main.js
+    // import('./uiControls.js').then(uiControls => {
+    //     uiControls.updateWaypointListDisplay(); 
+    //     uiControls.updatePOIListDisplay();      
+    // });
 
-    // Aggiorna testi dinamici specifici
     if (DOM.pathTypeSelect) {
         DOM.pathTypeSelect.options[0].textContent = _tr("pathTypeStraight");
         DOM.pathTypeSelect.options[1].textContent = _tr("pathTypeCurved");
@@ -293,9 +323,10 @@ export function applyTranslations() {
         DOM.headingControlSelect.options[2].textContent = _tr("headingControlPoi");
     }
     if(DOM.multiHeadingControlSelect){
-        DOM.multiHeadingControlSelect.options[1].textContent = _tr("headingControlAuto");
-        DOM.multiHeadingControlSelect.options[2].textContent = _tr("headingControlFixed");
-        DOM.multiHeadingControlSelect.options[3].textContent = _tr("headingControlPoi");
+        if (DOM.multiHeadingControlSelect.options.length > 0) DOM.multiHeadingControlSelect.options[0].textContent = _tr("multiEditNoChange");
+        if (DOM.multiHeadingControlSelect.options.length > 1) DOM.multiHeadingControlSelect.options[1].textContent = _tr("headingControlAuto");
+        if (DOM.multiHeadingControlSelect.options.length > 2) DOM.multiHeadingControlSelect.options[2].textContent = _tr("headingControlFixed");
+        if (DOM.multiHeadingControlSelect.options.length > 3) DOM.multiHeadingControlSelect.options[3].textContent = _tr("headingControlPoi");
     }
     if(DOM.cameraActionSelect){
         DOM.cameraActionSelect.options[0].textContent = _tr("cameraActionNone");
@@ -304,12 +335,20 @@ export function applyTranslations() {
         DOM.cameraActionSelect.options[3].textContent = _tr("cameraActionStopRecord");
     }
      if(DOM.multiCameraActionSelect){
-        DOM.multiCameraActionSelect.options[1].textContent = _tr("cameraActionNone");
-        DOM.multiCameraActionSelect.options[2].textContent = _tr("cameraActionTakePhoto");
-        DOM.multiCameraActionSelect.options[3].textContent = _tr("cameraActionStartRecord");
-        DOM.multiCameraActionSelect.options[4].textContent = _tr("cameraActionStopRecord");
+        if (DOM.multiCameraActionSelect.options.length > 0) DOM.multiCameraActionSelect.options[0].textContent = _tr("multiEditNoChange");
+        if (DOM.multiCameraActionSelect.options.length > 1) DOM.multiCameraActionSelect.options[1].textContent = _tr("cameraActionNone");
+        if (DOM.multiCameraActionSelect.options.length > 2) DOM.multiCameraActionSelect.options[2].textContent = _tr("cameraActionTakePhoto");
+        if (DOM.multiCameraActionSelect.options.length > 3) DOM.multiCameraActionSelect.options[3].textContent = _tr("cameraActionStartRecord");
+        if (DOM.multiCameraActionSelect.options.length > 4) DOM.multiCameraActionSelect.options[4].textContent = _tr("cameraActionStopRecord");
     }
-    // E i placeholder delle liste se necessario (ma sono già gestiti in updateWaypointList e updatePOIList)
-    updateWaypointListDisplay(); // Per aggiornare i placeholder e il testo degli item
-    updatePOIListDisplay();      // Per i placeholder
+    if (DOM.satelliteToggleBtn) { 
+        DOM.satelliteToggleBtn.innerHTML = State.getSatelliteView() ? _tr("mapBtnMap") : _tr("mapBtnSatellite");
+    }
+    // Chiamare gli update delle liste qui dopo che i data-i18n-key sono stati processati
+    // per aggiornare i placeholder e i testi dinamici interni alle liste.
+    // È importante che uiControls non importi direttamente i18n per evitare cicli.
+    // Una soluzione è che main.js chiami queste dopo applyTranslations.
+    // Per ora, le lascio qui ma con import dinamico è un po' un hack.
+    if (typeof updateWaypointListDisplay === "function") updateWaypointListDisplay();
+    if (typeof updatePOIListDisplay === "function") updatePOIListDisplay();
 }
