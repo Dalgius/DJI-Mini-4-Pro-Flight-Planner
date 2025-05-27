@@ -3,19 +3,18 @@ import * as DOM from './domElements.js';
 import * as State from './state.js';
 import { updateWaypointListDisplay, updatePOIListDisplay, updateFlightStatisticsDisplay } from './uiControls.js';
 import { updateFlightPathDisplay, fitMapToWaypoints as fitMap } from './mapLogic.js';
-// Importa le funzioni di logica da waypointPOILogic.js
 import { 
-    selectWaypoint as selectWp, 
+    selectWaypoint as logicSelectWaypoint, 
     clearAllWaypointsLogic, 
-    addWaypointFromFile, // Assumendo che questa sia esportata correttamente
-    addPOI,              // <<<< MODIFICA QUI: Importa addPOI
-    createWaypointIcon
+    addWaypoint,  // Importa la funzione addWaypoint modificata
+    addPOI,
 } from './waypointPOILogic.js'; 
-import { showCustomAlert, getCameraActionKey, haversineDistance } from './utils.js'; // Importa getCameraActionKey
-import { _tr } from './i18n.js'; // <<<<<< IMPORT CORRETTO PER _TR
+import { showCustomAlert, _tr, getCameraActionKey, haversineDistance } from './utils.js';
+
 
 export function triggerImport() { 
-    document.getElementById('fileInput').click(); 
+    const fileInput = document.getElementById('fileInput');
+    if(fileInput) fileInput.click(); 
 }
 
 export function handleFileImport(event) {
@@ -27,7 +26,7 @@ export function handleFileImport(event) {
             const importedPlan = JSON.parse(e.target.result);
             loadFlightPlanData(importedPlan); 
         }
-        catch (err) { showCustomAlert(_tr("alertImportError", err.message), _tr("alertError", "Import Error")); }
+        catch (err) { showCustomAlert(_tr("alertImportError", err.message), _tr("alertError")); }
     };
     reader.readAsText(file);
     if(event.target) event.target.value = null; 
@@ -38,6 +37,7 @@ export function loadFlightPlanData(plan) {
     State.getPois().forEach(p => { if(p.marker && State.getMap()) State.getMap().removeLayer(p.marker); });
     State.setPois([]); 
     State.poiCounter = 1;
+    State.resetPoiCounterIfEmpty(); // Assicura che il contatore POI sia 1 se la lista è vuota
 
     if (plan.settings) {
         DOM.defaultAltitudeSlider.value = plan.settings.defaultAltitude || 30;
@@ -51,33 +51,32 @@ export function loadFlightPlanData(plan) {
 
     if (plan.pois) {
         plan.pois.forEach(pData => {
-            // Chiama direttamente addPOI, che è progettata per gestire i parametri opzionali
+            // La funzione addPOI in waypointPOILogic gestisce la creazione del marker e l'aggiunta all'array State.pois
             addPOI(L.latLng(pData.lat, pData.lng), pData.name, pData.id, pData.altitude);
         });
     }
     if (plan.waypoints) {
         plan.waypoints.forEach(wpData => {
-            addWpFromFile(L.latLng(wpData.lat, wpData.lng), wpData);
+            // La funzione addWaypoint in waypointPOILogic gestisce la creazione del marker e l'aggiunta all'array State.waypoints
+            addWaypoint(L.latLng(wpData.lat, wpData.lng), wpData);
         });
     }
     
-    // Ritarda leggermente gli aggiornamenti UI per dare tempo agli import dinamici (non ideale)
-    // È meglio se le funzioni di aggiunta chiamano direttamente gli update UI necessari.
-    // Per ora, questo timeout potrebbe essere rimosso se gli update sono già chiamati internamente.
-    setTimeout(() => {
-        updatePOIListDisplay(); 
-        updateWaypointListDisplay(); 
-        updateFlightPathDisplay(); 
-        updateFlightStatisticsDisplay(); 
-        fitMap();
-        if (State.getWaypoints().length > 0) selectWp(State.getWaypoints()[0]);
-        showCustomAlert(_tr("alertImportSuccess"), _tr("alertSuccess"));
-    }, 100); // Ridotto il timeout, potrebbe non essere necessario
+    // Gli update UI principali sono già chiamati dalle funzioni addWaypoint/addPOI o alla fine
+    updatePOIListDisplay(); 
+    updateWaypointListDisplay(); 
+    updateFlightPathDisplay(); 
+    updateFlightStatisticsDisplay(); 
+    fitMap();
+    if (State.getWaypoints().length > 0) {
+        logicSelectWaypoint(State.getWaypoints()[0]); // Usa la funzione di selezione importata
+    }
+    showCustomAlert(_tr("alertImportSuccess"), _tr("alertSuccess"));
 }
 
 export function exportFlightPlan() { 
     if (State.getWaypoints().length === 0 && State.getPois().length === 0) { 
-        showCustomAlert(_tr("alertNoWaypointsToExport"), _tr("alertExportError", "Export Error")); 
+        showCustomAlert(_tr("alertNoWaypointsToExport"), _tr("alertError")); 
         return; 
     }
     const plan = {
@@ -104,12 +103,12 @@ export function exportFlightPlan() {
 
 export function exportToGoogleEarth() { 
     if (State.getWaypoints().length === 0) {
-        showCustomAlert(_tr("alertNoWaypointsToExport"), _tr("alertExportError", "Export Error"));
+        showCustomAlert(_tr("alertNoWaypointsToExport"), _tr("alertError"));
         return;
     }
     let homeElevationMSL = parseFloat(DOM.homeElevationMslInput.value);
     if (isNaN(homeElevationMSL)) {
-        showCustomAlert(_tr("alertInvalidHomeElev") + " for Google Earth export. Using 0 as fallback.", _tr("alertExportWarning", "Export Warning"));
+        showCustomAlert(_tr("alertInvalidHomeElev") + " for Google Earth export. Using 0 as fallback.", _tr("alertWarning"));
         homeElevationMSL = 0;
     }
 
@@ -126,7 +125,7 @@ export function exportToGoogleEarth() {
         kmlContent += `
       <Placemark>
         <name>Waypoint ${wp.id} (Rel. Alt: ${wp.altitude}m)</name>
-        <description>MSL Altitude: ${altitudeMSL.toFixed(1)}m\nGimbal Pitch: ${wp.gimbalPitch}°\nCamera Action: ${utilGetCameraActionText(wp.cameraAction) || 'None'}${wp.headingControl === 'poi_track' && wp.targetPoiId != null ? `\nTargeting POI ID: ${wp.targetPoiId}` : ''}</description>
+        <description>MSL Altitude: ${altitudeMSL.toFixed(1)}m\nGimbal Pitch: ${wp.gimbalPitch}°\nCamera Action: ${_tr(getCameraActionKey(wp.cameraAction)) || 'None'}${wp.headingControl === 'poi_track' && wp.targetPoiId != null ? `\nTargeting POI ID: ${wp.targetPoiId}` : ''}</description>
         <styleUrl>#waypointStyle</styleUrl>
         <Point>
           <altitudeMode>absolute</altitudeMode> 
@@ -146,8 +145,7 @@ export function exportToGoogleEarth() {
         <altitudeMode>absolute</altitudeMode>
         <coordinates>\n`;
         let coordsString = "";
-        // Per KML LineString, usiamo i waypoint originali per le altitudini.
-        State.getWaypoints().forEach(wp => {
+        State.getWaypoints().forEach(wp => { // Per KML LineString, usiamo i waypoint originali per le altitudini.
             const altitudeMSL = homeElevationMSL + wp.altitude;
             coordsString += `${wp.latlng.lng},${wp.latlng.lat},${altitudeMSL.toFixed(1)}\n`;
         });
@@ -188,7 +186,7 @@ export function exportToGoogleEarth() {
 
 export function exportToDjiWpmlKmz() { 
     if (State.getWaypoints().length === 0) {
-        showCustomAlert(_tr("alertNoWaypointsToExport") + " to DJI WPML KMZ.", _tr("alertExportError", "Export Error"));
+        showCustomAlert(_tr("alertNoWaypointsToExport") + " to DJI WPML KMZ.", _tr("alertError"));
         return;
     }
     State.actionGroupCounter = 1; 
@@ -203,7 +201,7 @@ export function exportToDjiWpmlKmz() {
 
     let kmlTotalDistance = 0;
     if (State.getWaypoints().length >= 2) {
-        const pathLatLngs = (missionPathTypeUi === 'curved' && State.flightPath) ? State.flightPath.getLatLngs() : State.getWaypoints().map(wp => wp.latlng);
+        const pathLatLngs = (missionPathTypeUi === 'curved' && State.getFlightPath()) ? State.getFlightPath().getLatLngs() : State.getWaypoints().map(wp => wp.latlng);
         for (let i = 0; i < pathLatLngs.length - 1; i++) {
             kmlTotalDistance += haversineDistance(pathLatLngs[i], pathLatLngs[i + 1]);
         }
