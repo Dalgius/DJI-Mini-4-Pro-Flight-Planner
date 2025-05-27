@@ -2,6 +2,7 @@
 import { updateWaypointList, updateFlightStatistics, updateMultiEditPanelVisibility } from './ui.js';
 import { updateFlightPath } from './flightPath.js';
 import { populatePoiSelectDropdown } from './pois.js';
+import { getMap } from './map.js'; // Added import
 
 let waypoints = [];
 let waypointCounter = 1;
