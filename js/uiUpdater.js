@@ -204,7 +204,7 @@ function updatePOIList() {
     poiListEl.innerHTML = pois.map(poi => `
         <div class="poi-item">
             <span class="poi-name">${poi.name} (ID: ${poi.id})</span>
-            <button class="poi-delete" onclick="deletePOI(${poi.id})" title="Delete POI ${poi.name}">✕</button> {/* Assumes deletePOI is global or imported */}
+            <button class="poi-delete" onclick="deletePOI(${poi.id})" title="Delete POI ${poi.name}">✕</button> <!-- Assumes deletePOI is global or imported -->
         </div>`).join('');
 }
 
