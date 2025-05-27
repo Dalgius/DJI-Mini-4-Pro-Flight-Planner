@@ -3,7 +3,7 @@ import { selectWaypoint, toggleMultiSelectWaypoint, clearWaypoints, getWaypoints
 import { deletePOI, populatePoiSelectDropdown, getPois } from './pois.js';
 import { updateFlightPath } from './flightPath.js';
 import { showOrbitDialog, handleConfirmOrbit } from './orbit.js';
-import { exportFlightPlan, triggerImport, handleFileImport } from './exportImport.js';
+import { exportFlightPlan, triggerImport, handleFileImport, exportToDjiWpmlKmz } from './exportImport.js';
 import { getHomeElevationFromFirstWaypoint, adaptAltitudesToAGL } from './terrain.js';
 import { getMap, toggleSatelliteView, showCurrentLocation } from './map.js';
 
