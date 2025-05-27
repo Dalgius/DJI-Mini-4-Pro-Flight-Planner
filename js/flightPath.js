@@ -21,10 +21,15 @@ export function updateFlightPath() {
 
     const pathType = document.getElementById('pathType').value;
 
-    if (pathType === 'curved') {
-        const points = waypoints.map(wp => [wp.latlng.lat, wp.latlng.lng]);
-        const spline = new L.CatmullRomSpline(points, { tension: 0.5 });
-        latlngs = spline.getPoints(100).map(p => [p[0], p[1]]);
+    if (pathType === 'curved' && typeof L.CatmullRomSpline === 'function') {
+        try {
+            const points = waypoints.map(wp => [wp.latlng.lat, wp.latlng.lng]);
+            const spline = new L.CatmullRomSpline(points, { tension: 0.5 });
+            latlngs = spline.getPoints(100).map(p => [p[0], p[1]]);
+        } catch (err) {
+            console.error('Error creating spline:', err);
+            latlngs = waypoints.map(wp => wp.latlng); // Fallback to straight path
+        }
     } else {
         latlngs = waypoints.map(wp => wp.latlng);
     }
