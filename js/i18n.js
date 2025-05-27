@@ -1,6 +1,7 @@
 // js/i18n.js
 import * as DOM from './domElements.js'; // Per aggiornare i select dopo il cambio lingua
-import { updateWaypointListDisplay, updatePOIListDisplay, getCameraActionText as utilGetCameraActionText } from './uiControls.js'; // Per aggiornare placeholder
+import { updateWaypointListDisplay, updatePOIListDisplay } from './uiControls.js'; // Per aggiornare placeholder
+import { getCameraActionText as utilGetCameraActionText } from './utils.js'; // Import from utils.js where it's actually defined
 
 const translations = {
     en: {
