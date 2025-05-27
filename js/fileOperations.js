@@ -3,8 +3,8 @@ import * as State from './state.js';
 import { updateWaypointListDisplay, updatePOIListDisplay, updateFlightStatisticsDisplay } from './uiControls.js';
 import { updateFlightPathDisplay, fitMapToWaypoints as fitMap } from './mapLogic.js';
 import { selectWaypoint as selectWp, clearAllWaypointsLogic, addWaypoint as addWpFromFile, addPOI as addPoiFromFile, createWaypointIcon as createWpIconInternal } from './waypointPOILogic.js'; // Importa le funzioni logiche
-import { showCustomAlert, getCameraActionText as utilGetCameraActionText, haversineDistance } from './utils.js'; // Importa haversineDistance
-import { _tr } from './i18n.js';
+import { showCustomAlert, haversineDistance } from './utils.js';
+import { _tr, getCameraActionText as utilGetCameraActionText } from './i18n.js';
 
 export function triggerImport() { 
     document.getElementById('fileInput').click(); 
