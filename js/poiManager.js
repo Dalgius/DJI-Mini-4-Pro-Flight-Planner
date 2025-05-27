@@ -9,30 +9,24 @@
 function addPOI(latlng) {
     if (!map || !poiNameInput || !targetPoiSelect || !multiTargetPoiSelect) return;
 
-    // Reset POI counter if this is the first POI being added after a clear or init
-    if (pois.length === 0 && poiCounter > 1) { // If list is empty but counter is high (e.g. after load)
-        // Let's make sure poiCounter is at least 1, or the max existing ID + 1 if loading a plan
-        // For simple add, if pois is empty, it should be 1.
-        // This logic is more relevant during loading a plan.
-        // For now, if pois is empty, assume we start fresh for this session's POIs.
-        // The main poiCounter is global and increments. If cleared, it should reset.
+    // Se l'array pois è vuoto e poiCounter è > 1 (ad es. dopo aver cancellato tutti i POI),
+    // resettalo a 1 per ricominciare la numerazione.
+    // Questo è un controllo aggiuntivo, il reset principale dopo cancellazione avviene in deletePOI.
+    if (pois.length === 0 && poiCounter > 1) {
+        // Questa condizione ora è meno probabile che si verifichi qui se deletePOI resetta correttamente,
+        // ma la lasciamo come ulteriore sicurezza o per casi di inizializzazione particolari.
+        // La logica principale di reset dopo cancellazione è in deletePOI.
     }
-     // If pois are empty, ensure counter starts at 1 for new POIs
-    if (pois.length === 0) {
-        // If poiCounter was reset (e.g. by clearWaypoints), it's fine.
-        // If it's high from a previous session (without full clear), this might cause ID collision
-        // if we don't reset it or check existing max ID.
-        // For now, assume poiCounter is managed correctly elsewhere (e.g. reset on clearAll).
-        // Let's ensure the first POI uses the current poiCounter.
-    }
-
+    // Se pois è vuoto, assicurati che il PRIMO POI aggiunto usi l'ID corretto partendo da poiCounter (che dovrebbe essere 1).
+    // Il poiCounter globale viene incrementato. Se viene resettato (es. clearWaypoints), va bene.
+    // Questa logica è più per quando si aggiunge il primo POI in assoluto o dopo un reset.
 
     const name = poiNameInput.value.trim() || `POI ${poiCounter}`;
     const newPoi = {
-        id: poiCounter++, // Use global poiCounter and then increment
+        id: poiCounter++, // Usa poiCounter globale e poi incrementa
         name: name,
         latlng: L.latLng(latlng.lat, latlng.lng),
-        altitude: 0, // Default altitude for POI, can be fetched/set later
+        altitude: 0,
         marker: null
     };
 
@@ -47,17 +41,14 @@ function addPOI(latlng) {
     marker.bindPopup(`<strong>${newPoi.name}</strong> (ID: ${newPoi.id})`);
     marker.on('dragend', () => {
         newPoi.latlng = marker.getLatLng();
-        // If POIs affect anything dynamically (e.g. lines to waypoints), update here
     });
     newPoi.marker = marker;
 
     pois.push(newPoi);
 
-    updatePOIList(); // Update the list in the sidebar
-    updateFlightStatistics(); // Update POI count
+    updatePOIList();
+    updateFlightStatistics();
 
-    // If a waypoint is selected and its heading is set to POI track,
-    // or if multi-edit is active and set to POI_track, refresh the POI dropdowns.
     if (selectedWaypoint && headingControlSelect && headingControlSelect.value === 'poi_track') {
         populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Select POI for Heading --");
     }
@@ -65,13 +56,11 @@ function addPOI(latlng) {
         multiHeadingControlSelect && multiHeadingControlSelect.value === 'poi_track') {
         populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Select POI for all --");
     }
-    // Also refresh for orbit dialog if it uses a POI select
     if (orbitModalOverlayEl && orbitModalOverlayEl.style.display === 'flex') {
         populatePoiSelectDropdown(orbitPoiSelectEl, orbitPoiSelectEl.value || null, false);
     }
 
-
-    poiNameInput.value = ''; // Clear the input field for the next POI
+    poiNameInput.value = '';
 }
 
 /**
@@ -87,30 +76,32 @@ function deletePOI(poiId) {
         }
         pois.splice(poiIndex, 1);
 
+        // !!! NUOVA LOGICA PER RESETTARE poiCounter !!!
+        if (pois.length === 0) {
+            poiCounter = 1; // Resetta il contatore se non ci sono più POI
+            console.log("All POIs deleted. poiCounter reset to 1.");
+        }
+        // !!! FINE NUOVA LOGICA !!!
+
         updatePOIList();
         updateFlightStatistics();
 
-        // Check if any waypoints were targeting this POI and clear their target
         let waypointsUpdated = false;
         waypoints.forEach(wp => {
             if (wp.targetPoiId === poiId) {
                 wp.targetPoiId = null;
-                // If this was the selected waypoint, update its UI controls
                 if (selectedWaypoint && selectedWaypoint.id === wp.id) {
                     if (targetPoiForHeadingGroupDiv) targetPoiForHeadingGroupDiv.style.display = 'none';
                     populatePoiSelectDropdown(targetPoiSelect, null, true, "-- Select POI for Heading --");
-                    // Potentially reset headingControl if it was poi_track and no POIs left or user preference
-                    // selectedWaypoint.headingControl = 'auto'; // Example reset
                 }
                 waypointsUpdated = true;
             }
         });
 
         if (waypointsUpdated) {
-            updateWaypointList(); // Refresh waypoint list if any targets were cleared
+            updateWaypointList();
         }
 
-        // Refresh POI dropdowns in active panels
         if (selectedWaypoint && headingControlSelect && headingControlSelect.value === 'poi_track') {
             populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Select POI for Heading --");
         }
@@ -120,13 +111,10 @@ function deletePOI(poiId) {
         }
         if (orbitModalOverlayEl && orbitModalOverlayEl.style.display === 'flex') {
             populatePoiSelectDropdown(orbitPoiSelectEl, orbitPoiSelectEl.value || null, false);
-             // if orbitPoiSelectEl becomes empty and it was the selected one, handle it
             if (orbitPoiSelectEl.options.length === 0 || (orbitPoiSelectEl.options.length === 1 && orbitPoiSelectEl.options[0].value === "")) {
-                 // showCustomAlert("Last POI for orbit selection deleted. Please add POIs.", "Orbit Info");
-                 // Potentially disable confirm button or close dialog if no POIs left for orbit.
+                // Potrebbe essere utile un feedback all'utente qui
             }
         }
-
 
         showCustomAlert(`POI "${deletedPoi.name}" deleted.`, "Info");
     } else {
