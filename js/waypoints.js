@@ -1,8 +1,8 @@
 // waypoints.js
-import { updateWaypointList, updateFlightStatistics, updateMultiEditPanelVisibility } from './ui.js';
+import { updateWaypointList, updateFlightStatistics, updateMultiEditPanelVisibility, showCustomAlert } from './ui.js';
 import { updateFlightPath } from './flightPath.js';
 import { populatePoiSelectDropdown } from './pois.js';
-import { getMap } from './map.js'; // Added import
+import { getMap } from './map.js';
 
 let waypoints = [];
 let waypointCounter = 1;
@@ -109,6 +109,32 @@ export function selectWaypoint(waypoint) {
     if (selectedWaypoint.marker) getMap().panTo(selectedWaypoint.latlng);
 }
 
+function updateMarkerIcon(waypoint) {
+    const isSelectedSingle = selectedWaypoint && waypoint.id === selectedWaypoint.id;
+    const isMultiSelected = selectedForMultiEdit.has(waypoint.id);
+    waypoint.marker.setIcon(createWaypointIcon(waypoint.id, isSelectedSingle, isMultiSelected));
+    waypoint.marker.setZIndexOffset(isSelectedSingle ? 1000 : isMultiSelected ? 500 : 0);
+}
+
+function updateWaypointControls(waypoint) {
+    const waypointControls = document.getElementById('waypointControls');
+    if (!waypointControls) return;
+    waypointControls.style.display = 'block';
+    document.getElementById('waypointAltitude').value = waypoint.altitude;
+    document.getElementById('waypointAltitudeValue').textContent = `${waypoint.altitude}m`;
+    document.getElementById('hoverTime').value = waypoint.hoverTime;
+    document.getElementById('hoverTimeValue').textContent = `${waypoint.hoverTime}s`;
+    document.getElementById('gimbalPitch').value = waypoint.gimbalPitch;
+    document.getElementById('gimbalPitchValue').textContent = `${waypoint.gimbalPitch}°`;
+    document.getElementById('headingControl').value = waypoint.headingControl;
+    document.getElementById('fixedHeadingGroup').style.display = waypoint.headingControl === 'fixed' ? 'block' : 'none';
+    document.getElementById('fixedHeading').value = waypoint.fixedHeading;
+    document.getElementById('fixedHeadingValue').textContent = `${waypoint.fixedHeading}°`;
+    document.getElementById('cameraActionSelect').value = waypoint.cameraAction;
+    document.getElementById('targetPoiForHeadingGroup').style.display = waypoint.headingControl === 'poi_track' ? 'block' : 'none';
+    populatePoiSelectDropdown(document.getElementById('targetPoiSelect'), waypoint.targetPoiId, true, '-- Select POI for Heading --');
+}
+
 export function deleteSelectedWaypoint() {
     if (!selectedWaypoint) {
         showCustomAlert('No waypoint selected to delete.', 'Info');
@@ -169,10 +195,54 @@ export function clearMultiSelection() {
     document.getElementById('selectAllWaypointsCheckbox').checked = false;
     previouslyMultiSelectedIds.forEach(id => {
         const waypoint = waypoints.find(wp => wp.id === id);
-        updateMarkerIcon(waypoint);
+        if (waypoint) updateMarkerIcon(waypoint);
     });
     updateWaypointList();
     updateMultiEditPanelVisibility();
+}
+
+export function applyMultiEdit() {
+    const selectedIds = selectedForMultiEdit;
+    if (selectedIds.size === 0) {
+        showCustomAlert('No waypoints selected for multi-edit.', 'Info');
+        return;
+    }
+
+    const multiHeadingControl = document.getElementById('multiHeadingControl').value;
+    const multiFixedHeading = parseInt(document.getElementById('multiFixedHeading').value);
+    const multiCameraAction = document.getElementById('multiCameraActionSelect').value;
+    const multiGimbalPitchCheckbox = document.getElementById('multiChangeGimbalPitchCheckbox').checked;
+    const multiGimbalPitch = parseInt(document.getElementById('multiGimbalPitch').value);
+    const multiHoverTimeCheckbox = document.getElementById('multiChangeHoverTimeCheckbox').checked;
+    const multiHoverTime = parseInt(document.getElementById('multiHoverTime').value);
+    const multiTargetPoiId = document.getElementById('multiTargetPoiSelect').value ? parseInt(document.getElementById('multiTargetPoiSelect').value) : null;
+
+    waypoints.forEach(wp => {
+        if (selectedIds.has(wp.id)) {
+            wp.headingControl = multiHeadingControl;
+            if (multiHeadingControl === 'fixed') {
+                wp.fixedHeading = multiFixedHeading;
+            } else if (multiHeadingControl === 'poi_track') {
+                wp.targetPoiId = multiTargetPoiId;
+            } else {
+                wp.targetPoiId = null;
+            }
+            wp.cameraAction = multiCameraAction;
+            if (multiGimbalPitchCheckbox) {
+                wp.gimbalPitch = multiGimbalPitch;
+            }
+            if (multiHoverTimeCheckbox) {
+                wp.hoverTime = multiHoverTime;
+            }
+            updateMarkerIcon(wp);
+        }
+    });
+
+    updateWaypointList();
+    updateFlightPath();
+    updateFlightStatistics();
+    updateMultiEditPanelVisibility();
+    showCustomAlert(`${selectedIds.size} waypoints updated successfully.`, 'Success');
 }
 
 export function getWaypoints() {
