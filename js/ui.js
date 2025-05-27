@@ -1,5 +1,5 @@
 // ui.js
-import { selectWaypoint, toggleMultiSelectWaypoint, clearWaypoints, getWaypoints, getSelectedWaypoint, getSelectedForMultiEdit } from './waypoints.js';
+import { selectWaypoint, toggleMultiSelectWaypoint, clearWaypoints, getWaypoints, getSelectedWaypoint, getSelectedForMultiEdit, deleteSelectedWaypoint } from './waypoints.js';
 import { deletePOI, populatePoiSelectDropdown } from './pois.js';
 import { updateFlightPath } from './flightPath.js';
 import { showOrbitDialog } from './orbit.js';
