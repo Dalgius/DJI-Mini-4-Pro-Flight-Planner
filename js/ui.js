@@ -1,7 +1,7 @@
 // ui.js
 import { selectWaypoint, toggleMultiSelectWaypoint, clearWaypoints, getWaypoints, getSelectedWaypoint, getSelectedForMultiEdit, deleteSelectedWaypoint, applyMultiEdit, clearMultiSelection } from './waypoints.js';
 import { deletePOI, populatePoiSelectDropdown, getPois } from './pois.js';
-import { updateFlightPath } from './flightPath.js';
+import { updateFlightPath, getFlightPath } from './flightPath.js';
 import { showOrbitDialog, handleConfirmOrbit } from './orbit.js';
 import { exportFlightPlan, triggerImport, handleFileImport, exportToDjiWpmlKmz, exportToGoogleEarth } from './exportImport.js';
 import { getHomeElevationFromFirstWaypoint, adaptAltitudesToAGL } from './terrain.js';
@@ -306,7 +306,7 @@ export function updateFlightStatistics() {
     const speed = parseFloat(flightSpeedSlider.value) || 1;
     const waypoints = getWaypoints();
     if (waypoints.length >= 2) {
-        const pathLatLngs = (pathTypeSelect.value === 'curved' && flightPath) ? flightPath.getLatLngs() : waypoints.map(wp => wp.latlng);
+        const pathLatLngs = (pathTypeSelect.value === 'curved' && getFlightPath()) ? getFlightPath().getLatLngs() : waypoints.map(wp => wp.latlng);
         for (let i = 0; i < pathLatLngs.length - 1; i++) totalDist += haversineDistance(pathLatLngs[i], pathLatLngs[i + 1]);
     }
     let totalHover = waypoints.reduce((sum, wp) => sum + (wp.hoverTime || 0), 0);
