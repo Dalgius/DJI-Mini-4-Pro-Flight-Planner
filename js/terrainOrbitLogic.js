@@ -258,3 +258,24 @@ function generateOrbitWaypointsLogic(centerPoi, radius, numPoints, altitude) {
     }
     fitMap(); // Usa la funzione importata
 }
+
+// Event handler for user actions related to terrain/orbit logic
+function handleUserTerrainOrbitAction(event) {
+    if (!event.detail || !event.detail.action) return;
+
+    switch (event.detail.action) {
+        case 'adaptAltitudesToAGL':
+            console.log("userAction: adaptAltitudesToAGL received in terrainOrbitLogic.js");
+            adaptAltitudesToAGL();
+            break;
+        // Add other terrain/orbit-related actions here if needed
+    }
+}
+
+// Initialize event listeners when the module is loaded
+function initializeTerrainOrbitActionListeners() {
+    document.addEventListener('userAction', handleUserTerrainOrbitAction);
+    console.log("TerrainOrbit action listeners initialized.");
+}
+
+initializeTerrainOrbitActionListeners(); // Call the setup function
