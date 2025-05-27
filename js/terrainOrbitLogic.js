@@ -61,3 +61,28 @@ export async function getHomeElevationFromFirstWaypoint() {
         return;
     }
     DOM.loadingOverlayEl.style.display = 'flex';
+
+    // Fetch elevation for the first waypoint
+    const wp = State.getWaypoints()[0];
+    try {
+        const targetUrl = `https://api.opentopodata.org/v1/srtm90m?locations=${wp.lat.toFixed(6)},${wp.lng.toFixed(6)}`;
+        const apiUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
+
+        const response = await fetch(apiUrl, { method: 'GET' });
+        const data = await response.json();
+        let elevation = null;
+        if (data.status === "OK" && data.results && data.results.length > 0) {
+            elevation = data.results[0].elevation;
+            showCustomAlert(_tr("alertHomeElevationResult", elevation), _tr("alertSuccess"));
+        } else {
+            showCustomAlert(_tr("alertApiWarningBatchNoData", data.status), _tr("alertWarning"));
+        }
+        return elevation;
+    } catch (error) {
+        console.error("Error fetching home elevation:", error);
+        showCustomAlert(_tr("alertFetchError"), _tr("alertError"));
+        return null;
+    } finally {
+        DOM.loadingOverlayEl.style.display = 'none';
+    }
+}
