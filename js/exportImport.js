@@ -1,7 +1,8 @@
 // exportImport.js
-import { getWaypoints, clearWaypoints, getSelectedWaypoint, selectWaypoint } from './waypoints.js';
+import { getWaypoints, clearWaypoints, getSelectedWaypoint, selectWaypoint, getWaypointCounter, setWaypointCounter } from './waypoints.js';
 import { getPois, setPoiCounter } from './pois.js';
-import { updatePOIList, updateWaypointList, updateFlightPath, updateFlightStatistics, fitMapToWaypoints, showCustomAlert } from './ui.js';
+import { updatePOIList, updateWaypointList, updateFlightStatistics, fitMapToWaypoints, showCustomAlert } from './ui.js';
+import { updateFlightPath } from './flightPath.js'; // Corrected import
 import { getMap } from './map.js';
 
 export function exportFlightPlan() {
@@ -133,7 +134,7 @@ export function loadFlightPlan(plan) {
     }
     updatePOIList();
     updateWaypointList();
-    updateFlightPath();
+    updateFlightPath(); // This should now work
     updateFlightStatistics();
     fitMapToWaypoints();
     if (getWaypoints().length > 0) selectWaypoint(getWaypoints()[0]);
