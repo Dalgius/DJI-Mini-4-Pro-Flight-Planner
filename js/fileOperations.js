@@ -3,9 +3,16 @@ import * as DOM from './domElements.js';
 import * as State from './state.js';
 import { updateWaypointListDisplay, updatePOIListDisplay, updateFlightStatisticsDisplay } from './uiControls.js';
 import { updateFlightPathDisplay, fitMapToWaypoints as fitMap } from './mapLogic.js';
-import { selectWaypoint as selectWp, clearAllWaypointsLogic, addWaypoint as addWpFromFile, addPOI as addPoiFromFile, createWaypointIcon as createWpIconInternal } from './waypointPOILogic.js'; // Importa le funzioni logiche
-import { showCustomAlert, _tr, getCameraActionText as utilGetCameraActionText, haversineDistance } from './utils.js'; // Importa haversineDistance
-
+// Importa le funzioni di logica da waypointPOILogic.js
+import { 
+    selectWaypoint as selectWp, 
+    clearAllWaypointsLogic, 
+    addWaypointFromFile, // Funzione specifica per l'import
+    addPoiFromFile,      // Funzione specifica per l'import
+    createWaypointIcon   // Potrebbe servire per l'import se ricrei i marker
+} from './waypointPOILogic.js'; 
+import { showCustomAlert, getCameraActionKey, haversineDistance } from './utils.js'; // Importa getCameraActionKey
+import { _tr } from './i18n.js'; // <<<<<< IMPORT CORRETTO PER _TR
 
 export function triggerImport() { 
     document.getElementById('fileInput').click(); 
