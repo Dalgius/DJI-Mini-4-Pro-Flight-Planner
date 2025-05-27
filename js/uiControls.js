@@ -8,7 +8,8 @@ import { getCameraActionKey, showCustomAlert } from './utils.js'; // Importa da 
 // For updateMarkerIcon, as mapLogic is not yet fully reactive to multi-selection changes.
 import { selectWaypoint as logicSelectWaypoint, deletePOI as logicDeletePOI, updateMarkerIcon } from './waypointPOILogic.js';
 import { toggleMultiSelectWaypoint as logicToggleMultiSelectWaypoint, toggleSelectAllWaypoints as logicToggleSelectAllWaypoints, clearMultiSelection as logicClearMultiSelection, applyMultiEdit as logicApplyMultiEdit, updateMultiEditPanelVisibility as logicUpdateMultiEditPanel } from './multiEditLogic.js';
-import { getHomeElevationFromFirstWaypoint as logicGetHomeElevation, adaptAltitudesToAGL as logicAdaptAGL, showOrbitDialog as logicShowOrbit, handleConfirmOrbit as logicHandleConfirmOrbit } from './terrainOrbitLogic.js';
+// Removed adaptAltitudesToAGL as logicAdaptAGL from this import
+import { getHomeElevationFromFirstWaypoint as logicGetHomeElevation, showOrbitDialog as logicShowOrbit, handleConfirmOrbit as logicHandleConfirmOrbit } from './terrainOrbitLogic.js';
 import { triggerImport as logicTriggerImport, handleFileImport, exportFlightPlan as logicExportJson, exportToDjiWpmlKmz as logicExportKmz, exportToGoogleEarth as logicExportKml } from './fileOperations.js';
 import { toggleSatelliteView as logicToggleSatellite, fitMapToWaypoints as logicFitMap, showCurrentLocation as logicShowLocation, updateFlightPathDisplay } from './mapLogic.js';
 
@@ -163,7 +164,10 @@ export function setupAllEventListeners() {
         document.dispatchEvent(new CustomEvent('userAction', { detail: { action: 'clearAllWaypoints' } }));
     });
     DOM.getHomeElevationBtn.addEventListener('click', logicGetHomeElevation);
-    DOM.adaptToAGLBtnEl.addEventListener('click', logicAdaptAGL);
+    // DOM.adaptToAGLBtnEl.addEventListener('click', logicAdaptAGL); // Changed to dispatch userAction
+    DOM.adaptToAGLBtnEl.addEventListener('click', () => {
+        document.dispatchEvent(new CustomEvent('userAction', { detail: { action: 'adaptAltitudesToAGL' } }));
+    });
     DOM.createOrbitBtn.addEventListener('click', logicShowOrbit);
     
     DOM.importJsonBtn.addEventListener('click', logicTriggerImport);
