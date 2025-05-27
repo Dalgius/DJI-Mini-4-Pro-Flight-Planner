@@ -1,18 +1,15 @@
 // js/uiControls.js
-import adaptAltitudesToAGL from './terrainOrbitLogic.js';
 import * as DOM from './domElements.js';
 import * as State from './state.js';
-import { _tr } from './i18n.js'; // Importa _tr da i18n.js
+import { _tr } from './i18n.js'; // Import _tr from i18n.js
 // NOTE: dispatchStateChangeEvent is not imported here as uiControls RESPONDS to state changes, not initiates them in this context.
-import { getCameraActionKey, showCustomAlert } from './utils.js'; // Importa da utils
-// Importa le funzioni di logica che devono essere chiamate dagli event listener
-// For updateMarkerIcon, as mapLogic is not yet fully reactive to multi-selection changes.
+import { getCameraActionKey, showCustomAlert } from './utils.js'; // Import from utils
+// Import functions of logic to be called by event listeners
 import { selectWaypoint as logicSelectWaypoint, deletePOI as logicDeletePOI, updateMarkerIcon } from './waypointPOILogic.js';
-import { toggleMultiSelectWaypoint as logicToggleMultiSelectWaypoint, toggleSelectAllWaypoints as logicToggleSelectAllWaypoints, clearMultiSelection as logicClearMultiSelection, applyMultiEdit as logicApplyMultiEdit, updateMultiEditPanelVisibility as logicUpdateMultiEditPanel } from './multiEditLogic.js';
+import { toggleMultiSelectWaypoint as logicToggleMultiSelectWaypoint, toggleSelectAllWaypoints as logicToggleSelectAllWaypoints, clearMultiSelection as logicClearMultiSelection, applyMultiEdit as logicApplyMultiEdit } from './waypointPOILogic.js';
 import { getHomeElevationFromFirstWaypoint as logicGetHomeElevation, adaptAltitudesToAGL as logicAdaptAGL, showOrbitDialog as logicShowOrbit, handleConfirmOrbit as logicHandleConfirmOrbit } from './terrainOrbitLogic.js';
 import { triggerImport as logicTriggerImport, handleFileImport, exportFlightPlan as logicExportJson, exportToDjiWpmlKmz as logicExportKmz, exportToGoogleEarth as logicExportKml } from './fileOperations.js';
-import { toggleSatelliteView as logicToggleSatellite, fitMapToWaypoints as logicFitMap, showCurrentLocation as logicShowLocation, updateFlightPathDisplay } from './mapLogic.js';
-
+import { toggleSatelliteView as logicToggleSatellite, fitMapToWaypoints as logicFitMap, showCurrentLocation as logicShowLocation, updateFlightPathDisp
 
 export function populatePoiSelectDropdownForUI(selectElement, selectedPoiId = null, addDefaultOption = true, defaultOptionTextKey = "selectPoiDropdownDefault") {
     if (!selectElement) return;
@@ -178,6 +175,7 @@ export function setupAllEventListeners() {
     DOM.satelliteToggleBtn.addEventListener('click', logicToggleSatellite);
     DOM.fitMapBtn.addEventListener('click', logicFitMap);
     DOM.myLocationBtn.addEventListener('click', logicShowLocation);
+    DOM.adaptToAGLBtnEl.addEventListener('click', logicAdaptAGL);
 
     // Custom Modals
     if(DOM.customAlertOkButtonEl) DOM.customAlertOkButtonEl.addEventListener('click', () => {
