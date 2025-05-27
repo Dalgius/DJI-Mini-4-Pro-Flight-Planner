@@ -4,7 +4,7 @@ import { updateWaypointListDisplay, updatePOIListDisplay, updateFlightStatistics
 import { updateFlightPathDisplay, fitMapToWaypoints as fitMap } from './mapLogic.js';
 import { selectWaypoint as selectWp, clearAllWaypointsLogic, addWaypoint as addWpFromFile, addPOI as addPoiFromFile, createWaypointIcon as createWpIconInternal } from './waypointPOILogic.js'; // Importa le funzioni logiche
 import { showCustomAlert, haversineDistance } from './utils.js';
-import { _tr, getCameraActionText as utilGetCameraActionText } from './i18n.js';
+import { _tr } from './i18n.js';
 
 export function triggerImport() { 
     document.getElementById('fileInput').click(); 
