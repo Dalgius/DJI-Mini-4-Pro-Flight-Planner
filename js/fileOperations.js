@@ -66,4 +66,7 @@ export function loadFlightPlanData(plan) {
     }, 100); // Ridotto il timeout, potrebbe non essere necessario
 }
 
-export function exportFlightPlan() { 
+// Placeholder for exportFlightPlan function
+export function exportFlightPlan() {
+    // Implement export logic here if not already present
+}
