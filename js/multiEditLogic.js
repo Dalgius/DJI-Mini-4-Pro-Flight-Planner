@@ -2,8 +2,9 @@
 import * as DOM from './domElements.js';
 import * as State from './state.js';
 import { updateWaypointListDisplay, populatePoiSelectDropdownForUI, updateFlightStatisticsDisplay } from './uiControls.js';
-import { updateMarkerIcon, selectWaypoint as logicSelectWaypoint } from './waypointPOILogic.js'; // Importa selectWaypoint da waypointPOILogic
-import { showCustomAlert, _tr } from './utils.js';
+import { updateMarkerIcon } from './waypointPOILogic.js'; 
+import { showCustomAlert } from './utils.js'; // showCustomAlert è in utils.js
+import { _tr } from './i18n.js';         // _tr è in i18n.js
 
 export function toggleMultiSelectWaypoint(waypointId, isChecked) { 
     const waypoint = State.getWaypoints().find(wp => wp.id === waypointId);
@@ -78,6 +79,7 @@ export function updateMultiEditPanelVisibility() {
 
 export function applyMultiEdit() { 
     if (State.selectedForMultiEdit.size === 0) {
+        // Ora _tr viene da i18n.js e showCustomAlert da utils.js
         showCustomAlert(_tr("alertNoWpMultiEdit"), _tr("alertWarning"));
         return;
     }
