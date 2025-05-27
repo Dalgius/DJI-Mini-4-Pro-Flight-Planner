@@ -7,7 +7,8 @@ import { populatePoiSelectDropdownForUI } from './uiControls.js'; // Still neede
 // updateMarkerIcon is a map concern, ideally mapLogic listens to multiEditSelectionChanged.
 // For now, uiControls will react to multiEditSelectionChanged and call updateMarkerIcon.
 // import { updateMarkerIcon, selectWaypoint as logicSelectWaypoint } from './waypointPOILogic.js';
-import { showCustomAlert, _tr } from './utils.js';
+import { showCustomAlert } from './utils.js';
+import { _tr } from './i18n.js';
 
 export function toggleMultiSelectWaypoint(waypointId, isChecked) {
     // const waypoint = State.getWaypoints().find(wp => wp.id === waypointId); // Not needed if only dispatching
