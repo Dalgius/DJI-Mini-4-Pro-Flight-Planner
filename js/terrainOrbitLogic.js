@@ -4,8 +4,8 @@ import { _tr } from './i18n.js';
 import * as State from './state.js';
 import * as DOM from './domElements.js';
 
-// New function implementation
-export default function adaptAltitudesToAGL(altitudesInMSL, terrainData) {
+// Export adaptAltitudesToAGL as a NAMED export
+export function adaptAltitudesToAGL(altitudesInMSL, terrainData) {
     if (State.getWaypoints().length === 0) {
         showCustomAlert(_tr("alertNoWaypointForAGL", "Add waypoints to adapt altitudes to AGL."), _tr("alertInfo"));
         return;
