@@ -1,11 +1,11 @@
 // ui.js
-import { selectWaypoint, toggleMultiSelectWaypoint, clearWaypoints, getWaypoints, getSelectedWaypoint, getSelectedForMultiEdit, deleteSelectedWaypoint } from './waypoints.js';
-import { deletePOI, populatePoiSelectDropdown } from './pois.js';
+import { selectWaypoint, toggleMultiSelectWaypoint, clearWaypoints, getWaypoints, getSelectedWaypoint, getSelectedForMultiEdit, deleteSelectedWaypoint, applyMultiEdit, clearMultiSelection } from './waypoints.js';
+import { deletePOI, populatePoiSelectDropdown, getPois } from './pois.js';
 import { updateFlightPath } from './flightPath.js';
-import { showOrbitDialog } from './orbit.js';
-import { exportFlightPlan, triggerImport } from './exportImport.js';
+import { showOrbitDialog, handleConfirmOrbit } from './orbit.js';
+import { exportFlightPlan, triggerImport, handleFileImport } from './exportImport.js';
 import { getHomeElevationFromFirstWaypoint, adaptAltitudesToAGL } from './terrain.js';
-import { getMap } from './map.js';
+import { getMap, toggleSatelliteView, showCurrentLocation } from './map.js';
 
 let defaultAltitudeSlider, defaultAltitudeValueEl, flightSpeedSlider, flightSpeedValueEl;
 let waypointAltitudeSlider, waypointAltitudeValueEl, hoverTimeSlider, hoverTimeValueEl;
@@ -28,7 +28,6 @@ let customAlertOverlayEl, customAlertMessageEl, customAlertOkButtonEl, customAle
 let orbitModalOverlayEl, orbitPoiSelectEl, orbitRadiusInputEl, orbitPointsInputEl, confirmOrbitBtnEl, cancelOrbitBtnEl;
 
 export function cacheDOMElements() {
-    // Cache tutti gli elementi DOM come nel codice originale
     defaultAltitudeSlider = document.getElementById('defaultAltitude');
     defaultAltitudeValueEl = document.getElementById('defaultAltitudeValue');
     flightSpeedSlider = document.getElementById('flightSpeed');
@@ -220,6 +219,10 @@ export function setupEventListeners() {
     });
 }
 
+export function toggleSelectAllWaypoints(checked) {
+    getWaypoints().forEach(wp => toggleMultiSelectWaypoint(wp.id, checked));
+}
+
 export function updateWaypointList() {
     const waypoints = getWaypoints();
     if (waypoints.length === 0) {
@@ -261,6 +264,16 @@ export function updateWaypointList() {
         </div>`;
     }).join('');
     if (waypoints.length === 0 && getSelectedForMultiEdit().size === 0) updateMultiEditPanelVisibility();
+}
+
+function getCameraActionText(action) {
+    switch (action) {
+        case 'photo': return 'Take Photo';
+        case 'video_start': return 'Start Video';
+        case 'video_stop': return 'Stop Video';
+        case 'none': return '';
+        default: return action;
+    }
 }
 
 export function updatePOIList() {
@@ -305,13 +318,21 @@ export function updateFlightStatistics() {
     poiCountEl.textContent = getPois().length;
 }
 
+function haversineDistance(coords1, coords2) {
+    function toRad(x) { return x * Math.PI / 180; }
+    const lat1 = coords1.lat || coords1[0], lon1 = coords1.lng || coords1[1], lat2 = coords2.lat || coords2[0], lon2 = coords2.lng || coords2[1];
+    const R = 6371e3, φ1 = toRad(lat1), φ2 = toRad(lat2), Δφ = toRad(lat2 - lat1), Δλ = toRad(lon2 - lon1);
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export function showCustomAlert(message, title = 'Notification') {
     if (customAlertMessageEl && customAlertOverlayEl && customAlertTitleEl) {
         customAlertTitleEl.textContent = title;
         customAlertMessageEl.textContent = message;
         customAlertOverlayEl.style.display = 'flex';
     } else {
-        console.error('Elementi per customAlert non trovati!');
+        console.error('Custom alert elements not found!');
         alert(message);
     }
 }
@@ -344,4 +365,9 @@ export function fitMapToWaypoints() {
     if (waypoints.length > 0) getMap().fitBounds(L.latLngBounds(waypoints.map(wp => wp.latlng)).pad(0.1));
     else if (pois.length > 0) getMap().fitBounds(L.latLngBounds(pois.map(p => p.latlng)).pad(0.1));
     else getMap().setView([37.7749, -122.4194], 13);
+}
+
+export function handleWaypointListClick(waypointId) {
+    const waypoint = getWaypoints().find(wp => wp.id === waypointId);
+    if (waypoint) selectWaypoint(waypoint);
 }
