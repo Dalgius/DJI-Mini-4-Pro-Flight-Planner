@@ -6,7 +6,7 @@ import { getCameraActionKey, showCustomAlert } from './utils.js'; // Importa da 
 // Importa le funzioni di logica che devono essere chiamate dagli event listener
 import { selectWaypoint as logicSelectWaypoint, deletePOI as logicDeletePOI } from './waypointPOILogic.js';
 import { toggleMultiSelectWaypoint as logicToggleMultiSelectWaypoint, toggleSelectAllWaypoints as logicToggleSelectAllWaypoints, clearMultiSelection as logicClearMultiSelection, applyMultiEdit as logicApplyMultiEdit, updateMultiEditPanelVisibility as logicUpdateMultiEditPanel } from './multiEditLogic.js';
-import { getHomeElevationFromFirstWaypoint as logicGetHomeElevation, adaptAltitudesToAGL as logicAdaptAGL, showOrbitDialog as logicShowOrbit, handleConfirmOrbit as logicHandleConfirmOrbit } from './terrainOrbitLogic.js';
+import { gethomeelevationfromfirstwaypoint as logicgethomeelevation, adaptaltitudestoagl as logicadaptagl, showorbitdialog as logicshoworbit, handleconfirmorbit as logichandleconfirmorbit} from './terrainorbitlogic.js';
 import { triggerImport as logicTriggerImport, handleFileImport, exportFlightPlan as logicExportJson, exportToDjiWpmlKmz as logicExportKmz, exportToGoogleEarth as logicExportKml } from './fileOperations.js';
 import { toggleSatelliteView as logicToggleSatellite, fitMapToWaypoints as logicFitMap, showCurrentLocation as logicShowLocation, updateFlightPathDisplay } from './mapLogic.js';
 
