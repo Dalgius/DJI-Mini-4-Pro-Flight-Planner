@@ -9,7 +9,11 @@ import { getCameraActionKey, showCustomAlert } from './utils.js'; // Importa da 
 import { selectWaypoint as logicSelectWaypoint, deletePOI as logicDeletePOI, updateMarkerIcon } from './waypointPOILogic.js';
 import { toggleMultiSelectWaypoint as logicToggleMultiSelectWaypoint, toggleSelectAllWaypoints as logicToggleSelectAllWaypoints, clearMultiSelection as logicClearMultiSelection, applyMultiEdit as logicApplyMultiEdit, updateMultiEditPanelVisibility as logicUpdateMultiEditPanel } from './multiEditLogic.js';
 // Removed adaptAltitudesToAGL as logicAdaptAGL from this import
-import { getHomeElevationFromFirstWaypoint as logicGetHomeElevation, showOrbitDialog as logicShowOrbit, handleConfirmOrbit as logicHandleConfirmOrbit } from './terrainOrbitLogic.js';
+import { 
+    getHomeElevationFromFirstWaypoint as logicGetHomeElevation, 
+    showOrbitDialog as logicShowOrbit, 
+    handleConfirmOrbit as logicHandleConfirmOrbit 
+} from './terrainOrbitLogic.js';
 import { triggerImport as logicTriggerImport, handleFileImport, exportFlightPlan as logicExportJson, exportToDjiWpmlKmz as logicExportKmz, exportToGoogleEarth as logicExportKml } from './fileOperations.js';
 import { toggleSatelliteView as logicToggleSatellite, fitMapToWaypoints as logicFitMap, showCurrentLocation as logicShowLocation, updateFlightPathDisplay } from './mapLogic.js';
 
