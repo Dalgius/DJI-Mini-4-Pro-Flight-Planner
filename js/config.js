@@ -2,6 +2,7 @@
 
 // --- Global Application State & Configuration ---
 let map; // Leaflet map instance
+let isDrawingSurveyArea = false;
 let waypoints = [];
 let pois = [];
 let selectedWaypoint = null; // Holds the currently selected waypoint object for single editing
