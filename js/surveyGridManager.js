@@ -104,7 +104,7 @@ function handleStartDrawingSurveyArea() {
 
     isDrawingSurveyArea = true;
     currentPolygonPoints = [];
-    clearTemporaryDrawing(); // clearTemporaryDrawing è ora definita prima
+    clearTemporaryDrawing(); 
     console.log("[SurveyGrid] Cleared temporary drawing, isDrawingSurveyArea set to true.");
 
     map.on('click', handleSurveyAreaMapClick);
@@ -112,10 +112,13 @@ function handleStartDrawingSurveyArea() {
     console.log("[SurveyGrid] Map click listener ADDED for survey area drawing. Cursor set to crosshair.");
 
     startDrawingSurveyAreaBtnEl.style.display = 'none';
-    finalizeSurveyAreaBtnEl.style.display = 'none'; // Nascondi finché non ci sono abbastanza punti
+    finalizeSurveyAreaBtnEl.style.display = 'none'; 
     surveyAreaStatusEl.textContent = "Drawing area: 0 points.";
     surveyGridInstructionsEl.textContent = "Click on the map to add corners. Click the first point to close or use 'Finalize Area' (min 3 points).";
-    showCustomAlert("Map drawing mode activated. Click to define polygon corners.", "Survey Area");
+    
+    // !!! COMMENTA QUESTA RIGA TEMPORANEAMENTE !!!
+    // showCustomAlert("Map drawing mode activated. Click to define polygon corners.", "Survey Area");
+    console.log("[SurveyGrid] showCustomAlert for drawing mode activation SKIPPED for testing."); // DEBUG
 }
 
 /**
