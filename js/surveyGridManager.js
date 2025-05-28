@@ -50,6 +50,166 @@ function updateTempPolygonDisplay() {
 /**
  * Apre e inizializza la modale per la creazione della griglia di survey.
  */
+
+/**
+ * Algoritmo Point-in-Polygon (Ray Casting).
+ * Verifica se un punto è all'interno di un poligono.
+ * @param {L.LatLng} point Il punto da testare.
+ * @param {L.LatLng[]} polygonVertices I vertici del poligono.
+ * @returns {boolean} True se il punto è dentro il poligono, false altrimenti.
+ */
+function isPointInPolygon(point, polygonVertices) {
+    let अंदर = false; // 'isInside' in Hindi, per evitare conflitti di nomi :)
+    const x = point.lng; // Usiamo lng per x, lat per y
+    const y = point.lat;
+    const n = polygonVertices.length;
+
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+        const xi = polygonVertices[i].lng;
+        const yi = polygonVertices[i].lat;
+        const xj = polygonVertices[j].lng;
+        const yj = polygonVertices[j].lat;
+
+        const intersect = ((yi > y) !== (yj > y)) &&
+            (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) अंदर = !अंदर;
+    }
+    return अंदर;
+}
+
+
+/**
+ * Genera i waypoint per la griglia di survey (versione semplificata).
+ * @param {L.LatLng[]} polygonLatLngs Vertici del poligono.
+ * @param {number} flightAltitude Altitudine di volo.
+ * @param {number} lineSpacing Spaziatura tra le linee (in metri).
+ * @param {number} gridAngleDeg Angolo della griglia (IGNORATO in questa versione).
+ * @param {number} overshootDistance Overshoot (IGNORATO in questa versione).
+ * @returns {object[]} Array di oggetti waypoint pronti per addWaypoint.
+ */
+function generateSurveyGridWaypoints(polygonLatLngs, flightAltitude, lineSpacing, gridAngleDeg, overshootDistance) {
+    console.log("Attempting to generate survey grid (simplified) with:", {
+        polygonLatLngs, flightAltitude, lineSpacing, gridAngleDeg, overshootDistance
+    });
+    const waypointsData = []; // Conterrà { latlng, options }
+
+    if (!polygonLatLngs || polygonLatLngs.length < MIN_POLYGON_POINTS) {
+        showCustomAlert("Invalid polygon for survey grid generation.", "Error");
+        return waypointsData;
+    }
+
+    const bounds = L.latLngBounds(polygonLatLngs);
+    const northEast = bounds.getNorthEast();
+    const southWest = bounds.getSouthWest();
+
+    console.log("Bounds:", southWest.toString(), northEast.toString());
+
+    // Calcola la spaziatura tra le linee in gradi di latitudine (approssimazione)
+    // 1 grado di latitudine è circa 111 km. lineSpacing è in metri.
+    const earthRadiusMeters = 6371000;
+    const lineSpacingLatDeg = (lineSpacing / earthRadiusMeters) * (180 / Math.PI);
+
+    // Numero di foto per linea (approssimativo, per avere una densità di punti)
+    // Potremmo basarlo sulla lineSpacing o su un parametro di frontlap.
+    // Per ora, creiamo punti ogni X metri lungo la linea.
+    const distanceBetweenPhotos = lineSpacing; // Semplificazione: scatta foto ogni "lineSpacing" metri
+    const photoSpacingLngDeg = (distanceBetweenPhotos / (earthRadiusMeters * Math.cos(toRad(southWest.lat)))) * (180 / Math.PI);
+
+
+    let currentLat = southWest.lat;
+    let scanDirection = 1; // 1: SW.lng -> NE.lng (Ovest -> Est), -1: NE.lng -> SW.lng (Est -> Ovest)
+
+    while (currentLat <= northEast.lat) {
+        const linePoints = [];
+        if (scanDirection === 1) {
+            for (let currentLng = southWest.lng; currentLng <= northEast.lng; currentLng += photoSpacingLngDeg) {
+                linePoints.push(L.latLng(currentLat, currentLng));
+            }
+            // Assicura che l'ultimo punto della linea sia esattamente al bordo del BB
+            if (linePoints.length === 0 || linePoints[linePoints.length - 1].lng < northEast.lng) {
+                 linePoints.push(L.latLng(currentLat, northEast.lng));
+            }
+        } else { // scanDirection === -1
+            for (let currentLng = northEast.lng; currentLng >= southWest.lng; currentLng -= photoSpacingLngDeg) {
+                linePoints.push(L.latLng(currentLat, currentLng));
+            }
+            if (linePoints.length === 0 || linePoints[linePoints.length - 1].lng > southWest.lng) {
+                 linePoints.push(L.latLng(currentLat, southWest.lng));
+            }
+        }
+
+        // Filtra i punti della linea che sono dentro il poligono originale
+        linePoints.forEach(point => {
+            if (isPointInPolygon(point, polygonLatLngs)) {
+                waypointsData.push({
+                    latlng: point,
+                    options: {
+                        altitude: flightAltitude,
+                        cameraAction: 'takePhoto', // Azione camera di default
+                        headingControl: 'auto' // o calcola l'orientamento della linea
+                        // Potremmo aggiungere un heading fisso basato sulla direzione della linea
+                    }
+                });
+            }
+        });
+
+        currentLat += lineSpacingLatDeg;
+        scanDirection *= -1; // Alterna la direzione per la prossima linea
+    }
+
+    console.log(`Generated ${waypointsData.length} raw waypoints for survey grid.`);
+    if (waypointsData.length === 0 && polygonLatLngs.length >= MIN_POLYGON_POINTS) {
+        showCustomAlert("No waypoints generated. The polygon might be too small for the given line spacing, or parameters are invalid.", "Grid Generation Warning");
+    }
+    return waypointsData;
+}
+
+
+function handleConfirmSurveyGridGeneration() {
+    console.log("[SurveyGrid] handleConfirmSurveyGridGeneration called");
+    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) {
+        showCustomAlert("Cannot generate grid: Survey area is not properly defined.", "Error"); return;
+    }
+    if (!surveyGridAltitudeInputEl || !surveyGridSpacingInputEl || !surveyGridAngleInputEl || !surveyGridOvershootInputEl) {
+         showCustomAlert("Cannot generate grid: Missing input elements.", "Error"); return;
+    }
+    const altitude = parseInt(surveyGridAltitudeInputEl.value);
+    const spacing = parseFloat(surveyGridSpacingInputEl.value);
+    const angle = parseFloat(surveyGridAngleInputEl.value); // IGNORATO PER ORA
+    const overshoot = parseFloat(surveyGridOvershootInputEl.value); // IGNORATO PER ORA
+
+    // Validazioni input
+    if (isNaN(altitude) || altitude < 1) { showCustomAlert("Invalid altitude.", "Input Error"); return; }
+    if (isNaN(spacing) || spacing <= 0) { showCustomAlert("Invalid line spacing. Must be > 0.", "Input Error"); return; }
+    // if (isNaN(angle)) { showCustomAlert("Invalid grid angle.", "Input Error"); return; }
+    // if (isNaN(overshoot) || overshoot < 0) { showCustomAlert("Invalid overshoot value.", "Input Error"); return; }
+
+    if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = "Generating grid waypoints...";
+
+    // Chiamata alla funzione di generazione
+    const surveyWaypoints = generateSurveyGridWaypoints(currentPolygonPoints, altitude, spacing, angle, overshoot);
+
+    if (surveyWaypoints && surveyWaypoints.length > 0) {
+       surveyWaypoints.forEach(wpData => {
+           // addWaypoint è la funzione globale da waypointManager.js
+           // Si aspetta (latlng, options), dove options può contenere altitude, cameraAction, ecc.
+           addWaypoint(wpData.latlng, wpData.options);
+       });
+       updateWaypointList(); 
+       updateFlightPath(); 
+       updateFlightStatistics(); 
+       fitMapToWaypoints();
+       showCustomAlert(`${surveyWaypoints.length} survey grid waypoints generated and added!`, "Success");
+    } else if (surveyWaypoints && surveyWaypoints.length === 0 && currentPolygonPoints.length >= MIN_POLYGON_POINTS){
+        // Non mostrare un altro alert se generateSurveyGridWaypoints ne ha già mostrato uno
+        console.warn("generateSurveyGridWaypoints returned an empty array.");
+    }
+
+
+    handleCancelSurveyGrid(); // Chiude modale, resetta stato e listener
+}
+
+
 function openSurveyGridModal() {
     console.log("[SurveyGrid] openSurveyGridModal called");
     if (!surveyGridModalOverlayEl || !defaultAltitudeSlider || !surveyGridAltitudeInputEl || !confirmSurveyGridBtnEl || !finalizeSurveyAreaBtnEl || !startDrawingSurveyAreaBtnEl || !surveyAreaStatusEl || !surveyGridInstructionsEl) {
