@@ -40,6 +40,42 @@
         </div>
     </div>
 
+    <!-- Survey Grid Modal -->
+    <div id="surveyGridModalOverlay" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h2 id="surveyGridModalTitle">Create Survey Grid</h2>
+            <div class="modal-body">
+                <p id="surveyGridInstructions" style="font-size: 0.9em; margin-bottom: 15px;">
+                    Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon, or use the "Finalize Area" button.
+                </p>
+
+                <label for="surveyGridAltitudeInput">Flight Altitude (m):</label>
+                <input type="number" id="surveyGridAltitudeInput" value="50" min="5">
+
+                <label for="surveyGridSpacingInput">Line Spacing (m):</label>
+                <input type="number" id="surveyGridSpacingInput" value="50" min="1">
+
+                <label for="surveyGridAngleInput">Grid Angle (°):</label>
+                <input type="number" id="surveyGridAngleInput" value="0" min="-360" max="360">
+                <small>0° for North-South lines, 90° for East-West lines.</small>
+
+                <label for="surveyGridOvershootInput">Overshoot (m):</label>
+                <input type="number" id="surveyGridOvershootInput" value="10" min="0">
+
+                <div id="surveyAreaStatus" style="margin-top: 10px; font-style: italic;">
+                    Area not defined.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="startDrawingSurveyAreaBtn" class="modal-btn">Start Drawing Area</button>
+                <button id="finalizeSurveyAreaBtn" class="modal-btn" style="display: none;">Finalize Area</button>
+                <button id="confirmSurveyGridBtn" class="modal-btn" disabled>Generate Grid</button>
+                <button id="cancelSurveyGridBtn" class="modal-btn modal-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+
     <div class="app-container">
         <div class="sidebar">
             <div class="app-header">
@@ -210,6 +246,7 @@
                 <button class="btn" id="adaptToAGLBtn" data-i18n-key="adaptAGLBtn">Adapt Waypoint Altitudes to AGL</button>
                 <hr style="border-color: #34495e; margin: 15px 0;">
                 <button class="btn" id="createOrbitBtn" data-i18n-key="createOrbitBtn">Create POI Orbit</button>
+                <button id="createSurveyGridBtn" class="sidebar-btn btn" data-i18n-key="createSurveyGridBtn">Create Survey Grid</button> <!-- MODIFIED: Aggiunta classe btn per coerenza -->
             </div>
 
             <div class="section">
@@ -242,6 +279,8 @@
     <input type="file" id="fileInput" accept=".json" style="display: none;">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <!-- Your Modularized Scripts -->
     <script src="js/config.js"></script>
     <script src="js/domCache.js"></script>
     <script src="js/utils.js"></script>
@@ -252,6 +291,7 @@
     <script src="js/waypointManager.js"></script>
     <script src="js/orbitManager.js"></script>
     <script src="js/terrainManager.js"></script>
+    <script src="js/surveyGridManager.js"></script> <!-- NUOVO SCRIPT INCLUSO -->
     <script src="js/importExportManager.js"></script>
     <script src="js/eventListeners.js"></script>
     <script src="js/app.js"></script>
