@@ -152,25 +152,44 @@ function handleSurveyAreaMapClick(e) {
 
 function handleFinalizeSurveyArea() {
     console.log("[SurveyGrid] handleFinalizeSurveyArea called");
-    if (!isDrawingSurveyArea) { console.log("Not in drawing mode."); return; }
-    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) {
-        showCustomAlert(`Area definition requires at least ${MIN_POLYGON_POINTS} points.`, "Info"); return;
+    if (!isDrawingSurveyArea) {
+         console.log("[SurveyGrid] handleFinalizeSurveyArea: Not in drawing mode or already finalized.");
+         return;
     }
+    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) {
+        // Questo showCustomAlert è per un errore, ed è OK che rimanga
+        showCustomAlert(`Area definition requires at least ${MIN_POLYGON_POINTS} points.`, "Info"); 
+        return;
+    }
+    
     const mapContainer = map.getContainer();
     if (mapContainer && nativeMapClickListener) {
         mapContainer.removeEventListener('click', nativeMapClickListener, true);
-        nativeMapClickListener = null; // Importante
+        nativeMapClickListener = null; 
         console.log("[SurveyGrid] NATIVE DOM click listener REMOVED after finalize.");
     }
     map.getContainer().style.cursor = '';
-    setModalInteractivity(true); // Rendi la modale (e il suo contenuto) di nuovo pienamente interattiva
+    console.log("[SurveyGrid] Drawing-specific map click listener removed after finalize. Cursor reset.");
+
+    setModalInteractivity(true); 
+
     finalizeSurveyAreaBtnEl.style.display = 'none';
     confirmSurveyGridBtnEl.disabled = false;
     surveyAreaStatusEl.textContent = `Area defined with ${currentPolygonPoints.length} points.`;
-    if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = '<strong style="color: #2ecc71;">Area finalized!</strong> Adjust parameters or click "Generate Grid".'; // FEEDBACK NELLA MODALE
-    if (tempPolygonLayer) tempPolygonLayer.setStyle({ color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' });
+    
+    // AGGIORNAMENTO DEL TESTO NELLA MODALE INVECE DELL'ALERT
+    if (surveyGridInstructionsEl) {
+        surveyGridInstructionsEl.innerHTML = '<strong style="color: #2ecc71;">Area finalized!</strong> Adjust parameters or click "Generate Grid".';
+    }
+    
+    if (tempPolygonLayer) {
+        tempPolygonLayer.setStyle({ color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' });
+    }
     tempVertexMarkers.forEach(marker => marker.off('click'));
     console.log("[SurveyGrid] Area finalized. Modal interactive for confirmation.");
+
+    // ASSICURATI CHE QUESTA RIGA SIA STATA RIMOSSA O COMMENTATA:
+    // showCustomAlert("Survey area finalized. You can now generate the grid.", "Area Defined"); 
 }
 
 function handleCancelSurveyGrid() {
