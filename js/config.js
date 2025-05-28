@@ -62,6 +62,11 @@ let multiChangeGimbalPitchCheckbox, multiGimbalPitchSlider, multiGimbalPitchValu
 let multiChangeHoverTimeCheckbox, multiHoverTimeSlider, multiHoverTimeValueEl;
 let applyMultiEditBtn, clearMultiSelectionBtn;
 
+// ... (altre dichiarazioni) ...
+let createSurveyGridBtn, surveyGridModalOverlayEl, surveyGridModalTitleEl, surveyGridInstructionsEl;
+let surveyGridAltitudeInputEl, surveyGridSpacingInputEl, surveyGridAngleInputEl, surveyGridOvershootInputEl;
+let surveyAreaStatusEl, startDrawingSurveyAreaBtnEl, finalizeSurveyAreaBtnEl, confirmSurveyGridBtnEl, cancelSurveyGridBtnEl;
+
 // Terrain & Orbit Tools
 let homeElevationMslInput, desiredAGLInput, adaptToAGLBtnEl;
 let getHomeElevationBtn, createOrbitBtn;
