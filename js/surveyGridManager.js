@@ -1,14 +1,15 @@
 // File: surveyGridManager.js
 
-// Depends on: config.js (for isDrawingSurveyArea, map, DOM elements for modal)
+// Depends on: config.js (for isDrawingSurveyArea, map, DOM elements for modal, R_EARTH)
 // Depends on: mapManager.js (for map object, and assumes handleMapClick is a global function from there)
-// Depends on: utils.js (for showCustomAlert)
+// Depends on: utils.js (for showCustomAlert, and toRad if global)
+// Depends on: waypointManager.js (for addWaypoint)
 
 // Variabili di stato specifiche di questo modulo
 let currentPolygonPoints = [];
 let tempPolygonLayer = null;
 let tempVertexMarkers = [];
-let nativeMapClickListener = null; // Per tenere traccia del listener DOM nativo
+let nativeMapClickListener = null;
 
 const MIN_POLYGON_POINTS = 3;
 
@@ -45,12 +46,7 @@ function updateTempPolygonDisplay() {
     }
 }
 
-// === MAIN HANDLERS ===
-
-/**
- * Apre e inizializza la modale per la creazione della griglia di survey.
- */
-
+// === POINT-IN-POLYGON ALGORITHM ===
 /**
  * Algoritmo Point-in-Polygon (Ray Casting).
  * Verifica se un punto è all'interno di un poligono.
@@ -59,10 +55,12 @@ function updateTempPolygonDisplay() {
  * @returns {boolean} True se il punto è dentro il poligono, false altrimenti.
  */
 function isPointInPolygon(point, polygonVertices) {
-    let अंदर = false; // 'isInside' in Hindi, per evitare conflitti di nomi :)
+    let isInside = false;
     const x = point.lng; // Usiamo lng per x, lat per y
     const y = point.lat;
     const n = polygonVertices.length;
+
+    // console.log(`[isPointInPolygon] Testing point: (${x.toFixed(6)}, ${y.toFixed(6)})`); // DEBUG ESTREMO
 
     for (let i = 0, j = n - 1; i < n; j = i++) {
         const xi = polygonVertices[i].lng;
@@ -70,145 +68,21 @@ function isPointInPolygon(point, polygonVertices) {
         const xj = polygonVertices[j].lng;
         const yj = polygonVertices[j].lat;
 
+        // console.log(`  Segment: (${xi.toFixed(6)},${yi.toFixed(6)}) to (${xj.toFixed(6)},${yj.toFixed(6)})`); // DEBUG ESTREMO
+
         const intersect = ((yi > y) !== (yj > y)) &&
             (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-        if (intersect) अंदर = !अंदर;
-    }
-    return अंदर;
-}
-
-
-/**
- * Genera i waypoint per la griglia di survey (versione semplificata).
- * @param {L.LatLng[]} polygonLatLngs Vertici del poligono.
- * @param {number} flightAltitude Altitudine di volo.
- * @param {number} lineSpacing Spaziatura tra le linee (in metri).
- * @param {number} gridAngleDeg Angolo della griglia (IGNORATO in questa versione).
- * @param {number} overshootDistance Overshoot (IGNORATO in questa versione).
- * @returns {object[]} Array di oggetti waypoint pronti per addWaypoint.
- */
-function generateSurveyGridWaypoints(polygonLatLngs, flightAltitude, lineSpacing, gridAngleDeg, overshootDistance) {
-    console.log("Attempting to generate survey grid (simplified) with:", {
-        polygonLatLngs, flightAltitude, lineSpacing, gridAngleDeg, overshootDistance
-    });
-    const waypointsData = []; // Conterrà { latlng, options }
-
-    if (!polygonLatLngs || polygonLatLngs.length < MIN_POLYGON_POINTS) {
-        showCustomAlert("Invalid polygon for survey grid generation.", "Error");
-        return waypointsData;
-    }
-
-    const bounds = L.latLngBounds(polygonLatLngs);
-    const northEast = bounds.getNorthEast();
-    const southWest = bounds.getSouthWest();
-
-    console.log("Bounds:", southWest.toString(), northEast.toString());
-
-    // Calcola la spaziatura tra le linee in gradi di latitudine (approssimazione)
-    // 1 grado di latitudine è circa 111 km. lineSpacing è in metri.
-    const earthRadiusMeters = 6371000;
-    const lineSpacingLatDeg = (lineSpacing / earthRadiusMeters) * (180 / Math.PI);
-
-    // Numero di foto per linea (approssimativo, per avere una densità di punti)
-    // Potremmo basarlo sulla lineSpacing o su un parametro di frontlap.
-    // Per ora, creiamo punti ogni X metri lungo la linea.
-    const distanceBetweenPhotos = lineSpacing; // Semplificazione: scatta foto ogni "lineSpacing" metri
-    const photoSpacingLngDeg = (distanceBetweenPhotos / (earthRadiusMeters * Math.cos(toRad(southWest.lat)))) * (180 / Math.PI);
-
-
-    let currentLat = southWest.lat;
-    let scanDirection = 1; // 1: SW.lng -> NE.lng (Ovest -> Est), -1: NE.lng -> SW.lng (Est -> Ovest)
-
-    while (currentLat <= northEast.lat) {
-        const linePoints = [];
-        if (scanDirection === 1) {
-            for (let currentLng = southWest.lng; currentLng <= northEast.lng; currentLng += photoSpacingLngDeg) {
-                linePoints.push(L.latLng(currentLat, currentLng));
-            }
-            // Assicura che l'ultimo punto della linea sia esattamente al bordo del BB
-            if (linePoints.length === 0 || linePoints[linePoints.length - 1].lng < northEast.lng) {
-                 linePoints.push(L.latLng(currentLat, northEast.lng));
-            }
-        } else { // scanDirection === -1
-            for (let currentLng = northEast.lng; currentLng >= southWest.lng; currentLng -= photoSpacingLngDeg) {
-                linePoints.push(L.latLng(currentLat, currentLng));
-            }
-            if (linePoints.length === 0 || linePoints[linePoints.length - 1].lng > southWest.lng) {
-                 linePoints.push(L.latLng(currentLat, southWest.lng));
-            }
+        if (intersect) {
+            // console.log(`    Intersection detected with segment ${i}`); // DEBUG ESTREMO
+            isInside = !isInside;
         }
-
-        // Filtra i punti della linea che sono dentro il poligono originale
-        linePoints.forEach(point => {
-            if (isPointInPolygon(point, polygonLatLngs)) {
-                waypointsData.push({
-                    latlng: point,
-                    options: {
-                        altitude: flightAltitude,
-                        cameraAction: 'takePhoto', // Azione camera di default
-                        headingControl: 'auto' // o calcola l'orientamento della linea
-                        // Potremmo aggiungere un heading fisso basato sulla direzione della linea
-                    }
-                });
-            }
-        });
-
-        currentLat += lineSpacingLatDeg;
-        scanDirection *= -1; // Alterna la direzione per la prossima linea
     }
-
-    console.log(`Generated ${waypointsData.length} raw waypoints for survey grid.`);
-    if (waypointsData.length === 0 && polygonLatLngs.length >= MIN_POLYGON_POINTS) {
-        showCustomAlert("No waypoints generated. The polygon might be too small for the given line spacing, or parameters are invalid.", "Grid Generation Warning");
-    }
-    return waypointsData;
+    // console.log(`[isPointInPolygon] Result for (${x.toFixed(6)}, ${y.toFixed(6)}): ${isInside}`); // DEBUG ESTREMO
+    return isInside;
 }
 
 
-function handleConfirmSurveyGridGeneration() {
-    console.log("[SurveyGrid] handleConfirmSurveyGridGeneration called");
-    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) {
-        showCustomAlert("Cannot generate grid: Survey area is not properly defined.", "Error"); return;
-    }
-    if (!surveyGridAltitudeInputEl || !surveyGridSpacingInputEl || !surveyGridAngleInputEl || !surveyGridOvershootInputEl) {
-         showCustomAlert("Cannot generate grid: Missing input elements.", "Error"); return;
-    }
-    const altitude = parseInt(surveyGridAltitudeInputEl.value);
-    const spacing = parseFloat(surveyGridSpacingInputEl.value);
-    const angle = parseFloat(surveyGridAngleInputEl.value); // IGNORATO PER ORA
-    const overshoot = parseFloat(surveyGridOvershootInputEl.value); // IGNORATO PER ORA
-
-    // Validazioni input
-    if (isNaN(altitude) || altitude < 1) { showCustomAlert("Invalid altitude.", "Input Error"); return; }
-    if (isNaN(spacing) || spacing <= 0) { showCustomAlert("Invalid line spacing. Must be > 0.", "Input Error"); return; }
-    // if (isNaN(angle)) { showCustomAlert("Invalid grid angle.", "Input Error"); return; }
-    // if (isNaN(overshoot) || overshoot < 0) { showCustomAlert("Invalid overshoot value.", "Input Error"); return; }
-
-    if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = "Generating grid waypoints...";
-
-    // Chiamata alla funzione di generazione
-    const surveyWaypoints = generateSurveyGridWaypoints(currentPolygonPoints, altitude, spacing, angle, overshoot);
-
-    if (surveyWaypoints && surveyWaypoints.length > 0) {
-       surveyWaypoints.forEach(wpData => {
-           // addWaypoint è la funzione globale da waypointManager.js
-           // Si aspetta (latlng, options), dove options può contenere altitude, cameraAction, ecc.
-           addWaypoint(wpData.latlng, wpData.options);
-       });
-       updateWaypointList(); 
-       updateFlightPath(); 
-       updateFlightStatistics(); 
-       fitMapToWaypoints();
-       showCustomAlert(`${surveyWaypoints.length} survey grid waypoints generated and added!`, "Success");
-    } else if (surveyWaypoints && surveyWaypoints.length === 0 && currentPolygonPoints.length >= MIN_POLYGON_POINTS){
-        // Non mostrare un altro alert se generateSurveyGridWaypoints ne ha già mostrato uno
-        console.warn("generateSurveyGridWaypoints returned an empty array.");
-    }
-
-
-    handleCancelSurveyGrid(); // Chiude modale, resetta stato e listener
-}
-
+// === MAIN HANDLERS ===
 
 function openSurveyGridModal() {
     console.log("[SurveyGrid] openSurveyGridModal called");
@@ -218,27 +92,20 @@ function openSurveyGridModal() {
         return;
     }
     surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value;
-    
-    cancelSurveyAreaDrawing(); // Resetta stato, UI del disegno e listener
-
+    cancelSurveyAreaDrawing();
     confirmSurveyGridBtnEl.disabled = true;
-    finalizeSurveyAreaBtnEl.style.display = 'none'; // Nascosto finché non ci sono abbastanza punti
+    finalizeSurveyAreaBtnEl.style.display = 'none';
     startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
     surveyAreaStatusEl.textContent = "Area not defined.";
     surveyGridInstructionsEl.innerHTML = 'Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon.';
-    
-    surveyGridModalOverlayEl.style.display = 'flex'; // MOSTRA LA MODALE
+    surveyGridModalOverlayEl.style.display = 'flex';
     console.log("[SurveyGrid] Survey Grid Modal displayed");
 }
 
-/**
- * Resetta lo stato del disegno, la UI della modale e i listener della mappa.
- */
 function cancelSurveyAreaDrawing() {
     console.log("[SurveyGrid] cancelSurveyAreaDrawing called");
     const wasDrawingOrListenersActive = isDrawingSurveyArea || nativeMapClickListener;
-    isDrawingSurveyArea = false; 
-
+    isDrawingSurveyArea = false;
     if (map) {
         const mapContainer = map.getContainer();
         if (mapContainer && nativeMapClickListener) {
@@ -246,11 +113,9 @@ function cancelSurveyAreaDrawing() {
             nativeMapClickListener = null;
             console.log("[SurveyGrid] NATIVE DOM click listener REMOVED.");
         }
-        map.off('click', handleSurveyAreaMapClick); 
-
+        map.off('click', handleSurveyAreaMapClick);
         map.getContainer().style.cursor = '';
         console.log("[SurveyGrid] All drawing-related map click listeners should be removed.");
-
         if ((wasDrawingOrListenersActive || !map.hasEventListeners('click', handleMapClick)) && typeof handleMapClick === 'function') {
             map.on('click', handleMapClick);
             console.log("[SurveyGrid] Default Leaflet map click listener RE-ENSURED.");
@@ -258,8 +123,6 @@ function cancelSurveyAreaDrawing() {
     }
     clearTemporaryDrawing();
     currentPolygonPoints = [];
-
-    // Ripristina UI Modale (per quando viene riaperta o se si annulla solo il disegno parziale)
     if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
     if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
     if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
@@ -267,218 +130,251 @@ function cancelSurveyAreaDrawing() {
     if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = 'Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon.';
 }
 
-/**
- * Avvia la modalità di disegno del poligono sulla mappa. Nasconde la modale.
- */
 function handleStartDrawingSurveyArea() {
     console.log("[SurveyGrid] handleStartDrawingSurveyArea called");
-    if (!map || !surveyGridModalOverlayEl) { // Controlli essenziali
-        console.error("[SurveyGrid] Map or Survey Grid Modal Overlay not found in handleStartDrawingSurveyArea");
-        return;
+    if (!map || !surveyGridModalOverlayEl) {
+        console.error("[SurveyGrid] Map or Survey Grid Modal Overlay not found"); return;
     }
-
     isDrawingSurveyArea = true;
     currentPolygonPoints = [];
-    clearTemporaryDrawing(); 
+    clearTemporaryDrawing();
     console.log("[SurveyGrid] Cleared temporary drawing, isDrawingSurveyArea set to true.");
-
     if (typeof handleMapClick === 'function') {
         map.off('click', handleMapClick);
         console.log("[SurveyGrid] Leaflet default map click listener TEMPORARILY REMOVED.");
     }
-    map.off('click', handleSurveyAreaMapClick); // Rimuovi per sicurezza se c'era
-
+    map.off('click', handleSurveyAreaMapClick);
     const mapContainer = map.getContainer();
     if (mapContainer) {
-        if (nativeMapClickListener) {
-             mapContainer.removeEventListener('click', nativeMapClickListener, true);
-        }
+        if (nativeMapClickListener) mapContainer.removeEventListener('click', nativeMapClickListener, true);
         nativeMapClickListener = function(event) {
             console.log("!!! NATIVE MAP CONTAINER CLICKED !!! Target:", event.target);
-            if (!isDrawingSurveyArea) { 
-                console.log("!!! NATIVE CLICK: but isDrawingSurveyArea is false. Ignoring.");
-                return;
-            }
+            if (!isDrawingSurveyArea) { console.log("!!! NATIVE CLICK: but isDrawingSurveyArea is false. Ignoring."); return; }
             if (event.target && (event.target === mapContainer || event.target.closest('.leaflet-pane') || event.target.closest('.leaflet-container'))) {
                 try {
-                    const latlng = map.mouseEventToLatLng(event); 
+                    const latlng = map.mouseEventToLatLng(event);
                     console.log("!!! NATIVE CLICK Converted to LatLng:", latlng);
-                    const pseudoLeafletEvent = { latlng: latlng, originalEvent: event };
-                    handleSurveyAreaMapClick(pseudoLeafletEvent); 
+                    handleSurveyAreaMapClick({ latlng: latlng, originalEvent: event });
                 } catch (mapError) { console.error("!!! NATIVE CLICK: Error:", mapError); }
-            } else {
-                 console.log("!!! NATIVE CLICK: Target was not map/pane. Target:", event.target);
-            }
+            } else { console.log("!!! NATIVE CLICK: Target was not map/pane. Target:", event.target); }
         };
         mapContainer.addEventListener('click', nativeMapClickListener, true);
         console.log("[SurveyGrid] NATIVE DOM click listener ADDED.");
     }
-
     map.getContainer().style.cursor = 'crosshair';
-    console.log("[SurveyGrid] Cursor set to crosshair.");
-
-    // NASCONDI LA MODALE PRINCIPALE DURANTE IL DISEGNO
     surveyGridModalOverlayEl.style.display = 'none';
     console.log("[SurveyGrid] Survey grid modal HIDDEN for drawing.");
-
-    // Feedback all'utente che la modalità disegno è attiva, dato che la modale è nascosta
-    showCustomAlert("Drawing survey area: Click on map to add corners. Click the first point (min 3 total) to finalize.", "Survey Drawing Active", );
-    // Potremmo anche aggiungere un listener per il tasto 'Esc' per annullare/finalizzare
-    // document.addEventListener('keydown', handleSurveyDrawingKeyDown);
-
-    // Non aggiorniamo i testi nella modale (startDrawingSurveyAreaBtnEl, ecc.) perché è nascosta.
+    showCustomAlert("Drawing survey area: Click on map to add corners. Click the first point (min 3 total) to finalize.", "Survey Drawing Active");
     console.log("[SurveyGrid] Drawing mode activated.");
 }
 
-/**
- * Gestisce i click (ora da listener nativo) per aggiungere punti del poligono.
- */
-function handleSurveyAreaMapClick(e) { 
+function handleSurveyAreaMapClick(e) {
     console.log("[SurveyGrid] handleSurveyAreaMapClick (from NATIVE) TRIGGERED!", "LatLng:", e.latlng);
-    if (!isDrawingSurveyArea) {
-        console.log("[SurveyGrid] handleSurveyAreaMapClick: Not in drawing mode, exiting.");
-        return;
-    }
+    if (!isDrawingSurveyArea) { console.log("[SurveyGrid] handleSurveyAreaMapClick: Not in drawing mode, exiting."); return; }
     console.log("[SurveyGrid] handleSurveyAreaMapClick: In drawing mode, proceeding.");
-
     const clickedLatLng = e.latlng;
     currentPolygonPoints.push(clickedLatLng);
     console.log("[SurveyGrid] Point added, total:", currentPolygonPoints.length);
-
-    const vertexMarker = L.circleMarker(clickedLatLng, {
-        radius: 6, color: 'rgba(255, 0, 0, 0.8)', fillColor: 'rgba(255,0,0,0.5)', fillOpacity: 0.7, pane: 'markerPane'
-    }).addTo(map);
-
-    if (tempVertexMarkers.length === 0) { // Solo per il primo marker
+    const vertexMarker = L.circleMarker(clickedLatLng, { radius: 6, color: 'rgba(255,0,0,0.8)', fillColor: 'rgba(255,0,0,0.5)', fillOpacity: 0.7, pane: 'markerPane' }).addTo(map);
+    if (tempVertexMarkers.length === 0) {
         vertexMarker.on('click', (markerClickEvent) => {
             console.log("[SurveyGrid] First vertex marker CLICKED for finalization.");
             if (isDrawingSurveyArea && currentPolygonPoints.length >= MIN_POLYGON_POINTS) {
-                L.DomEvent.stopPropagation(markerClickEvent);
-                L.DomEvent.preventDefault(markerClickEvent);
+                L.DomEvent.stopPropagation(markerClickEvent); L.DomEvent.preventDefault(markerClickEvent);
                 handleFinalizeSurveyArea();
             }
         });
     }
     tempVertexMarkers.push(vertexMarker);
     updateTempPolygonDisplay();
-
-    // Il feedback sul numero di punti ora è meno diretto se la modale è nascosta.
-    // Potrebbe essere utile un piccolo elemento non modale sulla mappa.
 }
 
-/**
- * Finalizza il disegno dell'area del poligono. Fa riapparire la modale.
- */
 function handleFinalizeSurveyArea() {
     console.log("[SurveyGrid] handleFinalizeSurveyArea called");
-    if (!isDrawingSurveyArea) {
-         console.log("[SurveyGrid] handleFinalizeSurveyArea: Not in drawing mode or already finalized.");
-         return;
-    }
+    if (!isDrawingSurveyArea) { console.log("[SurveyGrid] handleFinalizeSurveyArea: Not in drawing mode or already finalized."); return; }
     if (currentPolygonPoints.length < MIN_POLYGON_POINTS) {
-        showCustomAlert(`Area definition requires at least ${MIN_POLYGON_POINTS} points.`, "Info"); 
-        // Non uscire dalla modalità disegno, permetti all'utente di aggiungere altri punti o annullare.
-        // Se si vuole forzare l'uscita, chiamare cancelSurveyAreaDrawing() o riaprire la modale.
-        return;
+        showCustomAlert(`Area definition requires at least ${MIN_POLYGON_POINTS} points.`, "Info"); return;
     }
-    
-    // Rimuovi il listener di disegno nativo, il disegno è finito
     const mapContainer = map.getContainer();
     if (mapContainer && nativeMapClickListener) {
         mapContainer.removeEventListener('click', nativeMapClickListener, true);
-        nativeMapClickListener = null; 
+        nativeMapClickListener = null;
         console.log("[SurveyGrid] NATIVE DOM click listener REMOVED after finalize.");
     }
     map.getContainer().style.cursor = '';
-    // isDrawingSurveyArea rimane true finché non si clicca "Generate" o "Cancel" nella modale che riappare.
-    // Il listener di default handleMapClick è ancora disattivato.
-
     if (surveyGridModalOverlayEl) {
-        surveyGridModalOverlayEl.style.display = 'flex'; // RIAPRI LA MODALE
+        surveyGridModalOverlayEl.style.display = 'flex';
         console.log("[SurveyGrid] Survey grid modal SHOWN for confirmation.");
     }
-
-    if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none'; // Non serve più
-    if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false; // Abilita Generazione
+    if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
+    if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false;
     if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = `Area defined with ${currentPolygonPoints.length} points.`;
     if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = '<strong style="color: #2ecc71;">Area finalized!</strong> Adjust parameters or click "Generate Grid".';
-    
     if (tempPolygonLayer) tempPolygonLayer.setStyle({ color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' });
     tempVertexMarkers.forEach(marker => marker.off('click'));
     console.log("[SurveyGrid] Area finalized. Modal shown for confirmation.");
-    // Rimuovi anche il listener di 'Esc' se ne avevamo aggiunto uno per il disegno
-    // document.removeEventListener('keydown', handleSurveyDrawingKeyDown);
 }
 
-/**
- * Annulla il processo di creazione della griglia e chiude la modale.
- */
 function handleCancelSurveyGrid() {
     console.log("[SurveyGrid] handleCancelSurveyGrid called");
-    cancelSurveyAreaDrawing(); 
+    cancelSurveyAreaDrawing();
     if (surveyGridModalOverlayEl) {
         surveyGridModalOverlayEl.style.display = 'none';
     }
-    // Rimuovi anche il listener di 'Esc'
-    // document.removeEventListener('keydown', handleSurveyDrawingKeyDown);
 }
 
 /**
- * Gestisce la conferma e avvia la generazione della griglia.
+ * Genera i waypoint per la griglia di survey (versione semplificata).
  */
+function generateSurveyGridWaypoints(polygonLatLngs, flightAltitude, lineSpacing, gridAngleDeg, overshootDistance) {
+    console.log("[SurveyGridGen] Starting generation with:", {
+        polygonPointsCount: polygonLatLngs ? polygonLatLngs.length : 0,
+        flightAltitude, lineSpacing, gridAngleDeg, overshootDistance
+    });
+    const waypointsData = [];
+
+    if (!polygonLatLngs || polygonLatLngs.length < MIN_POLYGON_POINTS) {
+        console.error("[SurveyGridGen] Invalid polygonLatLngs input for generation.");
+        showCustomAlert("Invalid polygon for survey grid generation.", "Error");
+        return waypointsData;
+    }
+
+    // console.log("[SurveyGridGen] Polygon Vertices (Lat, Lng):");
+    // polygonLatLngs.forEach((p, index) => console.log(`  ${index}: (${p.lat.toFixed(6)}, ${p.lng.toFixed(6)})`));
+
+    const bounds = L.latLngBounds(polygonLatLngs);
+    const northEast = bounds.getNorthEast();
+    const southWest = bounds.getSouthWest();
+
+    console.log(`[SurveyGridGen] Bounds: SW(${southWest.lat.toFixed(6)}, ${southWest.lng.toFixed(6)}) NE(${northEast.lat.toFixed(6)}, ${northEast.lng.toFixed(6)})`);
+
+    if (southWest.lat >= northEast.lat || southWest.lng >= northEast.lng) {
+        console.error("[SurveyGridGen] Invalid bounds (min > max). Polygon might be too small, flat, or self-intersecting badly.");
+        showCustomAlert("Polygon is too small or flat to generate a grid. Please redraw a larger area.", "Grid Generation Error");
+        return waypointsData;
+    }
+    
+    const earthRadius = (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000; // Usa R_EARTH da config se disponibile
+    const lineSpacingLatDeg = (lineSpacing / earthRadius) * (180 / Math.PI);
+    console.log(`[SurveyGridGen] lineSpacing: ${lineSpacing}m, lineSpacingLatDeg: ${lineSpacingLatDeg.toFixed(10)}`);
+
+    if (lineSpacingLatDeg <= 1e-9) { // Tolleranza per valori molto piccoli
+        console.error("[SurveyGridGen] Calculated lineSpacingLatDeg is zero or extremely small. Line spacing might be too small or an error occurred.");
+        showCustomAlert("Line spacing is too small or resulted in a non-positive latitude degree conversion.", "Grid Generation Error");
+        return waypointsData;
+    }
+
+    const midLatForLngCalc = (southWest.lat + northEast.lat) / 2;
+    const distanceBetweenPhotos = lineSpacing; 
+    const photoSpacingLngDeg = (distanceBetweenPhotos / (earthRadius * Math.cos(toRad(midLatForLngCalc)))) * (180 / Math.PI);
+    console.log(`[SurveyGridGen] distanceBetweenPhotos: ${distanceBetweenPhotos}m, photoSpacingLngDeg (at midLat ${midLatForLngCalc.toFixed(6)}): ${photoSpacingLngDeg.toFixed(10)}`);
+
+    if (photoSpacingLngDeg <= 1e-9) {
+        console.error("[SurveyGridGen] Calculated photoSpacingLngDeg is zero or extremely small.");
+        showCustomAlert("Photo spacing is too small or resulted in a non-positive longitude degree conversion.", "Grid Generation Error");
+        return waypointsData;
+    }
+
+    let currentLat = southWest.lat;
+    let scanDirection = 1;
+    let linesGenerated = 0;
+    let totalCandidatePoints = 0;
+
+    while (currentLat <= northEast.lat) {
+        linesGenerated++;
+        console.log(`[SurveyGridGen] Generating line ${linesGenerated} at Lat: ${currentLat.toFixed(6)}, direction: ${scanDirection}`);
+        const linePoints = [];
+        let pointsOnThisLine = 0;
+
+        if (scanDirection === 1) { // Ovest -> Est
+            for (let currentLng = southWest.lng; currentLng <= northEast.lng; currentLng += photoSpacingLngDeg) {
+                linePoints.push(L.latLng(currentLat, currentLng)); pointsOnThisLine++;
+            }
+            if (linePoints.length === 0 || linePoints[linePoints.length - 1].lng < northEast.lng - 1e-7) { // Tolleranza per float
+                 linePoints.push(L.latLng(currentLat, northEast.lng)); if(pointsOnThisLine === 0) pointsOnThisLine++;
+            }
+        } else { // Est -> Ovest
+            for (let currentLng = northEast.lng; currentLng >= southWest.lng; currentLng -= photoSpacingLngDeg) {
+                linePoints.push(L.latLng(currentLat, currentLng)); pointsOnThisLine++;
+            }
+            if (linePoints.length === 0 || linePoints[linePoints.length - 1].lng > southWest.lng + 1e-7) { // Tolleranza per float
+                 linePoints.push(L.latLng(currentLat, southWest.lng)); if(pointsOnThisLine === 0) pointsOnThisLine++;
+            }
+        }
+        totalCandidatePoints += pointsOnThisLine;
+        console.log(`  Generated ${pointsOnThisLine} candidate points for this line.`);
+
+        let pointsAddedFromThisLine = 0;
+        linePoints.forEach((point) => {
+            if (isPointInPolygon(point, polygonLatLngs)) {
+                waypointsData.push({
+                    latlng: point,
+                    options: { altitude: flightAltitude, cameraAction: 'takePhoto', headingControl: 'auto' }
+                });
+                pointsAddedFromThisLine++;
+            }
+        });
+        console.log(`  Added ${pointsAddedFromThisLine} waypoints from this line after filtering.`);
+
+        currentLat += lineSpacingLatDeg;
+        if (linesGenerated > 2000) { // Safety break for too many lines
+             console.error("[SurveyGridGen] Too many lines generated, aborting. Check line spacing and polygon size."); break;
+        }
+        scanDirection *= -1;
+    }
+
+    console.log(`[SurveyGridGen] Total lines processed: ${linesGenerated}. Total candidate points: ${totalCandidatePoints}. Total waypointsData generated (inside polygon): ${waypointsData.length}`);
+    if (waypointsData.length === 0 && polygonLatLngs.length >= MIN_POLYGON_POINTS && linesGenerated > 0) {
+        showCustomAlert("No waypoints generated within the polygon. The polygon might be too small for the given line/photo spacing, or parameters are misconfigured. Try a larger area or smaller spacing values.", "Grid Generation Warning");
+    }
+    return waypointsData;
+}
+
+
 function handleConfirmSurveyGridGeneration() {
     console.log("[SurveyGrid] handleConfirmSurveyGridGeneration called");
-    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) {
-        showCustomAlert("Cannot generate grid: Survey area is not properly defined.", "Error"); return;
-    }
-    if (!surveyGridAltitudeInputEl || !surveyGridSpacingInputEl /*...ecc*/) {
-         showCustomAlert("Cannot generate grid: Missing input elements.", "Error"); return;
-    }
+    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) { showCustomAlert("Cannot generate grid: Survey area is not properly defined.", "Error"); return; }
+    if (!surveyGridAltitudeInputEl || !surveyGridSpacingInputEl || !surveyGridAngleInputEl || !surveyGridOvershootInputEl) { showCustomAlert("Cannot generate grid: Missing input elements.", "Error"); return; }
+    
     const altitude = parseInt(surveyGridAltitudeInputEl.value);
     const spacing = parseFloat(surveyGridSpacingInputEl.value);
-    const angle = parseFloat(surveyGridAngleInputEl.value);
+    const angle = parseFloat(surveyGridAngleInputEl.value); 
     const overshoot = parseFloat(surveyGridOvershootInputEl.value);
 
     if (isNaN(altitude) || altitude < 1) { showCustomAlert("Invalid altitude.", "Input Error"); return; }
-    if (isNaN(spacing) || spacing <= 0) { showCustomAlert("Invalid line spacing.", "Input Error"); return; }
-    if (isNaN(angle)) { showCustomAlert("Invalid grid angle.", "Input Error"); return; }
-    if (isNaN(overshoot) || overshoot < 0) { showCustomAlert("Invalid overshoot value.", "Input Error"); return; }
+    if (isNaN(spacing) || spacing <= 1e-3) { showCustomAlert("Invalid line spacing. Must be a small positive number.", "Input Error"); return; } // Spacing > 0
+    // Angle & Overshoot validation can be added if they are used.
 
-    console.log("Generating survey grid with params:", { polygon: currentPolygonPoints.map(p => [p.lat, p.lng]), altitude, spacing, angle, overshoot });
-    
-    if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = "Generating grid... (Actual logic is a TODO)";
-    
-    // Qui la logica effettiva di generateSurveyGridWaypoints(...)
-    // Ad esempio:
-    // const waypointsToCreate = generateSurveyGridWaypoints(currentPolygonPoints, altitude, spacing, angle, overshoot);
-    // if (waypointsToCreate && waypointsToCreate.length > 0) {
-    //    waypointsToCreate.forEach(wp => addWaypoint(wp.latlng, wp.options));
-    //    updateWaypointList(); updateFlightPath(); updateFlightStatistics(); fitMapToWaypoints();
-    //    showCustomAlert("Survey grid generated and added!", "Success");
-    // } else {
-    //    showCustomAlert("Failed to generate survey grid or grid was empty.", "Error");
-    // }
+    if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = "Generating grid waypoints...";
+    console.log("[SurveyGridGen] Calling generateSurveyGridWaypoints with currentPolygonPoints:", currentPolygonPoints.map(p=>[p.lat, p.lng]));
 
-    // Per ora, simuliamo e chiudiamo:
-    setTimeout(() => {
-        handleCancelSurveyGrid(); // Chiude modale, resetta stato e listener
-    }, 500); // Delay per vedere il messaggio "Generating..."
+    const surveyWaypoints = generateSurveyGridWaypoints(currentPolygonPoints, altitude, spacing, angle, overshoot);
+
+    console.log(`[SurveyGridGen] Received ${surveyWaypoints ? surveyWaypoints.length : 'null'} waypoints from generation function.`);
+
+    if (surveyWaypoints && surveyWaypoints.length > 0) {
+       surveyWaypoints.forEach(wpData => {
+           addWaypoint(wpData.latlng, wpData.options);
+       });
+       updateWaypointList(); 
+       updateFlightPath(); 
+       updateFlightStatistics(); 
+       fitMapToWaypoints();
+       showCustomAlert(`${surveyWaypoints.length} survey grid waypoints generated and added!`, "Success");
+    } else if (surveyWaypoints && surveyWaypoints.length === 0 && currentPolygonPoints.length >= MIN_POLYGON_POINTS){
+        console.warn("[SurveyGridGen] generateSurveyGridWaypoints returned an empty array but polygon was valid.");
+        // Alert viene già mostrato da generateSurveyGridWaypoints in questo caso.
+    } else if (!surveyWaypoints) {
+        console.error("[SurveyGridGen] generateSurveyGridWaypoints returned null or undefined.");
+        showCustomAlert("An unexpected error occurred during grid generation.", "Error");
+    }
+
+    handleCancelSurveyGrid(); // Chiude modale, resetta stato e listener
 }
 
-// TODO opzionale: Aggiungere un listener per il tasto 'Esc' per annullare/finalizzare
-// function handleSurveyDrawingKeyDown(event) {
-//     if (isDrawingSurveyArea && event.key === 'Escape') {
-//         console.log("[SurveyGrid] Escape key pressed during drawing.");
-//         if (currentPolygonPoints.length >= MIN_POLYGON_POINTS) {
-//             handleFinalizeSurveyArea();
-//         } else {
-//             // Se non ci sono abbastanza punti, annulla completamente e riapri la modale iniziale
-//             cancelSurveyAreaDrawing(); // Resetta disegno
-            // openSurveyGridModal(); // Riapre la modale allo stato iniziale (già fatto da cancel?)
-            // Bisogna gestire lo stato della modale (nascosta/visibile)
-//             if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'flex'; // Forza riapertura
-//         }
-//     } else if (isDrawingSurveyArea && event.key === 'Enter' && currentPolygonPoints.length >= MIN_POLYGON_POINTS) {
-//          handleFinalizeSurveyArea();
-//     }
-// }
+// Helper function to convert degrees to radians, if not globally available from utils.js
+// Assicurati che sia definita o che utils.js sia caricato prima e la esponga globalmente.
+// Se R_EARTH è in config.js, usa quella: const earthRadius = R_EARTH;
+function toRad(degrees) {
+    return degrees * Math.PI / 180;
+}
