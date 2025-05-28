@@ -116,7 +116,7 @@ function deletePOI(poiId) {
             }
         }
 
-        showCustomAlert(`POI "${deletedPoi.name}" deleted.`, "Info");
+        // showCustomAlert(`POI "${deletedPoi.name}" deleted.`, "Info");
     } else {
         showCustomAlert(`POI with ID ${poiId} not found.`, "Error");
     }
