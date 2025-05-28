@@ -169,6 +169,23 @@ function setupEventListeners() {
         createOrbitBtn.addEventListener('click', showOrbitDialog);
     }
 
+    // --- Survey Grid Modal ---
+    if (createSurveyGridBtn) {
+        createSurveyGridBtn.addEventListener('click', openSurveyGridModal);
+    }
+    if (startDrawingSurveyAreaBtnEl) {
+        startDrawingSurveyAreaBtnEl.addEventListener('click', handleStartDrawingSurveyArea);
+    }
+    if (finalizeSurveyAreaBtnEl) {
+        finalizeSurveyAreaBtnEl.addEventListener('click', handleFinalizeSurveyArea);
+    }
+    if (confirmSurveyGridBtnEl) {
+        confirmSurveyGridBtnEl.addEventListener('click', handleConfirmSurveyGridGeneration);
+    }
+    if (cancelSurveyGridBtnEl) {
+        cancelSurveyGridBtnEl.addEventListener('click', handleCancelSurveyGrid);
+    }
+    
     // --- Import/Export Buttons ---
     if (importJsonBtn) {
         importJsonBtn.addEventListener('click', triggerImport);
