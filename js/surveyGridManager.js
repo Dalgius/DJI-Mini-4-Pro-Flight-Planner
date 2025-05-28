@@ -18,18 +18,13 @@ function openSurveyGridModal() {
         showCustomAlert("Survey grid modal elements not found.", "Error");
         return;
     }
-    // Pre-compila l'altitudine con il valore di default del piano
     surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value;
-
-    // Resetta lo stato del disegno e della UI della modale
-    cancelSurveyAreaDrawing(); // Assicura che un disegno precedente sia pulito
+    cancelSurveyAreaDrawing();
     confirmSurveyGridBtnEl.disabled = true;
     finalizeSurveyAreaBtnEl.style.display = 'none';
     startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
     surveyAreaStatusEl.textContent = "Area not defined.";
     surveyGridInstructionsEl.textContent = 'Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon, or use the "Finalize Area" button.';
-
-
     surveyGridModalOverlayEl.style.display = 'flex';
 }
 
@@ -41,15 +36,12 @@ function handleStartDrawingSurveyArea() {
 
     isDrawingSurveyArea = true;
     currentPolygonPoints = [];
-    clearTemporaryDrawing(); // Pulisce eventuali disegni precedenti
+    clearTemporaryDrawing();
 
-    map.on('click', handleSurveyAreaMapClick);
-    map.getContainer().style.cursor = 'crosshair'; // Cambia cursore
+    map.on('click', handleSurveyAreaMapClick); // AGGIUNGE IL LISTENER DI CLICK PER IL DISEGNO
+    map.getContainer().style.cursor = 'crosshair';
 
     startDrawingSurveyAreaBtnEl.style.display = 'none';
-    // finalizeSurveyAreaBtnEl.style.display = 'inline-block'; // Mostra solo dopo almeno 3 punti
-    // confirmSurveyGridBtnEl.disabled = true; // Già disabilitato all'apertura
-
     surveyAreaStatusEl.textContent = "Drawing area: 0 points.";
     surveyGridInstructionsEl.textContent = "Click on the map to add corners. Click the first point to close or use 'Finalize Area' (min 3 points).";
     showCustomAlert("Map drawing mode activated. Click to define polygon corners.", "Survey Area");
@@ -62,19 +54,12 @@ function handleStartDrawingSurveyArea() {
 function handleSurveyAreaMapClick(e) {
     if (!isDrawingSurveyArea) return;
 
+    // !!! MODIFICA CRUCIALE: Impedisce ad altri listener di click sulla mappa (es. addWaypoint) di attivarsi !!!
+    L.DomEvent.stopPropagation(e.originalEvent); // Usare e.originalEvent per gli eventi DOM nativi
+    L.DomEvent.preventDefault(e.originalEvent); // Opzionale, ma può aiutare a prevenire comportamenti predefiniti
+
+
     const clickedLatLng = e.latlng;
-
-    // Se l'utente clicca su un marker di vertice esistente (specialmente il primo)
-    if (tempVertexMarkers.length >= MIN_POLYGON_POINTS) {
-        for (let i = 0; i < tempVertexMarkers.length; i++) {
-            // Controllo se il click è vicino a un marker esistente (il primo per chiudere)
-            if (i === 0 && tempVertexMarkers[i].getLatLng().distanceTo(clickedLatLng) < 10 * map.getZoomScale(map.getZoom(), 18)) { // Distanza in pixel approssimativa
-                handleFinalizeSurveyArea();
-                return;
-            }
-        }
-    }
-
     currentPolygonPoints.push(clickedLatLng);
 
     const vertexMarker = L.circleMarker(clickedLatLng, {
@@ -82,14 +67,15 @@ function handleSurveyAreaMapClick(e) {
         color: 'rgba(255, 0, 0, 0.8)',
         fillColor: 'rgba(255,0,0,0.5)',
         fillOpacity: 0.7,
-        pane: 'markerPane' // Assicura che sia sopra il poligono
+        pane: 'markerPane'
     }).addTo(map);
 
     // Aggiungi listener al primo marker per chiudere il poligono
     if (tempVertexMarkers.length === 0) {
-        vertexMarker.on('click', () => {
+        vertexMarker.on('click', (markerClickEvent) => { // 'markerClickEvent' è l'evento del click sul marker
             if (isDrawingSurveyArea && currentPolygonPoints.length >= MIN_POLYGON_POINTS) {
-                L.DomEvent.stopPropagation(event); // Ferma la propagazione per non aggiungere un altro punto
+                L.DomEvent.stopPropagation(markerClickEvent); // Usa l'evento del click sul marker
+                L.DomEvent.preventDefault(markerClickEvent);  // Impedisce al click sul marker di propagare alla mappa
                 handleFinalizeSurveyArea();
             }
         });
@@ -112,18 +98,9 @@ function updateTempPolygonDisplay() {
         map.removeLayer(tempPolygonLayer);
         tempPolygonLayer = null;
     }
+    if (currentPolygonPoints.length < 2) return;
 
-    if (currentPolygonPoints.length < 2) {
-        return; // Non disegnare nulla con meno di 2 punti
-    }
-
-    const polygonOptions = {
-        color: 'rgba(0, 100, 255, 0.7)',
-        weight: 2,
-        fillColor: 'rgba(0, 100, 255, 0.2)',
-        fillOpacity: 0.3
-    };
-
+    const polygonOptions = { color: 'rgba(0, 100, 255, 0.7)', weight: 2, fillColor: 'rgba(0, 100, 255, 0.2)', fillOpacity: 0.3 };
     if (currentPolygonPoints.length === 2) {
         tempPolygonLayer = L.polyline(currentPolygonPoints, polygonOptions).addTo(map);
     } else if (currentPolygonPoints.length >= MIN_POLYGON_POINTS) {
@@ -135,35 +112,33 @@ function updateTempPolygonDisplay() {
  * Finalizza il disegno dell'area del poligono.
  */
 function handleFinalizeSurveyArea() {
+    if (!isDrawingSurveyArea) return; // Evita doppie finalizzazioni
     if (currentPolygonPoints.length < MIN_POLYGON_POINTS) {
         showCustomAlert(`Area definition requires at least ${MIN_POLYGON_POINTS} points.`, "Info");
         return;
     }
     isDrawingSurveyArea = false;
-    map.off('click', handleSurveyAreaMapClick);
-    map.getContainer().style.cursor = ''; // Ripristina cursore
+    map.off('click', handleSurveyAreaMapClick); // RIMUOVE IL LISTENER DI DISEGNO
+    map.getContainer().style.cursor = '';
 
     if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
     if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false;
     if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = `Area defined with ${currentPolygonPoints.length} points. Ready to generate grid.`;
     if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = 'Area definition complete. Adjust parameters if needed and click "Generate Grid".';
 
-
-    // Rendi il poligono finale un po' più scuro o con stile diverso
     if (tempPolygonLayer) {
         tempPolygonLayer.setStyle({ color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' });
     }
-    // Opzionale: rimuovi i listener dai vertexMarkers se non servono più
-    tempVertexMarkers.forEach(marker => marker.off());
+    tempVertexMarkers.forEach(marker => marker.off('click')); // Rimuovi i listener dai marker una volta finalizzato
 
     showCustomAlert("Survey area finalized. You can now generate the grid.", "Area Defined");
 }
 
 /**
- * Annulla il processo di creazione della griglia di mappatura.
+ * Annulla il processo di creazione della griglia di mappatura e chiude la modale.
  */
 function handleCancelSurveyGrid() {
-    cancelSurveyAreaDrawing();
+    cancelSurveyAreaDrawing(); // Pulisce il disegno e lo stato
     if (surveyGridModalOverlayEl) {
         surveyGridModalOverlayEl.style.display = 'none';
     }
@@ -173,17 +148,13 @@ function handleCancelSurveyGrid() {
  * Pulisce tutti i layer e i marker temporanei usati per il disegno.
  */
 function clearTemporaryDrawing() {
-    if (tempPolygonLayer) {
-        map.removeLayer(tempPolygonLayer);
-        tempPolygonLayer = null;
-    }
+    if (tempPolygonLayer) { map.removeLayer(tempPolygonLayer); tempPolygonLayer = null; }
     tempVertexMarkers.forEach(marker => map.removeLayer(marker));
     tempVertexMarkers = [];
-    // currentPolygonPoints viene già resettato in handleStartDrawingSurveyArea
 }
 
 /**
- * Resetta lo stato del disegno del poligono.
+ * Resetta lo stato del disegno del poligono e la UI della modale associata.
  */
 function cancelSurveyAreaDrawing() {
     isDrawingSurveyArea = false;
@@ -192,17 +163,14 @@ function cancelSurveyAreaDrawing() {
         map.getContainer().style.cursor = '';
     }
     clearTemporaryDrawing();
-    currentPolygonPoints = []; // Assicurati che sia vuoto
+    currentPolygonPoints = [];
 
-    // Resetta i pulsanti della modale allo stato iniziale di "non disegno"
     if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
     if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
     if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
     if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined.";
-     if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = 'Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon, or use the "Finalize Area" button.';
-
+    if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = 'Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon, or use the "Finalize Area" button.';
 }
-
 
 /**
  * Placeholder per la funzione che genererà effettivamente la griglia.
@@ -216,7 +184,6 @@ function handleConfirmSurveyGridGeneration() {
          showCustomAlert("Cannot generate grid: Missing input elements.", "Error");
         return;
     }
-
     const altitude = parseInt(surveyGridAltitudeInputEl.value);
     const spacing = parseFloat(surveyGridSpacingInputEl.value);
     const angle = parseFloat(surveyGridAngleInputEl.value);
@@ -227,24 +194,12 @@ function handleConfirmSurveyGridGeneration() {
     if (isNaN(angle)) { showCustomAlert("Invalid grid angle.", "Input Error"); return; }
     if (isNaN(overshoot) || overshoot < 0) { showCustomAlert("Invalid overshoot value.", "Input Error"); return; }
 
-
-    // LOGICA DI GENERAZIONE GRIGLIA (DA IMPLEMENTARE)
-    console.log("Generating survey grid with params:", {
-        polygon: currentPolygonPoints.map(p => [p.lat, p.lng]),
-        altitude,
-        spacing,
-        angle,
-        overshoot
-    });
+    console.log("Generating survey grid with params:", { polygon: currentPolygonPoints.map(p => [p.lat, p.lng]), altitude, spacing, angle, overshoot });
     showCustomAlert(`Grid generation started (Polygon: ${currentPolygonPoints.length} vertices, Alt: ${altitude}m, Spacing: ${spacing}m, Angle: ${angle}°). Actual generation logic is a TODO.`, "Info");
+    
+    // Qui verrà la logica di generazione vera e propria
+    // generateSurveyGridWaypoints(currentPolygonPoints, altitude, spacing, angle, overshoot);
+    // updateWaypointList(); updateFlightPath(); updateFlightStatistics(); fitMapToWaypoints();
 
-    // Qui chiameremo la funzione generateSurveyGridWaypoints(...)
-
-    // Dopo la generazione:
-    // 1. Aggiungere i waypoint generati all'array 'waypoints' globale
-    // 2. Chiamare updateWaypointList(), updateFlightPath(), updateFlightStatistics()
-    // 3. Chiudere la modale o resettarla
-
-    // Per ora, chiudiamo la modale e resettiamo il disegno
-    handleCancelSurveyGrid(); // Chiude la modale e pulisce il disegno
+    handleCancelSurveyGrid(); // Chiude modale e pulisce
 }
