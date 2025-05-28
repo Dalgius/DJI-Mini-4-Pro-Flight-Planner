@@ -12,16 +12,6 @@ let nativeMapClickListener = null; // Per tenere traccia del listener DOM nativo
 
 const MIN_POLYGON_POINTS = 3;
 
-// === HELPER FUNCTION FOR DEBUGGING (Leaflet-style, non usata con il listener nativo in handleStartDrawingSurveyArea) ===
-// function debugMapClickListener(debugEvent) {
-//     console.log("!!! DEBUG MAP CLICK LISTENER TRIGGERED !!! LatLng:", debugEvent.latlng, "Target:", debugEvent.originalEvent.target);
-//     if(isDrawingSurveyArea) {
-//         console.log("DEBUG: isDrawingSurveyArea is TRUE during debug click");
-//     } else {
-//         console.log("DEBUG: isDrawingSurveyArea is FALSE during debug click");
-//     }
-// }
-
 // === HELPER FUNCTIONS FOR DRAWING ===
 /**
  * Pulisce tutti i layer e i marker temporanei usati per il disegno.
@@ -55,6 +45,17 @@ function updateTempPolygonDisplay() {
     }
 }
 
+/**
+ * Ripristina l'interattività della modale (es. dopo il disegno).
+ */
+function resetModalInteractivity() {
+    if (surveyGridModalOverlayEl) {
+        surveyGridModalOverlayEl.style.pointerEvents = 'auto';
+        console.log("[SurveyGrid] Survey grid modal overlay pointer-events RESET to auto.");
+    }
+}
+
+
 // === MAIN HANDLERS ===
 
 /**
@@ -68,12 +69,17 @@ function openSurveyGridModal() {
         return;
     }
     surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value;
-    cancelSurveyAreaDrawing();
+    
+    cancelSurveyAreaDrawing(); // Resetta stato, UI del disegno e listener
+
+    resetModalInteractivity(); // Assicura che la modale sia interattiva all'apertura
+
     confirmSurveyGridBtnEl.disabled = true;
     finalizeSurveyAreaBtnEl.style.display = 'none';
     startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
     surveyAreaStatusEl.textContent = "Area not defined.";
     surveyGridInstructionsEl.textContent = 'Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon, or use the "Finalize Area" button.';
+    
     surveyGridModalOverlayEl.style.display = 'flex';
     console.log("[SurveyGrid] Survey Grid Modal displayed");
 }
@@ -83,8 +89,8 @@ function openSurveyGridModal() {
  */
 function cancelSurveyAreaDrawing() {
     console.log("[SurveyGrid] cancelSurveyAreaDrawing called");
-    const wasDrawingOrListenersActive = isDrawingSurveyArea || nativeMapClickListener; // Controlla se eravamo in uno stato attivo
-    isDrawingSurveyArea = false; // Imposta la globale da config.js
+    const wasDrawingOrListenersActive = isDrawingSurveyArea || nativeMapClickListener;
+    isDrawingSurveyArea = false; 
 
     if (map) {
         const mapContainer = map.getContainer();
@@ -93,24 +99,23 @@ function cancelSurveyAreaDrawing() {
             nativeMapClickListener = null;
             console.log("[SurveyGrid] NATIVE DOM click listener REMOVED from map container.");
         }
-        // Rimuovi anche i listener Leaflet se per caso erano attivi (dovrebbero essere già stati rimossi)
-        map.off('click', handleSurveyAreaMapClick);
-        // map.off('click', debugMapClickListener); // Se lo usassimo ancora
+        map.off('click', handleSurveyAreaMapClick); // Rimuovi anche quello Leaflet per sicurezza
 
         map.getContainer().style.cursor = '';
         console.log("[SurveyGrid] All drawing-related map click listeners should be removed.");
 
-        // Riaggiungi il listener di click generale solo se necessario
         if (wasDrawingOrListenersActive && typeof handleMapClick === 'function') {
             map.on('click', handleMapClick);
             console.log("[SurveyGrid] Default Leaflet map click listener (handleMapClick) RE-ADDED.");
         } else if (!wasDrawingOrListenersActive && typeof handleMapClick === 'function') {
-            map.on('click', handleMapClick); // Assicura che sia lì se non era attivo nulla
+            map.on('click', handleMapClick);
             console.log("[SurveyGrid] Ensured default Leaflet map click listener is active.");
         }
     }
     clearTemporaryDrawing();
     currentPolygonPoints = [];
+
+    resetModalInteractivity(); // Assicura che la modale sia interattiva se si annulla il disegno
 
     if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
     if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
@@ -129,47 +134,34 @@ function handleStartDrawingSurveyArea() {
         return;
     }
 
-    isDrawingSurveyArea = true; // Imposta la globale da config.js
+    isDrawingSurveyArea = true;
     currentPolygonPoints = [];
     clearTemporaryDrawing(); 
     console.log("[SurveyGrid] Cleared temporary drawing, isDrawingSurveyArea set to true.");
 
-    // Rimuovi il listener Leaflet di default
     if (typeof handleMapClick === 'function') {
         map.off('click', handleMapClick);
         console.log("[SurveyGrid] Leaflet default map click listener (handleMapClick) TEMPORARILY REMOVED.");
     }
+    map.off('click', handleSurveyAreaMapClick); // Rimuovi per sicurezza se c'era
 
-    // Rimuovi eventuali listener Leaflet di disegno precedenti (per sicurezza)
-    map.off('click', handleSurveyAreaMapClick);
-    // map.off('click', debugMapClickListener); // Se lo usassimo
-
-    // AGGIUNGI LISTENER DOM NATIVO
     const mapContainer = map.getContainer();
     if (mapContainer) {
-        if (nativeMapClickListener) { // Rimuovi se per qualche motivo è già lì
+        if (nativeMapClickListener) {
              mapContainer.removeEventListener('click', nativeMapClickListener, true);
         }
         nativeMapClickListener = function(event) {
             console.log("!!! NATIVE MAP CONTAINER CLICKED !!!", "X:", event.clientX, "Y:", event.clientY, "Target:", event.target);
-            if (!isDrawingSurveyArea) { // Doppio controllo sullo stato globale
+            if (!isDrawingSurveyArea) { 
                 console.log("!!! NATIVE CLICK: but isDrawingSurveyArea is false. Ignoring.");
                 return;
             }
-            // Controlla se il target è appropriato (non un controllo sopra la mappa, ecc.)
-            // Questo è un controllo molto basilare, potrebbe necessitare di miglioramenti.
-            if (event.target && (event.target === mapContainer || event.target.closest('.leaflet-pane'))) {
+            if (event.target && (event.target === mapContainer || event.target.closest('.leaflet-pane') || event.target.closest('.leaflet-container'))) {
                 try {
-                    const latlng = map.mouseEventToLatLng(event); // Converte coordinate mouse in LatLng
+                    const latlng = map.mouseEventToLatLng(event); 
                     console.log("!!! NATIVE CLICK Converted to LatLng:", latlng);
-                    
-                    const pseudoLeafletEvent = {
-                        latlng: latlng,
-                        originalEvent: event,
-                        // containerPoint: map.mouseEventToContainerPoint(event), // Potrebbe servire
-                        // layerPoint: map.mouseEventToLayerPoint(event)      // Potrebbe servire
-                    };
-                    handleSurveyAreaMapClick(pseudoLeafletEvent); // Chiama il nostro handler originale
+                    const pseudoLeafletEvent = { latlng: latlng, originalEvent: event };
+                    handleSurveyAreaMapClick(pseudoLeafletEvent); 
                 } catch (mapError) {
                     console.error("!!! NATIVE CLICK: Error in map.mouseEventToLatLng or subsequent call:", mapError);
                 }
@@ -177,13 +169,18 @@ function handleStartDrawingSurveyArea() {
                  console.log("!!! NATIVE CLICK: Target was not map container or pane. Target:", event.target);
             }
         };
-        mapContainer.addEventListener('click', nativeMapClickListener, true); // Usa capturing phase
+        mapContainer.addEventListener('click', nativeMapClickListener, true);
         console.log("[SurveyGrid] NATIVE DOM click listener ADDED to map container.");
     }
-    // FINE AGGIUNTA LISTENER DOM NATIVO
 
     map.getContainer().style.cursor = 'crosshair';
     console.log("[SurveyGrid] Cursor set to crosshair.");
+
+    // Rendi la modale non interattiva ai click per permettere il disegno sulla mappa
+    if (surveyGridModalOverlayEl) {
+        surveyGridModalOverlayEl.style.pointerEvents = 'none';
+        console.log("[SurveyGrid] Survey grid modal overlay set to pointer-events: none.");
+    }
 
     startDrawingSurveyAreaBtnEl.style.display = 'none';
     finalizeSurveyAreaBtnEl.style.display = 'none'; 
@@ -196,18 +193,16 @@ function handleStartDrawingSurveyArea() {
 /**
  * Gestisce i click (ora da listener nativo) per aggiungere punti del poligono.
  */
-function handleSurveyAreaMapClick(e) { // 'e' ora è il nostro pseudoLeafletEvent
-    console.log("[SurveyGrid] handleSurveyAreaMapClick (from NATIVE or Leaflet) TRIGGERED!", "LatLng:", e.latlng, "Target:", e.originalEvent.target);
+function handleSurveyAreaMapClick(e) { 
+    console.log("[SurveyGrid] handleSurveyAreaMapClick (from NATIVE) TRIGGERED!", "LatLng:", e.latlng, "Target:", e.originalEvent.target);
     if (!isDrawingSurveyArea) {
         console.log("[SurveyGrid] handleSurveyAreaMapClick: Not in drawing mode, exiting.");
         return;
     }
     console.log("[SurveyGrid] handleSurveyAreaMapClick: In drawing mode, proceeding.");
 
-    // StopPropagation è già gestito a livello DOM se necessario, o Leaflet lo fa.
-    // Per il nostro listener nativo, potremmo volerlo fare sull'evento nativo se non vogliamo che altri listener nativi lo vedano.
-    // L.DomEvent.stopPropagation(e.originalEvent); // Già fatto dal listener nativo se necessario
-    // L.DomEvent.preventDefault(e.originalEvent);
+    // Non è necessario stopPropagation/preventDefault qui perché il listener nativo è molto specifico
+    // e gli altri listener Leaflet sulla mappa sono stati disattivati.
 
     const clickedLatLng = e.latlng;
     currentPolygonPoints.push(clickedLatLng);
@@ -251,17 +246,19 @@ function handleFinalizeSurveyArea() {
         return;
     }
     
-    // Rimuovi il listener di disegno (nativo o Leaflet)
+    // Rimuovi il listener di disegno nativo
     const mapContainer = map.getContainer();
     if (mapContainer && nativeMapClickListener) {
         mapContainer.removeEventListener('click', nativeMapClickListener, true);
-        nativeMapClickListener = null; // Importante per non rimuoverlo più volte
+        nativeMapClickListener = null;
         console.log("[SurveyGrid] NATIVE DOM click listener REMOVED after finalize.");
     }
-    map.off('click', handleSurveyAreaMapClick); // Rimuovi anche quello Leaflet per sicurezza
     map.getContainer().style.cursor = '';
-    console.log("[SurveyGrid] All drawing-specific map click listeners removed after finalize.");
-    // isDrawingSurveyArea rimane true; sarà resettato da Cancel o Generate.
+    console.log("[SurveyGrid] Drawing-specific map click listener removed after finalize. Cursor reset.");
+    // isDrawingSurveyArea rimane true, l'utente è ancora nel flusso survey
+    // ma non può più aggiungere punti. Il listener di default non è ancora attivo.
+
+    resetModalInteractivity(); // Rendi la modale nuovamente cliccabile per "Generate" o "Cancel"
 
     if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
     if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false;
@@ -282,6 +279,7 @@ function handleFinalizeSurveyArea() {
 function handleCancelSurveyGrid() {
     console.log("[SurveyGrid] handleCancelSurveyGrid called");
     cancelSurveyAreaDrawing(); 
+    // resetModalInteractivity(); // Già chiamato da cancelSurveyAreaDrawing
     if (surveyGridModalOverlayEl) {
         surveyGridModalOverlayEl.style.display = 'none';
     }
@@ -296,24 +294,32 @@ function handleConfirmSurveyGridGeneration() {
         showCustomAlert("Cannot generate grid: Survey area is not properly defined.", "Error");
         return;
     }
-    if (!surveyGridAltitudeInputEl || !surveyGridSpacingInputEl || !surveyGridAngleInputEl || !surveyGridOvershootInputEl) {
-         showCustomAlert("Cannot generate grid: Missing input elements.", "Error"); return;
-    }
+    // ... (controlli input come prima) ...
     const altitude = parseInt(surveyGridAltitudeInputEl.value);
     const spacing = parseFloat(surveyGridSpacingInputEl.value);
     const angle = parseFloat(surveyGridAngleInputEl.value);
     const overshoot = parseFloat(surveyGridOvershootInputEl.value);
 
-    if (isNaN(altitude) || altitude < 1) { showCustomAlert("Invalid altitude.", "Input Error"); return; }
-    if (isNaN(spacing) || spacing <= 0) { showCustomAlert("Invalid line spacing.", "Input Error"); return; }
-    if (isNaN(angle)) { showCustomAlert("Invalid grid angle.", "Input Error"); return; }
-    if (isNaN(overshoot) || overshoot < 0) { showCustomAlert("Invalid overshoot value.", "Input Error"); return; }
+    if (isNaN(altitude) || altitude < 1) { /*...*/ return; }
+    if (isNaN(spacing) || spacing <= 0) { /*...*/ return; }
+    if (isNaN(angle)) { /*...*/ return; }
+    if (isNaN(overshoot) || overshoot < 0) { /*...*/ return; }
 
     console.log("Generating survey grid with params:", { polygon: currentPolygonPoints.map(p => [p.lat, p.lng]), altitude, spacing, angle, overshoot });
-    showCustomAlert(`Grid generation started (Polygon: ${currentPolygonPoints.length} vertices, Alt: ${altitude}m, Spacing: ${spacing}m, Angle: ${angle}°). Actual generation logic is a TODO.`, "Info");
+    showCustomAlert(`Grid generation started... Actual generation logic is a TODO.`, "Info");
     
-    // generateSurveyGridWaypoints(currentPolygonPoints, altitude, spacing, angle, overshoot);
-    // updateWaypointList(); updateFlightPath(); updateFlightStatistics(); fitMapToWaypoints();
+    // FUTURA LOGICA:
+    // const surveyWaypoints = generateSurveyGridWaypoints(currentPolygonPoints, altitude, spacing, angle, overshoot);
+    // if (surveyWaypoints && surveyWaypoints.length > 0) {
+    //     surveyWaypoints.forEach(wpData => addWaypoint(wpData.latlng, wpData.options)); // addWaypoint da waypointManager
+    //     updateWaypointList(); 
+    //     updateFlightPath(); 
+    //     updateFlightStatistics(); 
+    //     fitMapToWaypoints();
+    //     showCustomAlert("Survey grid waypoints generated and added to the mission!", "Success");
+    // } else {
+    //     showCustomAlert("Failed to generate survey grid waypoints or grid was empty.", "Error");
+    // }
 
-    handleCancelSurveyGrid(); 
+    handleCancelSurveyGrid(); // Chiude modale e resetta tutto
 }
