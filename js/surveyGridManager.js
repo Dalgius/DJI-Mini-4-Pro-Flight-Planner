@@ -1,19 +1,23 @@
 // File: surveyGridManager.js
 
-// Global state variables for this module
+// Depends on: config.js (for isDrawingSurveyArea, map, DOM elements for modal)
+// Depends on: mapManager.js (for map object, and assumes handleMapClick is a global function from there)
+// Depends on: utils.js (for showCustomAlert)
+
+// Variabili di stato specifiche di questo modulo
 let currentPolygonPoints = [];
 let tempPolygonLayer = null;
 let tempVertexMarkers = [];
 
 const MIN_POLYGON_POINTS = 3;
 
-// === HELPER FUNCTIONS (definite prima per chiarezza e hoisting) ===
+// === HELPER FUNCTIONS ===
 
 /**
  * Pulisce tutti i layer e i marker temporanei usati per il disegno.
  */
 function clearTemporaryDrawing() {
-    console.log("[SurveyGrid] clearTemporaryDrawing called"); // DEBUG
+    console.log("[SurveyGrid] clearTemporaryDrawing called");
     if (tempPolygonLayer) {
         map.removeLayer(tempPolygonLayer);
         tempPolygonLayer = null;
@@ -26,7 +30,7 @@ function clearTemporaryDrawing() {
  * Aggiorna la visualizzazione del poligono/linea temporanea sulla mappa.
  */
 function updateTempPolygonDisplay() {
-    console.log("[SurveyGrid] updateTempPolygonDisplay called"); // DEBUG
+    console.log("[SurveyGrid] updateTempPolygonDisplay called");
     if (tempPolygonLayer) {
         map.removeLayer(tempPolygonLayer);
         tempPolygonLayer = null;
@@ -41,11 +45,10 @@ function updateTempPolygonDisplay() {
     }
 }
 
-
-// === MAIN HANDLERS (accessibili globalmente e da eventListeners.js) ===
+// === MAIN HANDLERS ===
 
 /**
- * Inizializza i controlli per la griglia di mappatura (es. apre la modale).
+ * Apre e inizializza la modale per la creazione della griglia di survey.
  */
 function openSurveyGridModal() {
     console.log("[SurveyGrid] openSurveyGridModal called");
@@ -54,13 +57,14 @@ function openSurveyGridModal() {
         showCustomAlert("Survey grid modal elements not found.", "Error");
         return;
     }
-    surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value;
+    surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value; // Pre-fill altitude
     
-    cancelSurveyAreaDrawing(); // Chiama la funzione che resetta tutto, inclusa la UI della modale
+    cancelSurveyAreaDrawing(); // Resetta stato e UI del disegno
 
-    confirmSurveyGridBtnEl.disabled = true; // Assicurati che sia disabilitato all'inizio
+    // Assicura che la UI della modale sia nello stato iniziale corretto
+    confirmSurveyGridBtnEl.disabled = true;
     finalizeSurveyAreaBtnEl.style.display = 'none';
-    startDrawingSurveyAreaBtnEl.style.display = 'inline-block'; // Assicurati che il pulsante start sia visibile
+    startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
     surveyAreaStatusEl.textContent = "Area not defined.";
     surveyGridInstructionsEl.textContent = 'Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon, or use the "Finalize Area" button.';
     
@@ -70,19 +74,29 @@ function openSurveyGridModal() {
 
 /**
  * Resetta lo stato del disegno del poligono e la UI della modale.
+ * Riattiva il listener di click generico sulla mappa se era stato rimosso.
  */
 function cancelSurveyAreaDrawing() {
     console.log("[SurveyGrid] cancelSurveyAreaDrawing called");
-    isDrawingSurveyArea = false;
+    const wasDrawing = isDrawingSurveyArea; // Salva lo stato prima di resettare
+    isDrawingSurveyArea = false; // Imposta la variabile globale da config.js
+
     if (map) {
-        map.off('click', handleSurveyAreaMapClick);
+        map.off('click', handleSurveyAreaMapClick); // Rimuovi il nostro listener specifico per il disegno
         map.getContainer().style.cursor = '';
-        console.log("[SurveyGrid] cancelSurveyAreaDrawing: Map click listener potentially removed.");
+        console.log("[SurveyGrid] Survey drawing map click listener potentially removed.");
+
+        // Riaggiungi il listener di click generale solo se stavamo effettivamente disegnando
+        // per evitare di aggiungerlo più volte o quando non necessario.
+        if (wasDrawing && typeof handleMapClick === 'function') {
+            map.on('click', handleMapClick); // handleMapClick è da mapManager.js
+            console.log("[SurveyGrid] Default map click listener (handleMapClick) RE-ADDED after cancel/finalize.");
+        }
     }
-    clearTemporaryDrawing(); // Ora dovrebbe essere definita
+    clearTemporaryDrawing();
     currentPolygonPoints = [];
 
-    // Resetta la UI della modale qui se non viene già fatto da openSurveyGridModal o handleCancelSurveyGrid
+    // Resetta la UI della modale
     if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
     if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
     if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
@@ -90,9 +104,9 @@ function cancelSurveyAreaDrawing() {
     if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = 'Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon, or use the "Finalize Area" button.';
 }
 
-
 /**
  * Avvia la modalità di disegno del poligono sulla mappa.
+ * Rimuove temporaneamente il listener di click generico della mappa.
  */
 function handleStartDrawingSurveyArea() {
     console.log("[SurveyGrid] handleStartDrawingSurveyArea called");
@@ -101,23 +115,31 @@ function handleStartDrawingSurveyArea() {
         return;
     }
 
-    isDrawingSurveyArea = true;
+    isDrawingSurveyArea = true; // Imposta la globale da config.js
     currentPolygonPoints = [];
     clearTemporaryDrawing(); 
     console.log("[SurveyGrid] Cleared temporary drawing, isDrawingSurveyArea set to true.");
 
-    map.on('click', handleSurveyAreaMapClick);
-    map.getContainer().style.cursor = 'crosshair';
-    console.log("[SurveyGrid] Map click listener ADDED for survey area drawing. Cursor set to crosshair.");
+    // Rimuovi temporaneamente il listener di click generale dalla mappa
+    if (typeof handleMapClick === 'function') {
+        map.off('click', handleMapClick);
+        console.log("[SurveyGrid] Default map click listener (handleMapClick) TEMPORARILY REMOVED.");
+    } else {
+        console.warn("[SurveyGrid] Could not remove default map click listener: handleMapClick not found globally. Drawing might conflict.");
+    }
 
+    map.on('click', handleSurveyAreaMapClick); // Aggiungi il nostro listener specifico per il disegno
+    map.getContainer().style.cursor = 'crosshair';
+    console.log("[SurveyGrid] Survey drawing map click listener ADDED. Cursor set to crosshair.");
+
+    // Aggiorna UI della modale
     startDrawingSurveyAreaBtnEl.style.display = 'none';
     finalizeSurveyAreaBtnEl.style.display = 'none'; 
     surveyAreaStatusEl.textContent = "Drawing area: 0 points.";
     surveyGridInstructionsEl.textContent = "Click on the map to add corners. Click the first point to close or use 'Finalize Area' (min 3 points).";
     
-    // !!! COMMENTA QUESTA RIGA TEMPORANEAMENTE !!!
-    // showCustomAlert("Map drawing mode activated. Click to define polygon corners.", "Survey Area");
-    console.log("[SurveyGrid] showCustomAlert for drawing mode activation SKIPPED for testing."); // DEBUG
+    // showCustomAlert("Map drawing mode activated. Click to define polygon corners.", "Survey Area"); // Commentato per test
+    console.log("[SurveyGrid] showCustomAlert for drawing mode activation SKIPPED for testing.");
 }
 
 /**
@@ -125,7 +147,7 @@ function handleStartDrawingSurveyArea() {
  */
 function handleSurveyAreaMapClick(e) {
     console.log("[SurveyGrid] handleSurveyAreaMapClick TRIGGERED!", e);
-    if (!isDrawingSurveyArea) {
+    if (!isDrawingSurveyArea) { // isDrawingSurveyArea è la globale da config.js
         console.log("[SurveyGrid] handleSurveyAreaMapClick: Not in drawing mode, exiting.");
         return;
     }
@@ -163,9 +185,9 @@ function handleSurveyAreaMapClick(e) {
     }
 }
 
-
 /**
  * Finalizza il disegno dell'area del poligono.
+ * Riattiva il listener di click generico sulla mappa.
  */
 function handleFinalizeSurveyArea() {
     console.log("[SurveyGrid] handleFinalizeSurveyArea called");
@@ -177,11 +199,25 @@ function handleFinalizeSurveyArea() {
         showCustomAlert(`Area definition requires at least ${MIN_POLYGON_POINTS} points.`, "Info");
         return;
     }
-    isDrawingSurveyArea = false;
+    // Non impostare isDrawingSurveyArea a false qui, lo fa cancelSurveyAreaDrawing
+    // che viene chiamato da handleCancelSurveyGrid o handleConfirmSurveyGridGeneration
+    // Ma dobbiamo rimuovere il listener di disegno specifico e ripristinare quello di default.
+
     map.off('click', handleSurveyAreaMapClick);
-    console.log("[SurveyGrid] Map click listener REMOVED for survey area drawing.");
+    console.log("[SurveyGrid] Survey drawing map click listener REMOVED.");
     map.getContainer().style.cursor = '';
 
+    // Riaggiungi il listener di click generale
+    // Questo ora viene fatto in cancelSurveyAreaDrawing, che viene chiamato alla fine
+    // if (typeof handleMapClick === 'function') {
+    //     map.on('click', handleMapClick);
+    //     console.log("[SurveyGrid] Default map click listener (handleMapClick) RE-ADDED after finalize.");
+    // }
+    // La chiamata a isDrawingSurveyArea = false e il ripristino del listener di default
+    // avverrà quando si clicca "Generate Grid" (che chiama handleCancelSurveyGrid alla fine)
+    // o "Cancel". Per ora, manteniamo lo stato di "disegno finalizzato ma non ancora generato".
+
+    // Aggiorna UI della modale
     if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
     if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false;
     if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = `Area defined with ${currentPolygonPoints.length} points. Ready to generate grid.`;
@@ -190,9 +226,20 @@ function handleFinalizeSurveyArea() {
     if (tempPolygonLayer) {
         tempPolygonLayer.setStyle({ color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' });
     }
-    tempVertexMarkers.forEach(marker => marker.off('click'));
+    tempVertexMarkers.forEach(marker => marker.off('click')); // Rimuovi listener dai marker
 
     showCustomAlert("Survey area finalized. You can now generate the grid.", "Area Defined");
+    // isDrawingSurveyArea rimane true finché non si clicca Generate o Cancel,
+    // ma il listener per handleSurveyAreaMapClick è stato rimosso.
+    // Quindi i click sulla mappa non faranno più nulla finché non si esce dalla modale o si genera.
+    // Forse è meglio impostare isDrawingSurveyArea = false qui e riattivare il listener di default.
+    // Modificato: cancelSurveyAreaDrawing si occuperà di ripristinare lo stato e il listener di default.
+    // Ma la logica di handleFinalizeSurveyArea è solo per dire "il poligono è pronto", non "esci dalla modalità survey".
+    // Quindi isDrawingSurveyArea dovrebbe rimanere true, ma il listener per aggiungere punti viene rimosso.
+    // Questo significa che la mappa non risponde ai click per disegnare *nuovi* punti.
+    // Il listener generale è ancora disattivato. Questo stato è un po' intermedio.
+    // Sarà cancelSurveyAreaDrawing (chiamato da Cancel o Generate) a fare il cleanup finale
+    // e riattivare il listener generale e impostare isDrawingSurveyArea = false.
 }
 
 /**
@@ -200,7 +247,7 @@ function handleFinalizeSurveyArea() {
  */
 function handleCancelSurveyGrid() {
     console.log("[SurveyGrid] handleCancelSurveyGrid called");
-    cancelSurveyAreaDrawing(); // Pulisce il disegno e lo stato di disegno
+    cancelSurveyAreaDrawing(); // Pulisce il disegno, resetta lo stato e i listener
     if (surveyGridModalOverlayEl) {
         surveyGridModalOverlayEl.style.display = 'none'; // Chiude la modale
     }
@@ -215,7 +262,9 @@ function handleConfirmSurveyGridGeneration() {
         showCustomAlert("Cannot generate grid: Survey area is not properly defined.", "Error");
         return;
     }
-    // ... (resto dei controlli e logica di generazione come prima) ...
+    if (!surveyGridAltitudeInputEl || !surveyGridSpacingInputEl || !surveyGridAngleInputEl || !surveyGridOvershootInputEl) {
+         showCustomAlert("Cannot generate grid: Missing input elements.", "Error"); return;
+    }
     const altitude = parseInt(surveyGridAltitudeInputEl.value);
     const spacing = parseFloat(surveyGridSpacingInputEl.value);
     const angle = parseFloat(surveyGridAngleInputEl.value);
@@ -229,8 +278,13 @@ function handleConfirmSurveyGridGeneration() {
     console.log("Generating survey grid with params:", { polygon: currentPolygonPoints.map(p => [p.lat, p.lng]), altitude, spacing, angle, overshoot });
     showCustomAlert(`Grid generation started (Polygon: ${currentPolygonPoints.length} vertices, Alt: ${altitude}m, Spacing: ${spacing}m, Angle: ${angle}°). Actual generation logic is a TODO.`, "Info");
     
+    // QUI VA LA LOGICA DI GENERAZIONE EFFETTIVA:
     // generateSurveyGridWaypoints(currentPolygonPoints, altitude, spacing, angle, overshoot);
-    // updateWaypointList(); updateFlightPath(); updateFlightStatistics(); fitMapToWaypoints();
+    //POI AGGIORNAMENTI UI
+    // updateWaypointList(); 
+    // updateFlightPath(); 
+    // updateFlightStatistics(); 
+    // fitMapToWaypoints();
 
-    handleCancelSurveyGrid(); // Chiude modale e pulisce il disegno dopo la (finta) generazione
+    handleCancelSurveyGrid(); // Chiude modale, pulisce disegno, resetta stato e listener
 }
