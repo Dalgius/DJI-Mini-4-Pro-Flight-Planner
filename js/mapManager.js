@@ -46,18 +46,18 @@ function initializeMap() {
  * @param {L.LeafletMouseEvent} e - The Leaflet mouse event.
  */
 function handleMapClick(e) {
-    // Controlla lo stato globale definito in config.js e gestito da surveyGridManager.js
+    // DEBUG: Controlla il valore di isDrawingSurveyArea come lo vede mapManager
+    console.log(`[MapManager] handleMapClick: Received click. isDrawingSurveyArea = ${isDrawingSurveyArea} (type: ${typeof isDrawingSurveyArea})`);
+
     if (typeof isDrawingSurveyArea !== 'undefined' && isDrawingSurveyArea === true) {
-        console.log("[MapManager] handleMapClick: In survey area drawing mode, ignoring default map click to allow survey drawing.");
+        console.log("[MapManager] handleMapClick: In survey area drawing mode, IGNORING default map click. Survey listener should handle it.");
         // Non fare L.DomEvent.stopPropagation(e.originalEvent) qui.
-        // Il listener specifico per il disegno del poligono in surveyGridManager.js
-        // si occuperà della propagazione se necessario per la sua logica.
-        return; // Esce per permettere al listener di disegno di surveyGridManager di agire
+        // Lascia che il listener di disegno del poligono in surveyGridManager.js si occupi della propagazione.
+        return; 
     }
 
     console.log("[MapManager] handleMapClick: Processing default map click (add waypoint/POI).");
 
-    // Ensure click is directly on the map container, not on a marker or other overlay
     if (e.originalEvent.target === map.getContainer()) {
         console.log("[MapManager] Click was directly on map container.");
         if (e.originalEvent.ctrlKey) {
@@ -68,7 +68,7 @@ function handleMapClick(e) {
             addWaypoint(e.latlng); // Funzione da waypointManager.js
         }
     } else {
-        console.log("[MapManager] handleMapClick: Click was NOT directly on map container (e.g., on a marker or control). Ignored by default handler.");
+        console.log("[MapManager] handleMapClick: Click was NOT directly on map container. Ignored by default handler.");
     }
 }
 
