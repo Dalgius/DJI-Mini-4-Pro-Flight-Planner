@@ -13,7 +13,8 @@ let nativeMapClickListener = null;
 
 const MIN_POLYGON_POINTS = 3;
 
-// === HELPER FUNCTIONS FOR DRAWING ===
+// === HELPER FUNCTIONS ===
+
 /**
  * Pulisce tutti i layer e i marker temporanei usati per il disegno.
  */
@@ -46,50 +47,67 @@ function updateTempPolygonDisplay() {
     }
 }
 
-// === POINT-IN-POLYGON ALGORITHM ===
 /**
- * Algoritmo Point-in-Polygon (Ray Casting).
- * Verifica se un punto è all'interno di un poligono.
- * @param {L.LatLng} point Il punto da testare.
- * @param {L.LatLng[]} polygonVertices I vertici del poligono.
- * @returns {boolean} True se il punto è dentro il poligono, false altrimenti.
+ * Converte gradi in radianti.
+ * @param {number} degrees Angolo in gradi.
+ * @returns {number} Angolo in radianti.
  */
-function isPointInPolygon(point, polygonVertices) {
-    let isInside = false;
-    const x = point.lng; // Usiamo lng per x, lat per y
-    const y = point.lat;
-    const n = polygonVertices.length;
+function toRad(degrees) { // Inclusa qui per assicurarne la disponibilità
+    return degrees * Math.PI / 180;
+}
 
-    // console.log(`[isPointInPolygon] Testing point: (${x.toFixed(6)}, ${y.toFixed(6)})`); // DEBUG ESTREMO
+/**
+ * Ruota un L.LatLng attorno a un centro di un dato angolo.
+ * ATTENZIONE: Approssimazione per aree piccole, non geodeticamente precisa.
+ * L'angolo è in radianti. Rotazione positiva = antioraria.
+ * @param {L.LatLng} pointLatLng Il punto da ruotare.
+ * @param {L.LatLng} centerLatLng Il centro di rotazione.
+ * @param {number} angleRadians L'angolo di rotazione in radianti.
+ * @returns {L.LatLng} Il nuovo L.LatLng ruotato.
+ */
+function rotateLatLng(pointLatLng, centerLatLng, angleRadians) {
+    const cosAngle = Math.cos(angleRadians);
+    const sinAngle = Math.sin(angleRadians);
 
-    for (let i = 0, j = n - 1; i < n; j = i++) {
-        const xi = polygonVertices[i].lng;
-        const yi = polygonVertices[i].lat;
-        const xj = polygonVertices[j].lng;
-        const yj = polygonVertices[j].lat;
+    // Converti differenze Lat/Lng in un sistema pseudo-cartesiano locale
+    // Scalando la differenza di longitudine per il coseno della latitudine del centro
+    // per approssimare una distanza metrica uniforme.
+    const dLngScaled = (pointLatLng.lng - centerLatLng.lng) * Math.cos(toRad(centerLatLng.lat));
+    const dLat = pointLatLng.lat - centerLatLng.lat;
 
-        // console.log(`  Segment: (${xi.toFixed(6)},${yi.toFixed(6)}) to (${xj.toFixed(6)},${yj.toFixed(6)})`); // DEBUG ESTREMO
+    // Applica la rotazione 2D standard
+    const rotatedDLngScaled = dLngScaled * cosAngle - dLat * sinAngle;
+    const rotatedDLat = dLngScaled * sinAngle + dLat * cosAngle;
 
-        const intersect = ((yi > y) !== (yj > y)) &&
-            (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-        if (intersect) {
-            // console.log(`    Intersection detected with segment ${i}`); // DEBUG ESTREMO
-            isInside = !isInside;
-        }
-    }
-    // console.log(`[isPointInPolygon] Result for (${x.toFixed(6)}, ${y.toFixed(6)}): ${isInside}`); // DEBUG ESTREMO
-    return isInside;
+    // Riconverti le differenze ruotate in Lat/Lng
+    const finalLng = centerLatLng.lng + (rotatedDLngScaled / Math.cos(toRad(centerLatLng.lat)));
+    const finalLat = centerLatLng.lat + rotatedDLat;
+
+    return L.latLng(finalLat, finalLng);
 }
 
 
-// === MAIN HANDLERS ===
+/**
+ * Algoritmo Point-in-Polygon (Ray Casting).
+ */
+function isPointInPolygon(point, polygonVertices) {
+    let isInside = false;
+    const x = point.lng; const y = point.lat;
+    for (let i = 0, j = polygonVertices.length - 1; i < polygonVertices.length; j = i++) {
+        const xi = polygonVertices[i].lng, yi = polygonVertices[i].lat;
+        const xj = polygonVertices[j].lng, yj = polygonVertices[j].lat;
+        const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) isInside = !isInside;
+    }
+    return isInside;
+}
+
+// === MAIN UI HANDLERS ===
 
 function openSurveyGridModal() {
     console.log("[SurveyGrid] openSurveyGridModal called");
-    if (!surveyGridModalOverlayEl || !defaultAltitudeSlider || !surveyGridAltitudeInputEl || !confirmSurveyGridBtnEl || !finalizeSurveyAreaBtnEl || !startDrawingSurveyAreaBtnEl || !surveyAreaStatusEl || !surveyGridInstructionsEl) {
-        console.error("[SurveyGrid] Modal elements missing in openSurveyGridModal");
-        showCustomAlert("Survey grid modal elements not found.", "Error");
-        return;
+    if (!surveyGridModalOverlayEl || !defaultAltitudeSlider /* ...altri controlli ... */) {
+        showCustomAlert("Survey grid modal elements not found.", "Error"); return;
     }
     surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value;
     cancelSurveyAreaDrawing();
@@ -115,7 +133,7 @@ function cancelSurveyAreaDrawing() {
         }
         map.off('click', handleSurveyAreaMapClick);
         map.getContainer().style.cursor = '';
-        console.log("[SurveyGrid] All drawing-related map click listeners should be removed.");
+        console.log("[SurveyGrid] All drawing-related map click listeners removed.");
         if ((wasDrawingOrListenersActive || !map.hasEventListeners('click', handleMapClick)) && typeof handleMapClick === 'function') {
             map.on('click', handleMapClick);
             console.log("[SurveyGrid] Default Leaflet map click listener RE-ENSURED.");
@@ -132,9 +150,7 @@ function cancelSurveyAreaDrawing() {
 
 function handleStartDrawingSurveyArea() {
     console.log("[SurveyGrid] handleStartDrawingSurveyArea called");
-    if (!map || !surveyGridModalOverlayEl) {
-        console.error("[SurveyGrid] Map or Survey Grid Modal Overlay not found"); return;
-    }
+    if (!map || !surveyGridModalOverlayEl) { console.error("Map or Modal Overlay missing"); return; }
     isDrawingSurveyArea = true;
     currentPolygonPoints = [];
     clearTemporaryDrawing();
@@ -149,36 +165,34 @@ function handleStartDrawingSurveyArea() {
         if (nativeMapClickListener) mapContainer.removeEventListener('click', nativeMapClickListener, true);
         nativeMapClickListener = function(event) {
             console.log("!!! NATIVE MAP CONTAINER CLICKED !!! Target:", event.target);
-            if (!isDrawingSurveyArea) { console.log("!!! NATIVE CLICK: but isDrawingSurveyArea is false. Ignoring."); return; }
+            if (!isDrawingSurveyArea) { console.log("!!! NATIVE CLICK: not in drawing mode."); return; }
             if (event.target && (event.target === mapContainer || event.target.closest('.leaflet-pane') || event.target.closest('.leaflet-container'))) {
                 try {
                     const latlng = map.mouseEventToLatLng(event);
-                    console.log("!!! NATIVE CLICK Converted to LatLng:", latlng);
                     handleSurveyAreaMapClick({ latlng: latlng, originalEvent: event });
                 } catch (mapError) { console.error("!!! NATIVE CLICK: Error:", mapError); }
-            } else { console.log("!!! NATIVE CLICK: Target was not map/pane. Target:", event.target); }
+            } else { console.log("!!! NATIVE CLICK: Target was not map/pane."); }
         };
         mapContainer.addEventListener('click', nativeMapClickListener, true);
         console.log("[SurveyGrid] NATIVE DOM click listener ADDED.");
     }
     map.getContainer().style.cursor = 'crosshair';
-    surveyGridModalOverlayEl.style.display = 'none';
+    surveyGridModalOverlayEl.style.display = 'none'; // NASCONDI MODALE
     console.log("[SurveyGrid] Survey grid modal HIDDEN for drawing.");
     showCustomAlert("Drawing survey area: Click on map to add corners. Click the first point (min 3 total) to finalize.", "Survey Drawing Active");
     console.log("[SurveyGrid] Drawing mode activated.");
 }
 
 function handleSurveyAreaMapClick(e) {
-    console.log("[SurveyGrid] handleSurveyAreaMapClick (from NATIVE) TRIGGERED!", "LatLng:", e.latlng);
-    if (!isDrawingSurveyArea) { console.log("[SurveyGrid] handleSurveyAreaMapClick: Not in drawing mode, exiting."); return; }
-    console.log("[SurveyGrid] handleSurveyAreaMapClick: In drawing mode, proceeding.");
+    console.log("[SurveyGrid] handleSurveyAreaMapClick TRIGGERED!", "LatLng:", e.latlng);
+    if (!isDrawingSurveyArea) { console.log("Not in drawing mode."); return; }
     const clickedLatLng = e.latlng;
     currentPolygonPoints.push(clickedLatLng);
-    console.log("[SurveyGrid] Point added, total:", currentPolygonPoints.length);
+    console.log("Point added, total:", currentPolygonPoints.length);
     const vertexMarker = L.circleMarker(clickedLatLng, { radius: 6, color: 'rgba(255,0,0,0.8)', fillColor: 'rgba(255,0,0,0.5)', fillOpacity: 0.7, pane: 'markerPane' }).addTo(map);
     if (tempVertexMarkers.length === 0) {
         vertexMarker.on('click', (markerClickEvent) => {
-            console.log("[SurveyGrid] First vertex marker CLICKED for finalization.");
+            console.log("First vertex marker CLICKED for finalization.");
             if (isDrawingSurveyArea && currentPolygonPoints.length >= MIN_POLYGON_POINTS) {
                 L.DomEvent.stopPropagation(markerClickEvent); L.DomEvent.preventDefault(markerClickEvent);
                 handleFinalizeSurveyArea();
@@ -191,7 +205,7 @@ function handleSurveyAreaMapClick(e) {
 
 function handleFinalizeSurveyArea() {
     console.log("[SurveyGrid] handleFinalizeSurveyArea called");
-    if (!isDrawingSurveyArea) { console.log("[SurveyGrid] handleFinalizeSurveyArea: Not in drawing mode or already finalized."); return; }
+    if (!isDrawingSurveyArea) { console.log("Not in drawing mode or already finalized."); return; }
     if (currentPolygonPoints.length < MIN_POLYGON_POINTS) {
         showCustomAlert(`Area definition requires at least ${MIN_POLYGON_POINTS} points.`, "Info"); return;
     }
@@ -203,7 +217,7 @@ function handleFinalizeSurveyArea() {
     }
     map.getContainer().style.cursor = '';
     if (surveyGridModalOverlayEl) {
-        surveyGridModalOverlayEl.style.display = 'flex';
+        surveyGridModalOverlayEl.style.display = 'flex'; // RIAPRI MODALE
         console.log("[SurveyGrid] Survey grid modal SHOWN for confirmation.");
     }
     if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
@@ -223,109 +237,104 @@ function handleCancelSurveyGrid() {
     }
 }
 
-/**
- * Genera i waypoint per la griglia di survey (versione semplificata).
- */
+// === GRID GENERATION LOGIC ===
+
 function generateSurveyGridWaypoints(polygonLatLngs, flightAltitude, lineSpacing, gridAngleDeg, overshootDistance) {
-    console.log("[SurveyGridGen] Starting generation with:", {
+    console.log("[SurveyGridGen] Starting generation (with ANGLE) with:", {
         polygonPointsCount: polygonLatLngs ? polygonLatLngs.length : 0,
         flightAltitude, lineSpacing, gridAngleDeg, overshootDistance
     });
     const waypointsData = [];
 
     if (!polygonLatLngs || polygonLatLngs.length < MIN_POLYGON_POINTS) {
-        console.error("[SurveyGridGen] Invalid polygonLatLngs input for generation.");
-        showCustomAlert("Invalid polygon for survey grid generation.", "Error");
+        showCustomAlert("Invalid polygon for survey grid generation.", "Error"); return waypointsData;
+    }
+
+    const rotationCenter = polygonLatLngs[0]; 
+    const angleRad = toRad(gridAngleDeg); // Usa la nostra funzione toRad
+    console.log(`[SurveyGridGen] Grid Angle: ${gridAngleDeg}°, Radians: ${angleRad.toFixed(4)}, Center: (${rotationCenter.lat.toFixed(6)}, ${rotationCenter.lng.toFixed(6)})`);
+
+    const rotatedPolygonLatLngs = polygonLatLngs.map(p => rotateLatLng(p, rotationCenter, -angleRad));
+    // console.log("[SurveyGridGen] Rotated Polygon Vertices (pseudo-coords):", rotatedPolygonLatLngs.map(p=>[p.lat, p.lng]));
+
+
+    const rotatedBounds = L.latLngBounds(rotatedPolygonLatLngs);
+    const rNorthEast = rotatedBounds.getNorthEast();
+    const rSouthWest = rotatedBounds.getSouthWest();
+    console.log(`[SurveyGridGen] Rotated Bounds: SW(${rSouthWest.lat.toFixed(6)}, ${rSouthWest.lng.toFixed(6)}) NE(${rNorthEast.lat.toFixed(6)}, ${rNorthEast.lng.toFixed(6)})`);
+
+    if (rSouthWest.lat >= rNorthEast.lat - 1e-7 || rSouthWest.lng >= rNorthEast.lng - 1e-7) { // Tolleranza
+        console.error("[SurveyGridGen] Invalid rotated bounds. Polygon might be too small or angle causes issues.");
+        showCustomAlert("Polygon is too small or the angle results in invalid bounds for grid generation.", "Grid Error");
         return waypointsData;
     }
 
-    // console.log("[SurveyGridGen] Polygon Vertices (Lat, Lng):");
-    // polygonLatLngs.forEach((p, index) => console.log(`  ${index}: (${p.lat.toFixed(6)}, ${p.lng.toFixed(6)})`));
+    const earthRadius = (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000;
+    const lineSpacingRotatedLatUnits = (lineSpacing / earthRadius) * (180 / Math.PI);
+    console.log(`[SurveyGridGen] lineSpacing: ${lineSpacing}m, lineSpacingRotatedLatUnits: ${lineSpacingRotatedLatUnits.toFixed(10)}`);
 
-    const bounds = L.latLngBounds(polygonLatLngs);
-    const northEast = bounds.getNorthEast();
-    const southWest = bounds.getSouthWest();
+    if (lineSpacingRotatedLatUnits <= 1e-9) { showCustomAlert("Line spacing too small.", "Grid Error"); return waypointsData; }
 
-    console.log(`[SurveyGridGen] Bounds: SW(${southWest.lat.toFixed(6)}, ${southWest.lng.toFixed(6)}) NE(${northEast.lat.toFixed(6)}, ${northEast.lng.toFixed(6)})`);
-
-    if (southWest.lat >= northEast.lat || southWest.lng >= northEast.lng) {
-        console.error("[SurveyGridGen] Invalid bounds (min > max). Polygon might be too small, flat, or self-intersecting badly.");
-        showCustomAlert("Polygon is too small or flat to generate a grid. Please redraw a larger area.", "Grid Generation Error");
-        return waypointsData;
-    }
-    
-    const earthRadius = (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000; // Usa R_EARTH da config se disponibile
-    const lineSpacingLatDeg = (lineSpacing / earthRadius) * (180 / Math.PI);
-    console.log(`[SurveyGridGen] lineSpacing: ${lineSpacing}m, lineSpacingLatDeg: ${lineSpacingLatDeg.toFixed(10)}`);
-
-    if (lineSpacingLatDeg <= 1e-9) { // Tolleranza per valori molto piccoli
-        console.error("[SurveyGridGen] Calculated lineSpacingLatDeg is zero or extremely small. Line spacing might be too small or an error occurred.");
-        showCustomAlert("Line spacing is too small or resulted in a non-positive latitude degree conversion.", "Grid Generation Error");
-        return waypointsData;
-    }
-
-    const midLatForLngCalc = (southWest.lat + northEast.lat) / 2;
+    // Usa la latitudine del centro di rotazione per la scala della longitudine nel sistema ruotato.
     const distanceBetweenPhotos = lineSpacing; 
-    const photoSpacingLngDeg = (distanceBetweenPhotos / (earthRadius * Math.cos(toRad(midLatForLngCalc)))) * (180 / Math.PI);
-    console.log(`[SurveyGridGen] distanceBetweenPhotos: ${distanceBetweenPhotos}m, photoSpacingLngDeg (at midLat ${midLatForLngCalc.toFixed(6)}): ${photoSpacingLngDeg.toFixed(10)}`);
+    const photoSpacingRotatedLngUnits = (distanceBetweenPhotos / (earthRadius * Math.cos(toRad(rotationCenter.lat)))) * (180 / Math.PI);
+    console.log(`[SurveyGridGen] photoSpacingRotatedLngUnits (at centerLat ${rotationCenter.lat.toFixed(6)}): ${photoSpacingRotatedLngUnits.toFixed(10)}`);
 
-    if (photoSpacingLngDeg <= 1e-9) {
-        console.error("[SurveyGridGen] Calculated photoSpacingLngDeg is zero or extremely small.");
-        showCustomAlert("Photo spacing is too small or resulted in a non-positive longitude degree conversion.", "Grid Generation Error");
-        return waypointsData;
-    }
+    if (photoSpacingRotatedLngUnits <= 1e-9) { showCustomAlert("Photo spacing too small.", "Grid Error"); return waypointsData; }
 
-    let currentLat = southWest.lat;
+    let currentRotatedLat = rSouthWest.lat;
     let scanDirection = 1;
     let linesGenerated = 0;
-    let totalCandidatePoints = 0;
 
-    while (currentLat <= northEast.lat) {
+    while (currentRotatedLat <= rNorthEast.lat + lineSpacingRotatedLatUnits * 0.5) { // Leggera tolleranza per l'ultima linea
         linesGenerated++;
-        console.log(`[SurveyGridGen] Generating line ${linesGenerated} at Lat: ${currentLat.toFixed(6)}, direction: ${scanDirection}`);
-        const linePoints = [];
-        let pointsOnThisLine = 0;
+        // console.log(`[SurveyGridGen] Line ${linesGenerated} at RotatedLat: ${currentRotatedLat.toFixed(6)}, direction: ${scanDirection}`);
+        const lineCandidatePointsRotated = [];
 
-        if (scanDirection === 1) { // Ovest -> Est
-            for (let currentLng = southWest.lng; currentLng <= northEast.lng; currentLng += photoSpacingLngDeg) {
-                linePoints.push(L.latLng(currentLat, currentLng)); pointsOnThisLine++;
+        if (scanDirection === 1) {
+            for (let currentRotatedLng = rSouthWest.lng; currentRotatedLng <= rNorthEast.lng; currentRotatedLng += photoSpacingRotatedLngUnits) {
+                lineCandidatePointsRotated.push(L.latLng(currentRotatedLat, currentRotatedLng));
             }
-            if (linePoints.length === 0 || linePoints[linePoints.length - 1].lng < northEast.lng - 1e-7) { // Tolleranza per float
-                 linePoints.push(L.latLng(currentLat, northEast.lng)); if(pointsOnThisLine === 0) pointsOnThisLine++;
+            if (lineCandidatePointsRotated.length === 0 || lineCandidatePointsRotated[lineCandidatePointsRotated.length - 1].lng < rNorthEast.lng - 1e-7) {
+                lineCandidatePointsRotated.push(L.latLng(currentRotatedLat, rNorthEast.lng));
             }
-        } else { // Est -> Ovest
-            for (let currentLng = northEast.lng; currentLng >= southWest.lng; currentLng -= photoSpacingLngDeg) {
-                linePoints.push(L.latLng(currentLat, currentLng)); pointsOnThisLine++;
+        } else {
+            for (let currentRotatedLng = rNorthEast.lng; currentRotatedLng >= rSouthWest.lng; currentRotatedLng -= photoSpacingRotatedLngUnits) {
+                lineCandidatePointsRotated.push(L.latLng(currentRotatedLat, currentRotatedLng));
             }
-            if (linePoints.length === 0 || linePoints[linePoints.length - 1].lng > southWest.lng + 1e-7) { // Tolleranza per float
-                 linePoints.push(L.latLng(currentLat, southWest.lng)); if(pointsOnThisLine === 0) pointsOnThisLine++;
+            if (lineCandidatePointsRotated.length === 0 || lineCandidatePointsRotated[lineCandidatePointsRotated.length - 1].lng > rSouthWest.lng + 1e-7) {
+                lineCandidatePointsRotated.push(L.latLng(currentRotatedLat, rSouthWest.lng));
             }
         }
-        totalCandidatePoints += pointsOnThisLine;
-        console.log(`  Generated ${pointsOnThisLine} candidate points for this line.`);
+        // console.log(`  Generated ${lineCandidatePointsRotated.length} candidate points (rotated) for this line.`);
 
         let pointsAddedFromThisLine = 0;
-        linePoints.forEach((point) => {
-            if (isPointInPolygon(point, polygonLatLngs)) {
+        lineCandidatePointsRotated.forEach((rotatedPoint) => {
+            const actualGeoPoint = rotateLatLng(rotatedPoint, rotationCenter, angleRad);
+            if (isPointInPolygon(actualGeoPoint, polygonLatLngs)) {
+                let headingForPoint = gridAngleDeg; // Direzione principale della linea
+                if (scanDirection === -1) { // Se la linea va nella direzione opposta
+                    headingForPoint = (gridAngleDeg + 180);
+                }
+                headingForPoint = (headingForPoint % 360 + 360) % 360; // Normalizza 0-359
+
                 waypointsData.push({
-                    latlng: point,
-                    options: { altitude: flightAltitude, cameraAction: 'takePhoto', headingControl: 'auto' }
+                    latlng: actualGeoPoint,
+                    options: { altitude: flightAltitude, cameraAction: 'takePhoto', headingControl: 'fixed', fixedHeading: Math.round(headingForPoint) }
                 });
                 pointsAddedFromThisLine++;
             }
         });
-        console.log(`  Added ${pointsAddedFromThisLine} waypoints from this line after filtering.`);
+        // console.log(`  Added ${pointsAddedFromThisLine} waypoints from this line after filtering.`);
 
-        currentLat += lineSpacingLatDeg;
-        if (linesGenerated > 2000) { // Safety break for too many lines
-             console.error("[SurveyGridGen] Too many lines generated, aborting. Check line spacing and polygon size."); break;
-        }
+        currentRotatedLat += lineSpacingRotatedLatUnits;
+        if (linesGenerated > 2000) { console.error("Too many lines, aborting."); break; }
         scanDirection *= -1;
     }
 
-    console.log(`[SurveyGridGen] Total lines processed: ${linesGenerated}. Total candidate points: ${totalCandidatePoints}. Total waypointsData generated (inside polygon): ${waypointsData.length}`);
+    console.log(`[SurveyGridGen] Total lines processed: ${linesGenerated}. Total waypointsData generated: ${waypointsData.length}`);
     if (waypointsData.length === 0 && polygonLatLngs.length >= MIN_POLYGON_POINTS && linesGenerated > 0) {
-        showCustomAlert("No waypoints generated within the polygon. The polygon might be too small for the given line/photo spacing, or parameters are misconfigured. Try a larger area or smaller spacing values.", "Grid Generation Warning");
+        showCustomAlert("No waypoints generated within the polygon. Try a larger area, smaller spacing, or different angle.", "Grid Warning");
     }
     return waypointsData;
 }
@@ -333,17 +342,17 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitude, lineSpacing
 
 function handleConfirmSurveyGridGeneration() {
     console.log("[SurveyGrid] handleConfirmSurveyGridGeneration called");
-    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) { showCustomAlert("Cannot generate grid: Survey area is not properly defined.", "Error"); return; }
-    if (!surveyGridAltitudeInputEl || !surveyGridSpacingInputEl || !surveyGridAngleInputEl || !surveyGridOvershootInputEl) { showCustomAlert("Cannot generate grid: Missing input elements.", "Error"); return; }
+    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) { showCustomAlert("Survey area not properly defined.", "Error"); return; }
+    if (!surveyGridAltitudeInputEl /* ... ecc ... */) { showCustomAlert("Missing input elements.", "Error"); return; }
     
     const altitude = parseInt(surveyGridAltitudeInputEl.value);
     const spacing = parseFloat(surveyGridSpacingInputEl.value);
-    const angle = parseFloat(surveyGridAngleInputEl.value); 
-    const overshoot = parseFloat(surveyGridOvershootInputEl.value);
+    const angle = parseFloat(surveyGridAngleInputEl.value);
+    const overshoot = parseFloat(surveyGridOvershootInputEl.value); // Non ancora usato
 
     if (isNaN(altitude) || altitude < 1) { showCustomAlert("Invalid altitude.", "Input Error"); return; }
-    if (isNaN(spacing) || spacing <= 1e-3) { showCustomAlert("Invalid line spacing. Must be a small positive number.", "Input Error"); return; } // Spacing > 0
-    // Angle & Overshoot validation can be added if they are used.
+    if (isNaN(spacing) || spacing <= 1e-3) { showCustomAlert("Invalid line spacing.", "Input Error"); return; }
+    if (isNaN(angle)) { showCustomAlert("Invalid grid angle.", "Input Error"); return; } // Aggiunta validazione angolo
 
     if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = "Generating grid waypoints...";
     console.log("[SurveyGridGen] Calling generateSurveyGridWaypoints with currentPolygonPoints:", currentPolygonPoints.map(p=>[p.lat, p.lng]));
@@ -353,28 +362,16 @@ function handleConfirmSurveyGridGeneration() {
     console.log(`[SurveyGridGen] Received ${surveyWaypoints ? surveyWaypoints.length : 'null'} waypoints from generation function.`);
 
     if (surveyWaypoints && surveyWaypoints.length > 0) {
-       surveyWaypoints.forEach(wpData => {
-           addWaypoint(wpData.latlng, wpData.options);
-       });
-       updateWaypointList(); 
-       updateFlightPath(); 
-       updateFlightStatistics(); 
-       fitMapToWaypoints();
+       surveyWaypoints.forEach(wpData => addWaypoint(wpData.latlng, wpData.options));
+       updateWaypointList(); updateFlightPath(); updateFlightStatistics(); fitMapToWaypoints();
        showCustomAlert(`${surveyWaypoints.length} survey grid waypoints generated and added!`, "Success");
     } else if (surveyWaypoints && surveyWaypoints.length === 0 && currentPolygonPoints.length >= MIN_POLYGON_POINTS){
-        console.warn("[SurveyGridGen] generateSurveyGridWaypoints returned an empty array but polygon was valid.");
-        // Alert viene già mostrato da generateSurveyGridWaypoints in questo caso.
+        console.warn("[SurveyGridGen] generateSurveyGridWaypoints returned an empty array.");
+        // L'alert specifico viene già mostrato da generateSurveyGridWaypoints
     } else if (!surveyWaypoints) {
         console.error("[SurveyGridGen] generateSurveyGridWaypoints returned null or undefined.");
         showCustomAlert("An unexpected error occurred during grid generation.", "Error");
     }
 
-    handleCancelSurveyGrid(); // Chiude modale, resetta stato e listener
-}
-
-// Helper function to convert degrees to radians, if not globally available from utils.js
-// Assicurati che sia definita o che utils.js sia caricato prima e la esponga globalmente.
-// Se R_EARTH è in config.js, usa quella: const earthRadius = R_EARTH;
-function toRad(degrees) {
-    return degrees * Math.PI / 180;
+    handleCancelSurveyGrid();
 }
