@@ -74,6 +74,20 @@ function cacheDOMElements() {
     exportGoogleEarthBtn = document.getElementById('exportGoogleEarthBtn');
     fileInputEl = document.getElementById('fileInput');
 
+    // Survey Grid Button and Modal Elements
+    createSurveyGridBtn = document.getElementById('createSurveyGridBtn');
+    surveyGridModalOverlayEl = document.getElementById('surveyGridModalOverlay');
+    surveyGridModalTitleEl = document.getElementById('surveyGridModalTitle'); // Se vuoi modificarlo dinamicamente
+    surveyGridInstructionsEl = document.getElementById('surveyGridInstructions');
+    surveyGridAltitudeInputEl = document.getElementById('surveyGridAltitudeInput');
+    surveyGridSpacingInputEl = document.getElementById('surveyGridSpacingInput');
+    surveyGridAngleInputEl = document.getElementById('surveyGridAngleInput');
+    surveyGridOvershootInputEl = document.getElementById('surveyGridOvershootInput');
+    surveyAreaStatusEl = document.getElementById('surveyAreaStatus');
+    startDrawingSurveyAreaBtnEl = document.getElementById('startDrawingSurveyAreaBtn');
+    finalizeSurveyAreaBtnEl = document.getElementById('finalizeSurveyAreaBtn');
+    confirmSurveyGridBtnEl = document.getElementById('confirmSurveyGridBtn');
+    cancelSurveyGridBtnEl = document.getElementById('cancelSurveyGridBtn');
 
     // Map Control Buttons
     satelliteToggleBtn = document.getElementById('satelliteToggleBtn');
