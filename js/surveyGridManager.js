@@ -1,7 +1,6 @@
 // File: surveyGridManager.js
 
 // Global state variables for this module
-let isDrawingSurveyArea = false;
 let currentPolygonPoints = [];
 let tempPolygonLayer = null;
 let tempVertexMarkers = [];
