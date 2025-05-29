@@ -80,7 +80,8 @@ function cacheDOMElements() {
     surveyGridModalTitleEl = document.getElementById('surveyGridModalTitle'); // Se vuoi modificarlo dinamicamente
     surveyGridInstructionsEl = document.getElementById('surveyGridInstructions');
     surveyGridAltitudeInputEl = document.getElementById('surveyGridAltitudeInput');
-    surveyGridSpacingInputEl = document.getElementById('surveyGridSpacingInput');
+    surveySidelapInputEl = document.getElementById('surveySidelapInput'); // Aggiungi
+    surveyFrontlapInputEl = document.getElementById('surveyFrontlapInput'); // Aggiungi
     surveyGridAngleInputEl = document.getElementById('surveyGridAngleInput');
     surveyGridOvershootInputEl = document.getElementById('surveyGridOvershootInput');
     surveyAreaStatusEl = document.getElementById('surveyAreaStatus');
