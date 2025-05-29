@@ -12,7 +12,23 @@ let nativeMapClickListener = null;
 
 const MIN_POLYGON_POINTS = 3;
 
+// --- PARAMETRI CAMERA PER DJI MINI 4 PRO (BASATI SUI TUOI DATI E LUNGHEZZA FOCALE CALCOLATA) ---
+const FIXED_CAMERA_PARAMS = {
+    sensorWidth_mm: 8.976,  // Calcolato: 4032 * 0.002225663181466
+    sensorHeight_mm: 6.716, // Calcolato: 3024 * 0.002221383424304
+    focalLength_mm: 6.88    // TUA LUNGHEZZA FOCALE CALCOLATA
+};
+
+
 // === HELPER FUNCTIONS ===
+function clearTemporaryDrawing() { /* ... come prima ... */ }
+function updateTempPolygonDisplay() { /* ... come prima ... */ }
+function toRad(degrees) { return degrees * Math.PI / 180; }
+function rotateLatLng(pointLatLng, centerLatLng, angleRadians) { /* ... come prima ... */ }
+function isPointInPolygon(point, polygonVertices) { /* ... come prima ... */ }
+function destinationPoint(startLatLng, bearingDeg, distanceMeters) { /* ... come prima ... */ }
+
+// Incollo di nuovo le definizioni degli helper per completezza nel caso servissero modifiche interne
 function clearTemporaryDrawing() {
     console.log("[SurveyGrid] clearTemporaryDrawing called");
     if (tempPolygonLayer) { map.removeLayer(tempPolygonLayer); tempPolygonLayer = null; }
@@ -27,8 +43,6 @@ function updateTempPolygonDisplay() {
     if (currentPolygonPoints.length === 2) tempPolygonLayer = L.polyline(currentPolygonPoints, opts).addTo(map);
     else if (currentPolygonPoints.length >= MIN_POLYGON_POINTS) tempPolygonLayer = L.polygon(currentPolygonPoints, opts).addTo(map);
 }
-
-function toRad(degrees) { return degrees * Math.PI / 180; }
 
 function rotateLatLng(pointLatLng, centerLatLng, angleRadians) {
     const cosAngle = Math.cos(angleRadians); const sinAngle = Math.sin(angleRadians);
@@ -63,11 +77,42 @@ function destinationPoint(startLatLng, bearingDeg, distanceMeters) {
     return L.latLng(lat2 * 180 / Math.PI, lon2 * 180 / Math.PI);
 }
 
+
+/**
+ * Calcola il footprint a terra della camera.
+ */
+function calculateFootprint(altitudeAGL, cameraParams) {
+    if (!cameraParams || !cameraParams.focalLength_mm || cameraParams.focalLength_mm === 0) {
+        console.error("Invalid camera parameters for footprint calculation.");
+        return { width: 0, height: 0 };
+    }
+    // Assumiamo gimbal nadirale (-90 gradi)
+    const footprintWidth = (cameraParams.sensorWidth_mm / cameraParams.focalLength_mm) * altitudeAGL;
+    const footprintHeight = (cameraParams.sensorHeight_mm / cameraParams.focalLength_mm) * altitudeAGL; // Altezza del footprint è lungo la direzione di volo
+    console.log(`[FootprintCalc] Alt: ${altitudeAGL}m, SW: ${cameraParams.sensorWidth_mm}, SH: ${cameraParams.sensorHeight_mm}, FL: ${cameraParams.focalLength_mm} => Footprint W (across track): ${footprintWidth.toFixed(1)}m, Footprint H (along track): ${footprintHeight.toFixed(1)}m`);
+    return { width: footprintWidth, height: footprintHeight };
+}
+
+
 // === MAIN UI HANDLERS ===
+function openSurveyGridModal() { /* ... come prima ... */ }
+function cancelSurveyAreaDrawing() { /* ... come prima ... */ }
+function handleStartDrawingSurveyArea() { /* ... come prima ... */ }
+function handleSurveyAreaMapClick(e) { /* ... come prima ... */ }
+function handleFinalizeSurveyArea() { /* ... come prima ... */ }
+function handleCancelSurveyGrid() { /* ... come prima ... */ }
+
+// Incollo le UI handlers per riferimento rapido, non dovrebbero cambiare molto
 function openSurveyGridModal() {
     console.log("[SurveyGrid] openSurveyGridModal called");
-    if (!surveyGridModalOverlayEl || !defaultAltitudeSlider /*...*/) { showCustomAlert("Modal elements missing.", "Error"); return; }
+    if (!surveyGridModalOverlayEl || !defaultAltitudeSlider || !surveyGridAltitudeInputEl || !surveySidelapInputEl || !surveyFrontlapInputEl || !confirmSurveyGridBtnEl || !finalizeSurveyAreaBtnEl || !startDrawingSurveyAreaBtnEl || !surveyAreaStatusEl || !surveyGridInstructionsEl) {
+        showCustomAlert("Survey grid modal elements not found or incomplete.", "Error"); return;
+    }
     surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value;
+    // Imposta valori di default per overlap se non presenti
+    if (!surveySidelapInputEl.value) surveySidelapInputEl.value = 70;
+    if (!surveyFrontlapInputEl.value) surveyFrontlapInputEl.value = 80;
+
     cancelSurveyAreaDrawing();
     confirmSurveyGridBtnEl.disabled = true;
     finalizeSurveyAreaBtnEl.style.display = 'none';
@@ -77,7 +122,6 @@ function openSurveyGridModal() {
     surveyGridModalOverlayEl.style.display = 'flex';
     console.log("[SurveyGrid] Modal displayed");
 }
-
 function cancelSurveyAreaDrawing() {
     console.log("[SurveyGrid] cancelSurveyAreaDrawing called");
     const wasActive = isDrawingSurveyArea || nativeMapClickListener;
@@ -102,7 +146,6 @@ function cancelSurveyAreaDrawing() {
     if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined.";
     if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = 'Click "Start Drawing", then click on map to define corners. Click first point to close.';
 }
-
 function handleStartDrawingSurveyArea() {
     console.log("[SurveyGrid] handleStartDrawingSurveyArea called");
     if (!map || !surveyGridModalOverlayEl) { console.error("Map or Modal missing"); return; }
@@ -134,7 +177,6 @@ function handleStartDrawingSurveyArea() {
     showCustomAlert("Drawing survey area: Click on map to add corners. Click the first point (min 3 total) to finalize.", "Survey Drawing Active");
     console.log("Drawing mode activated.");
 }
-
 function handleSurveyAreaMapClick(e) {
     console.log("[SurveyGrid] handleSurveyAreaMapClick TRIGGERED! LatLng:", e.latlng);
     if (!isDrawingSurveyArea) { console.log("Not in drawing mode."); return; }
@@ -154,7 +196,6 @@ function handleSurveyAreaMapClick(e) {
     tempVertexMarkers.push(vertexMarker);
     updateTempPolygonDisplay();
 }
-
 function handleFinalizeSurveyArea() {
     console.log("[SurveyGrid] handleFinalizeSurveyArea called");
     if (!isDrawingSurveyArea) { console.log("Not in drawing mode or already finalized."); return; }
@@ -179,21 +220,55 @@ function handleFinalizeSurveyArea() {
     tempVertexMarkers.forEach(marker => marker.off('click'));
     console.log("Area finalized. Modal shown for confirmation.");
 }
-
 function handleCancelSurveyGrid() {
     console.log("[SurveyGrid] handleCancelSurveyGrid called");
     cancelSurveyAreaDrawing();
     if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none';
 }
 
+
 // === GRID GENERATION LOGIC ===
-function generateSurveyGridWaypoints(polygonLatLngs, flightAltitude, lineSpacing, gridAngleDeg, overshootDistance) {
-    console.log("[SurveyGridGen] Starting generation (ANGLE + OVERSHOOT REFINED) with:", {
-        polygonPts: polygonLatLngs ? polygonLatLngs.length : 0, flightAltitude, lineSpacing, gridAngleDeg, overshootDistance
+/**
+ * Genera waypoint per la griglia di survey basata su overlap.
+ * @param {L.LatLng[]} polygonLatLngs Vertici del poligono.
+ * @param {number} flightAltitudeAGL Altitudine di volo AGL.
+ * @param {number} sidelapPercent Percentuale di sovrapposizione laterale.
+ * @param {number} frontlapPercent Percentuale di sovrapposizione frontale.
+ * @param {number} gridAngleDeg Angolo della griglia.
+ * @param {number} overshootDistance Distanza di overshoot.
+ * @param {number} flightSpeed Velocità di volo (per info).
+ * @returns {object[]} Array di oggetti waypoint.
+ */
+function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapPercent, frontlapPercent, gridAngleDeg, overshootDistance, flightSpeed) {
+    console.log("[SurveyGridGen] Starting generation (OVERLAP BASED) with:", {
+        polygonPts: polygonLatLngs ? polygonLatLngs.length : 0, flightAltitudeAGL, sidelapPercent, frontlapPercent, gridAngleDeg, overshootDistance, flightSpeed
     });
     const finalWaypointsData = [];
     if (!polygonLatLngs || polygonLatLngs.length < MIN_POLYGON_POINTS) {
         showCustomAlert("Invalid polygon for generation.", "Error"); return finalWaypointsData;
+    }
+
+    // Calcolo Footprint e Spaziature Basate su Overlap
+    const footprint = calculateFootprint(flightAltitudeAGL, FIXED_CAMERA_PARAMS);
+    if (footprint.width <= 0 || footprint.height <= 0) {
+        showCustomAlert("Footprint calculation error.", "Grid Error"); return finalWaypointsData;
+    }
+
+    const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);      // Distanza tra le linee (basata su larghezza footprint e sidelap)
+    const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100); // Distanza tra foto sulla linea (basata su altezza footprint e frontlap)
+
+    console.log(`[SurveyGridGen] Sidelap: ${sidelapPercent}%, Frontlap: ${frontlapPercent}%`);
+    console.log(`[SurveyGridGen] Calculated Actual Line Spacing: ${actualLineSpacing.toFixed(1)}m`);
+    console.log(`[SurveyGridGen] Calculated Actual Distance Between Photos: ${actualDistanceBetweenPhotos.toFixed(1)}m`);
+
+    if (actualLineSpacing <= 0.1 || actualDistanceBetweenPhotos <= 0.1) {
+        showCustomAlert("Calculated spacing/photo distance is too small. Check overlap/footprint.", "Grid Error"); return finalWaypointsData;
+    }
+    
+    const requiredPhotoInterval_s = actualDistanceBetweenPhotos / flightSpeed;
+    console.log(`[SurveyGridGen] Flight Speed: ${flightSpeed} m/s => Required Photo Interval: ${requiredPhotoInterval_s.toFixed(1)}s`);
+    if (requiredPhotoInterval_s < 1.8 && flightSpeed > 0) { // Considera flightSpeed > 0
+        showCustomAlert(`Warning: Flight speed may be too high for the camera's minimum interval (Photo interval: ${requiredPhotoInterval_s.toFixed(1)}s).`, "Speed Warning");
     }
 
     const rotationCenter = polygonLatLngs[0];
@@ -202,29 +277,20 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitude, lineSpacing
     const rotatedBounds = L.latLngBounds(rotatedPolygonLatLngs);
     const rNE = rotatedBounds.getNorthEast(); const rSW = rotatedBounds.getSouthWest();
 
-    console.log(`[SurveyGridGen] Rotated Bounds: SW(${rSW.lat.toFixed(6)},${rSW.lng.toFixed(6)}) NE(${rNE.lat.toFixed(6)},${rNE.lng.toFixed(6)})`);
-    if (rSW.lat >= rNE.lat - 1e-7 || rSW.lng >= rNE.lng - 1e-7) {
-        showCustomAlert("Polygon too small or angle issue.", "Grid Error"); return finalWaypointsData;
-    }
+    if (rSW.lat >= rNE.lat - 1e-7 || rSW.lng >= rNE.lng - 1e-7) { /* ... errore ... */ return finalWaypointsData; }
 
     const earthR = (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000;
-    const lineSpacingRotLat = (lineSpacing / earthR) * (180 / Math.PI);
-    // distanceBetweenPhotos determina la densità dei punti *candidati* lungo la linea.
-    // Se vuoi meno foto, aumenta questo valore. Se vuoi più foto, diminuiscilo.
-    // Per ora, lo manteniamo uguale a lineSpacing per avere una griglia di punti candidati.
-    const distanceBetweenPhotos = lineSpacing; 
-    const photoSpacingRotLng = (distanceBetweenPhotos / (earthR * Math.cos(toRad(rotationCenter.lat)))) * (180 / Math.PI);
+    const lineSpacingRotLat = (actualLineSpacing / earthR) * (180 / Math.PI); // Usa actualLineSpacing
+    const photoSpacingRotLng = (actualDistanceBetweenPhotos / (earthR * Math.cos(toRad(rotationCenter.lat)))) * (180 / Math.PI); // Usa actualDistanceBetweenPhotos
 
-    if (lineSpacingRotLat <= 1e-9 || photoSpacingRotLng <= 1e-9) {
-        showCustomAlert("Spacing calculation error.", "Grid Error"); return finalWaypointsData;
-    }
+    if (lineSpacingRotLat <= 1e-9 || photoSpacingRotLng <= 1e-9) { /* ... errore ... */ return finalWaypointsData; }
 
     let currentRotLat = rSW.lat;
     let scanDir = 1; let lines = 0;
 
     while (currentRotLat <= rNE.lat + lineSpacingRotLat * 0.5) {
         lines++;
-        const lineCandRot = []; // Punti candidati ruotati per questa linea
+        const lineCandRot = [];
         if (scanDir === 1) {
             for (let curRotLng = rSW.lng; curRotLng <= rNE.lng; curRotLng += photoSpacingRotLng) lineCandRot.push(L.latLng(currentRotLat, curRotLng));
             if (!lineCandRot.length || lineCandRot[lineCandRot.length - 1].lng < rNE.lng - 1e-7) lineCandRot.push(L.latLng(currentRotLat, rNE.lng));
@@ -233,7 +299,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitude, lineSpacing
             if (!lineCandRot.length || lineCandRot[lineCandRot.length - 1].lng > rSW.lng + 1e-7) lineCandRot.push(L.latLng(currentRotLat, rSW.lng));
         }
 
-        const actualGeoPtsOnLine = []; // Punti de-ruotati e INTERNI al poligono originale
+        const actualGeoPtsOnLine = [];
         lineCandRot.forEach(rotPt => {
             const actualGeoPt = rotateLatLng(rotPt, rotationCenter, angleRad);
             if (isPointInPolygon(actualGeoPt, polygonLatLngs)) actualGeoPtsOnLine.push(actualGeoPt);
@@ -246,41 +312,29 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitude, lineSpacing
             let oppositeLineBear = (lineBear + 180) % 360;
             
             let waypointsForThisLine = [];
-            const photoWpOptions = { altitude: flightAltitude, cameraAction: 'takePhoto', headingControl: 'fixed', fixedHeading: Math.round(lineBear) };
-            const noPhotoWpOptions = { altitude: flightAltitude, cameraAction: 'none', headingControl: 'fixed', fixedHeading: Math.round(lineBear) };
+            const photoWpOptions = { altitude: flightAltitudeAGL, cameraAction: 'takePhoto', headingControl: 'fixed', fixedHeading: Math.round(lineBear) };
+            const noPhotoWpOptions = { altitude: flightAltitudeAGL, cameraAction: 'none', headingControl: 'fixed', fixedHeading: Math.round(lineBear) };
 
             const firstInternalGeo = actualGeoPtsOnLine[0];
             const lastInternalGeo = actualGeoPtsOnLine[actualGeoPtsOnLine.length - 1];
 
-            // 1. Punto di Overshoot Iniziale
             if (overshootDistance > 0.1) {
                 waypointsForThisLine.push({ latlng: destinationPoint(firstInternalGeo, oppositeLineBear, overshootDistance), options: noPhotoWpOptions });
             }
-
-            // 2. Punti Foto (basati sui punti interni trovati)
-            // Aggiungiamo tutti i punti che erano stati calcolati come interni
             actualGeoPtsOnLine.forEach(internalPt => {
                 waypointsForThisLine.push({ latlng: internalPt, options: photoWpOptions });
             });
-            
-            // 3. Punto di Overshoot Finale
             if (overshootDistance > 0.1) {
                 const endOvershootPoint = destinationPoint(lastInternalGeo, lineBear, overshootDistance);
-                // Evita di aggiungere se è troppo vicino al punto precedente (es. start overshoot se linea cortissima)
                 if (!waypointsForThisLine.length || waypointsForThisLine[waypointsForThisLine.length-1].latlng.distanceTo(endOvershootPoint) > 1) {
                     waypointsForThisLine.push({ latlng: endOvershootPoint, options: noPhotoWpOptions });
                 }
             }
             
-            // Filtro duplicati semplice per questa linea
-            const uniqueWaypointsOnLine = [];
-            const seenLatLngsKeys = new Set();
+            const uniqueWaypointsOnLine = []; const seenLatLngsKeys = new Set();
             for (const wp of waypointsForThisLine) {
                 const key = `${wp.latlng.lat.toFixed(7)},${wp.latlng.lng.toFixed(7)}`;
-                if (!seenLatLngsKeys.has(key)) {
-                    uniqueWaypointsOnLine.push(wp);
-                    seenLatLngsKeys.add(key);
-                }
+                if (!seenLatLngsKeys.has(key)) { uniqueWaypointsOnLine.push(wp); seenLatLngsKeys.add(key); }
             }
             finalWaypointsData.push(...uniqueWaypointsOnLine);
             console.log(`  Added ${uniqueWaypointsOnLine.length} waypoints for this line (incl. overshoot & filtering).`);
@@ -289,7 +343,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitude, lineSpacing
         if (lines > 2000) { console.error("Too many lines"); break; }
         scanDir *= -1;
     }
-    console.log(`[SurveyGridGen] Total waypoints with overshoot: ${finalWaypointsData.length}`);
+    console.log(`[SurveyGridGen] Total waypoints generated (overlap based): ${finalWaypointsData.length}`);
     if (finalWaypointsData.length === 0 && polygonLatLngs.length >= MIN_POLYGON_POINTS && lines > 0) {
         showCustomAlert("No waypoints generated. Check parameters.", "Grid Warning");
     }
@@ -299,29 +353,36 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitude, lineSpacing
 function handleConfirmSurveyGridGeneration() {
     console.log("[SurveyGrid] handleConfirmSurveyGridGeneration called");
     if (currentPolygonPoints.length < MIN_POLYGON_POINTS) { showCustomAlert("Survey area not defined.", "Error"); return; }
-    if (!surveyGridAltitudeInputEl /*...ecc...*/) { showCustomAlert("Missing input elements.", "Error"); return; }
+    if (!surveyGridAltitudeInputEl || !surveySidelapInputEl || !surveyFrontlapInputEl || !surveyGridAngleInputEl || !surveyGridOvershootInputEl) { 
+        showCustomAlert("Missing input elements for survey grid.", "Error"); return; 
+    }
     
     const altitude = parseInt(surveyGridAltitudeInputEl.value);
-    const spacing = parseFloat(surveyGridSpacingInputEl.value);
+    const sidelap = parseFloat(surveySidelapInputEl.value); // Nuovo
+    const frontlap = parseFloat(surveyFrontlapInputEl.value); // Nuovo
     const angle = parseFloat(surveyGridAngleInputEl.value);
     const overshoot = parseFloat(surveyGridOvershootInputEl.value);
+    const speed = parseFloat(flightSpeedSlider.value); // Globale
 
     if (isNaN(altitude) || altitude < 1) { showCustomAlert("Invalid altitude.", "Input Error"); return; }
-    if (isNaN(spacing) || spacing <= 1e-3) { showCustomAlert("Invalid line spacing.", "Input Error"); return; }
+    if (isNaN(sidelap) || sidelap < 10 || sidelap > 95) { showCustomAlert("Invalid Sidelap % (10-95).", "Input Error"); return; }
+    if (isNaN(frontlap) || frontlap < 10 || frontlap > 95) { showCustomAlert("Invalid Frontlap % (10-95).", "Input Error"); return; }
     if (isNaN(angle)) { showCustomAlert("Invalid grid angle.", "Input Error"); return; }
     if (isNaN(overshoot) || overshoot < 0) { showCustomAlert("Invalid overshoot.", "Input Error"); return; }
+    if (isNaN(speed) || speed <= 0) {showCustomAlert("Invalid flight speed.", "Input Error"); return; }
+
 
     if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = "Generating grid waypoints...";
-    const surveyWaypoints = generateSurveyGridWaypoints(currentPolygonPoints, altitude, spacing, angle, overshoot);
+    const surveyWaypoints = generateSurveyGridWaypoints(currentPolygonPoints, altitude, sidelap, frontlap, angle, overshoot, speed);
 
     if (surveyWaypoints && surveyWaypoints.length > 0) {
        surveyWaypoints.forEach(wpData => addWaypoint(wpData.latlng, wpData.options));
        updateWaypointList(); updateFlightPath(); updateFlightStatistics(); fitMapToWaypoints();
        showCustomAlert(`${surveyWaypoints.length} survey waypoints generated!`, "Success");
-    } else if (surveyWaypoints && surveyWaypoints.length === 0) {
+    } else if (surveyWaypoints && surveyWaypoints.length === 0 ) { // Non serve più il controllo polygonLatLngs qui se generate lo fa
         console.warn("generateSurveyGridWaypoints returned empty array.");
-    } else {
-        showCustomAlert("Error during grid generation.", "Error");
+    } else if (!surveyWaypoints) { // Caso in cui la funzione restituisce null/undefined (non dovrebbe)
+        showCustomAlert("Error during grid generation (function returned null).", "Error");
     }
     handleCancelSurveyGrid();
 }
