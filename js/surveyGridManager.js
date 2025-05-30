@@ -264,23 +264,31 @@ function handleGridAngleLineMapClick(e) {
 
 function finalizeGridAngleLineDrawing() {
     console.log("[SurveyGridAngle] Finalizing grid angle line drawing.");
-    isDrawingGridAngleLine = false;
-    map.off('click', handleGridAngleLineMapClick);
-    map.off('mousemove', handleGridAngleLineMouseMove);
-    map.getContainer().style.cursor = '';
+    // ... (rimozione listener) ...
     
     if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'flex';
     if (typeof handleMapClick === 'function') map.on('click', handleMapClick);
     
-    // Aggiorna la UI della modale per il prossimo passo: disegnare l'area
-    if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = `Grid angle set to ${surveyGridAngleInputEl.value}°. Now click "Draw Survey Area" to define the polygon.`;
-    if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined (angle has been set).";
-    if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
-    if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true; // L'area deve essere ridisegnata
+    const angleValue = surveyGridAngleInputEl ? surveyGridAngleInputEl.value : 'N/A';
 
-    // Non mostrare un alert qui, le istruzioni nella modale dovrebbero bastare.
-    // showCustomAlert(`Grid angle set to ${surveyGridAngleInputEl.value}°. You can now draw the survey area.`, "Angle Set");
-    console.log("[SurveyGridAngle] Angle line drawing finalized. Modal reshown. Default click listener restored. Ready to draw survey area.");
+    if (surveyGridInstructionsEl) {
+        surveyGridInstructionsEl.innerHTML = `Grid angle set to ${angleValue}°. Now click "Draw Survey Area" to define the polygon.`;
+        console.log("[SurveyGridAngle] Instructions updated:", surveyGridInstructionsEl.innerHTML);
+    }
+    if (surveyAreaStatusEl) {
+        surveyAreaStatusEl.textContent = "Area not defined (angle has been set).";
+        console.log("[SurveyGridAngle] Area status updated:", surveyAreaStatusEl.textContent);
+    }
+    if (startDrawingSurveyAreaBtnEl) {
+        startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
+        console.log("[SurveyGridAngle] Start Drawing Area button display:", startDrawingSurveyAreaBtnEl.style.display);
+    }
+    if (confirmSurveyGridBtnEl) {
+        confirmSurveyGridBtnEl.disabled = true; 
+        console.log("[SurveyGridAngle] Confirm Grid button disabled:", confirmSurveyGridBtnEl.disabled);
+    }
+
+    console.log("[SurveyGridAngle] Angle line drawing finalized. Modal UI should be updated. Ready to draw survey area.");
 }
 
 // === LOGICA PER DISEGNARE L'AREA DI SURVEY (POLIGONO) ===
