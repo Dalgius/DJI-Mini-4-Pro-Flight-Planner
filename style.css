@@ -341,3 +341,48 @@ body {
     min-width: 100px;
     margin-bottom: 0; /* Rimuovi margine inferiore se non necessario qui */
 }
+
+/* Per allineare label e input sulla stessa riga */
+.modal-content .control-group.inline-group {
+    display: flex;
+    align-items: center; /* Allinea verticalmente label e input */
+    gap: 10px; /* Spazio tra label e input */
+}
+
+.modal-content .control-group.inline-group .control-label {
+    margin-bottom: 0; /* Rimuovi margine inferiore dalla label quando è inline */
+    flex-shrink: 0; /* Impedisce alla label di restringersi troppo */
+}
+
+.modal-content .control-group.inline-group .control-input {
+    width: auto; /* Permetti all'input di prendere la larghezza necessaria */
+    flex-grow: 1; /* L'input può crescere per riempire lo spazio */
+    max-width: 120px; /* O una larghezza fissa se preferisci, es. 80px */
+}
+
+/* Stile specifico per gli input numerici più piccoli nella modale se necessario */
+.modal-content .control-input.short-numeric {
+    width: 80px; /* Larghezza fissa per input numerici corti */
+    flex-grow: 0; /* Non farlo crescere */
+    text-align: right;
+}
+
+
+/* Per la descrizione sotto l'input dell'angolo */
+.modal-content .control-group .input-description {
+    display: block; /* Assicura che vada a capo */
+    font-size: 0.85em;
+    color: #bdc3c7;
+    margin-top: 5px; /* Spazio sopra la descrizione */
+}
+
+/* Potresti voler uno stile specifico per le label della modale survey se sono diverse */
+#surveyGridModalOverlay .control-label {
+    /* eventuali stili specifici per le label della survey grid modal */
+}
+
+#surveyGridModalOverlay .control-input {
+    /* eventuali stili specifici per gli input della survey grid modal */
+}
+
+/* === FINE NUOVI STILI === */
