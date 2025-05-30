@@ -46,21 +46,36 @@
             <h2 id="surveyGridModalTitle">Create Survey Grid</h2>
             <div class="modal-body">
                 <p id="surveyGridInstructions" style="font-size: 0.9em; margin-bottom: 15px;">
-                    Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon, or use the "Finalize Area" button.
+                    Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon.
                 </p>
 
-                <label for="surveyGridAltitudeInput">Flight Altitude (m):</label>
-                <input type="number" id="surveyGridAltitudeInput" value="50" min="5">
+                <!-- Flight Altitude con input corto -->
+                <div class="control-group inline-group">
+                    <label for="surveyGridAltitudeInput" class="control-label">Flight Altitude (m):</label>
+                    <input type="number" id="surveyGridAltitudeInput" class="control-input short-numeric" value="50" min="5">
+                </div>
 
-                <label for="surveySidelapInput">Sidelap Percentage (%):</label>
-                <input type="number" id="surveySidelapInput" class="control-input" value="70" min="10" max="95">
+                <!-- Sidelap con input corto -->
+                <div class="control-group inline-group">
+                    <label for="surveySidelapInput" class="control-label">Sidelap (%):</label>
+                    <input type="number" id="surveySidelapInput" class="control-input short-numeric" value="70" min="10" max="95" title="Overlap between parallel flight lines (e.g., 60-80%)">
+                </div>
+                
+                <!-- Frontlap con input corto -->
+                <div class="control-group inline-group">
+                    <label for="surveyFrontlapInput" class="control-label">Frontlap (%):</label>
+                    <input type="number" id="surveyFrontlapInput" class="control-input short-numeric" value="80" min="10" max="95" title="Overlap between consecutive photos along a flight line (e.g., 70-90%)">
+                </div>
+                
+                <div class="control-group"> <!-- No inline-group qui, la label va sopra -->
+                    <label for="surveyGridAngleInput" class="control-label">Grid Angle (°):</label> 
+                    <input type="number" id="surveyGridAngleInput" class="control-input" value="0" min="-359" max="359" step="1">
+                    <div class="input-description"> <!-- Usa la nuova classe per la descrizione -->
+                        Flight line direction: 0° for E-W lines, 90° for N-S lines.
+                    </div>
+                </div>
 
-                <label for="surveyFrontlapInput">Frontlap Percentage (%):</label>
-                <input type="number" id="surveyFrontlapInput" class="control-input" value="80" min="10" max="95">
-
-                <label for="surveyGridAngleInput">Grid Angle (°):</label>
-                <input type="number" id="surveyGridAngleInput" value="0" min="-360" max="360">
-                <small>0° for North-South lines, 90° for East-West lines.</small>
+                <!-- Overshoot è stato rimosso -->
 
                 <div id="surveyAreaStatus" style="margin-top: 10px; font-style: italic;">
                     Area not defined.
