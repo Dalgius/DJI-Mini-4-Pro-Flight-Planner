@@ -269,13 +269,18 @@ function finalizeGridAngleLineDrawing() {
     map.off('mousemove', handleGridAngleLineMouseMove);
     map.getContainer().style.cursor = '';
     
-    // Non pulire tempGridAngleLineLayer e tempGridAnglePointMarkers qui,
-    // verranno puliti da clearTemporaryDrawing() la prossima volta o da cancelSurveyAreaDrawing().
-    
     if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'flex';
     if (typeof handleMapClick === 'function') map.on('click', handleMapClick);
-    showCustomAlert(`Grid angle set to ${surveyGridAngleInputEl.value}°. You can now draw the survey area or generate grid if area is defined.`, "Angle Set");
-    console.log("[SurveyGridAngle] Angle line drawing finalized. Modal reshown. Default click listener restored.");
+    
+    // Aggiorna la UI della modale per il prossimo passo: disegnare l'area
+    if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = `Grid angle set to ${surveyGridAngleInputEl.value}°. Now click "Draw Survey Area" to define the polygon.`;
+    if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined (angle has been set).";
+    if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
+    if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true; // L'area deve essere ridisegnata
+
+    // Non mostrare un alert qui, le istruzioni nella modale dovrebbero bastare.
+    // showCustomAlert(`Grid angle set to ${surveyGridAngleInputEl.value}°. You can now draw the survey area.`, "Angle Set");
+    console.log("[SurveyGridAngle] Angle line drawing finalized. Modal reshown. Default click listener restored. Ready to draw survey area.");
 }
 
 // === LOGICA PER DISEGNARE L'AREA DI SURVEY (POLIGONO) ===
