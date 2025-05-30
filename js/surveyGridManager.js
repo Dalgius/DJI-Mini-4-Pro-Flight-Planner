@@ -117,7 +117,7 @@ function openSurveyGridModal() {
     confirmSurveyGridBtnEl.disabled = true;
     startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
     surveyAreaStatusEl.textContent = "Area not defined.";
-    surveyGridInstructionsEl.innerHTML = 'Set parameters. Click "Draw Direction" (optional) then "Draw Survey Area".'; // Updated instruction
+    surveyGridInstructionsEl.innerHTML = 'Set parameters. Click "Draw Direction" (optional) then "Draw Survey Area".';
     surveyGridModalOverlayEl.style.display = 'flex';
     console.log("[SurveyGrid] Modal displayed");
 }
