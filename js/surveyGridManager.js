@@ -347,10 +347,21 @@ function handleSurveyAreaMapClick(e) {
 
 function handleFinalizeSurveyArea() {
     console.log("[SurveyGrid] handleFinalizeSurveyArea called");
-    if (!isDrawingSurveyArea) { /* ... */ return; } // Già corretto
-    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) { /* ... */ return; }
+    if (!isDrawingSurveyArea) { 
+        console.log("[SurveyGrid] Not in drawing mode or already finalized."); 
+        // Se non stavamo disegnando l'area, ma forse l'angolo era appena stato finalizzato, 
+        // la modale potrebbe essere aperta. Non fare nulla qui che possa sovrascrivere lo stato UI dell'angolo.
+        return; 
+    }
+    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) {
+        showCustomAlert(`Area requires at least ${MIN_POLYGON_POINTS} points.`, "Info"); 
+        // Non uscire dalla modalità disegno, permetti di aggiungere altri punti.
+        // O se si vuole resettare:
+        // cancelSurveyAreaDrawing(); // Potrebbe essere troppo drastico
+        // if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'flex'; // Riapri modale
+        return;
+    }
     
-    // ... (rimozione listener nativo del poligono come prima) ...
     const mapContainer = map.getContainer();
     if (mapContainer && typeof nativeMapClickListener === 'function') {
         mapContainer.removeEventListener('click', nativeMapClickListener, true);
@@ -358,15 +369,25 @@ function handleFinalizeSurveyArea() {
         console.log("[SurveyGrid] NATIVE DOM listener REMOVED after polygon finalize.");
     }
     map.getContainer().style.cursor = '';
-    // NOTA: isDrawingSurveyArea rimane true qui. Significa "un'area è stata definita ed è pronta per la generazione".
-    // Il listener per *aggiungere* punti al poligono è stato rimosso.
+    // isDrawingSurveyArea rimane true (area definita, in attesa di generazione o cancellazione)
+    // Il listener per *aggiungere* punti è rimosso.
     // Il listener di default handleMapClick è ancora disattivato.
 
-    if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'flex';
-    // ... (aggiorna UI modale come prima) ...
-    console.log("[SurveyGrid] Area finalized. Modal shown. isDrawingSurveyArea is STILL TRUE.");
-}
+    if (surveyGridModalOverlayEl) {
+        surveyGridModalOverlayEl.style.display = 'flex'; // Riapri modale
+        console.log("Modal SHOWN for confirmation after polygon finalization.");
+    }
 
+    // QUI È L'AGGIORNAMENTO CRUCIALE DELLA UI
+    if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'none'; // Hai finito di disegnare l'area
+    if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false; // ABILITA "Generate Grid"
+    if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = `Area defined with ${currentPolygonPoints.length} points. Angle: ${surveyGridAngleInputEl.value}°`; // Aggiorna lo stato
+    if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = '<strong style="color: #2ecc71;">Area finalized!</strong> Adjust parameters or click "Generate Grid".';
+    
+    if (tempPolygonLayer) tempPolygonLayer.setStyle({ color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' });
+    tempVertexMarkers.forEach(marker => marker.off('click'));
+    console.log("[SurveyGrid] Area finalized. Modal UI updated for generation. isDrawingSurveyArea is STILL TRUE.");
+}
 
 
 // === GRID GENERATION LOGIC (NO OVERSHOOT) ===
