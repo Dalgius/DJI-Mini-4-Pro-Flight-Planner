@@ -167,61 +167,77 @@ function handleCancelSurveyGrid() { // Chiamato dal pulsante "Cancel" della moda
 
 // === LOGICA PER DISEGNARE LA LINEA DI DIREZIONE DELL'ANGOLO ===
 function handleSetGridAngleByLine() {
-    console.log("[SurveyGridAngle] handleSetGridAngleByLine called - START"); // LOG 1
+    console.log("[SurveyGridAngle] handleSetGridAngleByLine called - START");
 
-    if (isDrawingSurveyArea) { // Controlla la globale da config.js
-        console.log("[SurveyGridAngle] Currently drawing survey area. Aborting angle line draw.");
-        showCustomAlert("Please finalize or cancel current survey area drawing first.", "Info");
-        return;
+    if (isDrawingSurveyArea) {
+        console.log("[SurveyGridAngle] Currently drawing survey area or area was finalized. Resetting survey area state.");
+        // Simula una cancellazione parziale dello stato di disegno dell'area
+        // senza chiudere la modale principale della survey se è già aperta per l'angolo.
+        const mapContainer = map.getContainer();
+        if (mapContainer && typeof nativeMapClickListener === 'function') {
+            mapContainer.removeEventListener('click', nativeMapClickListener, true);
+            // nativeMapClickListener = null; // Non nullificarlo subito se cancelSurveyAreaDrawing lo gestisce
+        }
+        map.off('click', handleSurveyAreaMapClick);
+        clearTemporaryDrawing(); // Pulisce il poligono e i suoi marker
+        currentPolygonPoints = [];
+        isDrawingSurveyArea = false; // Resetta lo stato del disegno poligono
+        
+        // Assicura che il listener di default sia attivo se non stiamo per aggiungere quello dell'angolo
+        // if (typeof handleMapClick === 'function' && !map.hasEventListeners('click', handleMapClick)) {
+        //     map.on('click', handleMapClick);
+        // }
+        // La logica sottostante disattiverà di nuovo handleMapClick, quindi questo è ok.
+        
+        // Aggiorna la UI della modale per riflettere che l'area non è più definita
+        if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined (reset for angle change).";
+        if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
+        if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
+
+
+        console.log("[SurveyGridAngle] Previous survey area drawing state has been reset.");
     }
-    console.log("[SurveyGridAngle] Not currently drawing survey area."); // LOG 2
+    // Ora isDrawingSurveyArea è false, quindi il controllo precedente non bloccherà.
 
-    isDrawingGridAngleLine = true; // Imposta la globale da config.js
-    gridAngleLinePoints = [];    // Resetta la globale da config.js
-    console.log("[SurveyGridAngle] State set: isDrawingGridAngleLine=true, gridAngleLinePoints cleared."); // LOG 3
+    isDrawingGridAngleLine = true;
+    gridAngleLinePoints = [];
+    // clearTemporaryDrawing(); // Già chiamato sopra se isDrawingSurveyArea era true,
+                               // altrimenti, se non si stava disegnando nulla, è bene chiamarlo
+                               // per pulire eventuali residui della linea dell'angolo.
+    if (!isDrawingSurveyArea) { // Chiamalo solo se non è già stato fatto
+        clearTemporaryDrawing();
+    }
+    console.log("[SurveyGridAngle] State set: isDrawingGridAngleLine=true, points cleared.");
 
-    clearTemporaryDrawing(); // Questa funzione pulisce tempPolygonLayer, tempVertexMarkers, tempGridAngleLineLayer, tempGridAnglePointMarkers
-    console.log("[SurveyGridAngle] clearTemporaryDrawing called successfully."); // LOG 4
-
-    // Disattiva listener di default e altri potenziali listener
-    if (map && typeof handleMapClick === 'function') { // handleMapClick è da mapManager.js
+    // Disattiva listener di default
+    if (map && typeof handleMapClick === 'function') {
         map.off('click', handleMapClick);
-        console.log("[SurveyGridAngle] Default map click listener (handleMapClick) REMOVED."); // LOG 5
+        console.log("[SurveyGridAngle] Default map click listener (handleMapClick) REMOVED.");
     } else {
-        console.warn("[SurveyGridAngle] map or handleMapClick not available for removal. map:", map, "handleMapClick type:", typeof handleMapClick); // LOG 5-Error
+        console.warn("[SurveyGridAngle] map or handleMapClick not available for removal.");
     }
     
-    if (map && typeof nativeMapClickListener === 'function' && map.getContainer()) { // nativeMapClickListener è del modulo surveyGridManager
-        map.getContainer().removeEventListener('click', nativeMapClickListener, true);
-        // Non impostare nativeMapClickListener = null qui, potrebbe servire se si annulla questa modalità per ripristinare lo stato precedente
-        console.log("[SurveyGridAngle] Native polygon listener (if active) REMOVED for angle line drawing."); // LOG 6
-    }
-    if (map) {
-      map.off('click', handleSurveyAreaMapClick); // handleSurveyAreaMapClick è di surveyGridManager
-      console.log("[SurveyGridAngle] Leaflet polygon listener (handleSurveyAreaMapClick) REMOVED for angle line drawing."); // LOG 7
-    }
-
-
     // Aggiungi il NUOVO listener per la linea dell'angolo
     if (map) {
-        map.on('click', handleGridAngleLineMapClick); // handleGridAngleLineMapClick è di surveyGridManager
+        map.on('click', handleGridAngleLineMapClick);
         map.getContainer().style.cursor = 'crosshair';
-        console.log("[SurveyGridAngle] 'handleGridAngleLineMapClick' listener ADDED to map. Cursor set."); // LOG 8
+        console.log("[SurveyGridAngle] 'handleGridAngleLineMapClick' listener ADDED to map. Cursor set.");
     } else {
-        console.error("[SurveyGridAngle] MAP NOT AVAILABLE TO ADD CLICK LISTENER FOR ANGLE LINE!"); // LOG 8-Error
-        isDrawingGridAngleLine = false; // Resetta lo stato se non possiamo procedere
+        console.error("[SurveyGridAngle] MAP NOT AVAILABLE TO ADD CLICK LISTENER FOR ANGLE LINE!");
+        isDrawingGridAngleLine = false; 
         return;
     }
     
-    if (surveyGridModalOverlayEl) { // surveyGridModalOverlayEl è da domCache.js
+    // Nascondi la modale principale della survey mentre si disegna la linea dell'angolo
+    if (surveyGridModalOverlayEl) {
         surveyGridModalOverlayEl.style.display = 'none'; 
-        console.log("[SurveyGridAngle] Main survey modal hidden."); // LOG 9
+        console.log("[SurveyGridAngle] Main survey modal hidden for angle line drawing.");
     } else {
-        console.warn("[SurveyGridAngle] surveyGridModalOverlayEl not found to hide."); // LOG 9-Error
+        console.warn("[SurveyGridAngle] surveyGridModalOverlayEl not found to hide.");
     }
     
     showCustomAlert("Draw Grid Direction: Click map for line start, click again for end.", "Set Angle");
-    console.log("[SurveyGridAngle] Angle line drawing mode FULLY ACTIVATED."); // LOG 10
+    console.log("[SurveyGridAngle] Angle line drawing mode FULLY ACTIVATED.");
 }
 
 function handleGridAngleLineMouseMove(e) {
