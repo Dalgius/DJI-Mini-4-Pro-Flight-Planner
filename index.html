@@ -67,14 +67,16 @@
                 <div class="control-group">
                     <label class="control-label">Grid Angle (°):</label>
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 3px;">
-                        <input type="number" id="surveyGridAngleInput" class="control-input short-numeric" value="0" min="-359" max="359" step="1" title="Calculated angle or manual input">
+                        <input type="number" id="surveyGridAngleInput" class="control-input short-numeric" value="0" min="-359" max="359" step="1" title="Flight line direction (0° North, 90° East). Auto-set by drawing.">
                         <button id="setGridAngleByLineBtn" class="btn-secondary" style="padding: 6px 10px; font-size:0.8em; width:auto; flex-shrink:0;">Draw Direction</button>
                     </div>
                     <div class="input-description">
-                        Flight line direction: 0° for E-W lines, 90° for N-S lines. Angle is auto-set by drawing.
+                        <!-- Rimuovi o cambia questa descrizione se diventa fuorviante -->
+                        <!-- Flight line direction: 0° for E-W lines, 90° for N-S lines. Angle is auto-set by drawing. -->
+                        Angle of the flight lines (0° North, 90° East).
                     </div>
                 </div>
-
+                
                 <div id="surveyAreaStatus" style="margin-top: 10px; font-style: italic;">
                     Area not defined.
                 </div>
