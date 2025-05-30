@@ -173,12 +173,15 @@ function setupEventListeners() {
     if (createSurveyGridBtn) {
         createSurveyGridBtn.addEventListener('click', openSurveyGridModal);
     }
+    if (setGridAngleByLineBtn) { // NUOVO LISTENER
+        setGridAngleByLineBtn.addEventListener('click', handleSetGridAngleByLine);
+    }
     if (startDrawingSurveyAreaBtnEl) {
         startDrawingSurveyAreaBtnEl.addEventListener('click', handleStartDrawingSurveyArea);
     }
-    if (finalizeSurveyAreaBtnEl) {
-        finalizeSurveyAreaBtnEl.addEventListener('click', handleFinalizeSurveyArea);
-    }
+    // if (finalizeSurveyAreaBtnEl) { // Rimosso/Commentato
+    //     finalizeSurveyAreaBtnEl.addEventListener('click', handleFinalizeSurveyArea);
+    // }
     if (confirmSurveyGridBtnEl) {
         confirmSurveyGridBtnEl.addEventListener('click', handleConfirmSurveyGridGeneration);
     }
