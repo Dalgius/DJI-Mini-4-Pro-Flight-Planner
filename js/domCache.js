@@ -83,10 +83,11 @@ function cacheDOMElements() {
     surveySidelapInputEl = document.getElementById('surveySidelapInput'); // Aggiungi
     surveyFrontlapInputEl = document.getElementById('surveyFrontlapInput'); // Aggiungi
     surveyGridAngleInputEl = document.getElementById('surveyGridAngleInput');
-    surveyGridOvershootInputEl = document.getElementById('surveyGridOvershootInput');
+    setGridAngleByLineBtn = document.getElementById('setGridAngleByLineBtn'); // NUOVO
+    // surveyGridOvershootInputEl = document.getElementById('surveyGridOvershootInput'); // Rimosso
     surveyAreaStatusEl = document.getElementById('surveyAreaStatus');
     startDrawingSurveyAreaBtnEl = document.getElementById('startDrawingSurveyAreaBtn');
-    finalizeSurveyAreaBtnEl = document.getElementById('finalizeSurveyAreaBtn');
+    // finalizeSurveyAreaBtnEl = document.getElementById('finalizeSurveyAreaBtn'); // Commentato/Rimosso
     confirmSurveyGridBtnEl = document.getElementById('confirmSurveyGridBtn');
     cancelSurveyGridBtnEl = document.getElementById('cancelSurveyGridBtn');
 
