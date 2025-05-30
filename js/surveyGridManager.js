@@ -250,17 +250,99 @@ function handleGridAngleLineMapClick(e) {
         console.log("[SurveyGridAngle] Second point set. Attempting to finalize. gridAngleLinePoints:", gridAngleLinePoints.map(p=>[p.lat,p.lng]));
         const p1 = gridAngleLinePoints[0];
         const p2 = gridAngleLinePoints[1];
-        const userDrawnBearing = calculateBearing(p1, p2);
+        const userDrawnBearing = calculateBearing(p1, p2); // 0=N, 90=E, 180=S, 270=W
         
-        surveyGridAngleInputEl.value = Math.round(userDrawnBearing);
-        console.log(`[SurveyGridAngle] Line drawn. Bearing: ${userDrawnBearing.toFixed(1)}°. Set Grid Angle to: ${surveyGridAngleInputEl.value}°`);
+        // RIGA ORIGINALE (o simile):
+        // surveyGridAngleInputEl.value = Math.round(userDrawnBearing); 
+
+        // <<< INIZIO MODIFICA >>>
+        let angleForGenerator;
+        // Se l'utente disegna una linea N-S (bearing ~0° o ~180°), vogliamo che il generatore usi 90° (per linee N-S).
+        // Se l'utente disegna una linea E-W (bearing ~90° o ~270°), vogliamo che il generatore usi 0° (per linee E-W).
+
+        // Normalizziamo il bearing per capire se è più verticale o orizzontale
+        const normalizedBearing = userDrawnBearing % 180; // Risultato tra 0 e 179.99...
+
+        if (normalizedBearing > 45 && normalizedBearing < 135) {
+            // La linea disegnata è prevalentemente orizzontale (Est-Ovest, bearing ~90° o ~270°)
+            // Il nostro generatore produce linee E-W con gridAngleDeg = 0 (o 180)
+            angleForGenerator = 0; // O potremmo usare userDrawnBearing e vedere se la rotazione lo gestisce
+                                   // Per maggiore precisione con la linea disegnata, usiamo userDrawnBearing.
+                                   // La descrizione UI deve essere chiara.
+                                   // Se l'utente disegna E-W (90), e il nostro generatore vuole 0 per E-W, dobbiamo sottrarre 90.
+            angleForGenerator = (userDrawnBearing - 90 + 360) % 360;
+
+
+        } else {
+            // La linea disegnata è prevalentemente verticale (Nord-Sud, bearing ~0° o ~180°)
+            // Il nostro generatore produce linee N-S con gridAngleDeg = 90 (o 270)
+            angleForGenerator = (userDrawnBearing + 90 + 360) % 360; // Se disegna N (0), diventa 90.
+        }
+
+        // Semplificazione: l'angolo del generatore è sempre il bearing disegnato - 90 gradi.
+        // Questo perché la nostra logica di generazione interna (iterazione su Lat per le linee, poi Lng per i punti)
+        // crea naturalmente linee E-W se il sistema di coordinate non è ruotato.
+        // Per allineare queste linee E-W interne alla linea disegnata dall'utente (userDrawnBearing),
+        // dobbiamo ruotare il sistema di coordinate in modo che l'asse X del sistema ruotato
+        // sia parallelo a userDrawnBearing. L'angolo di rotazione del sistema (gridAngleDeg)
+        // necessario è userDrawnBearing stesso, se la nostra rotazione allinea l'asse X con quell'angolo.
+
+        // Confusione precedente:
+        // Il gridAngleDeg che passiamo a generateSurveyGridWaypoints è l'angolo a cui le linee di volo RISULTANO.
+        // Se generateSurveyGridWaypoints(..., angle=0) -> linee E-W
+        // Se generateSurveyGridWaypoints(..., angle=90) -> linee N-S
+        //
+        // L'utente disegna una linea con userDrawnBearing (0=N, 90=E).
+        // Se userDrawnBearing = 0 (N-S), vogliamo che angle=90.
+        // Se userDrawnBearing = 90 (E-W), vogliamo che angle=0.
+        // Quindi: angle = (90 - userDrawnBearing + 360) % 360; (No, questo è sbagliato)
+        // Proviamo: angle = (userDrawnBearing + 90) % 360 se userDrawnBearing è per la direzione delle linee.
+        // No, se userDrawnBearing è la direzione della linea (0=N), e il nostro generatore per 0° fa E-W,
+        // allora l'angolo che l'utente imposta nel box deve essere quello che il generatore si aspetta.
+        // Quindi l'utente che disegna una linea N-S (bearing 0) si aspetta linee N-S. Deve vedere 90 nel box.
+
+        let finalAngleForInput;
+        if ((userDrawnBearing >= 0 && userDrawnBearing < 45) || (userDrawnBearing >= 315 && userDrawnBearing < 360) || (userDrawnBearing >= 135 && userDrawnBearing < 225) ) {
+            // Linea disegnata prevalentemente N-S o S-N
+            // Per ottenere linee N-S, il nostro generatore ha bisogno di un angolo di 90° (o 270°)
+            // Se l'utente ha disegnato verso Nord (0) o Sud (180), vogliamo che il risultato sia 90.
+            finalAngleForInput = 90;
+            if (userDrawnBearing >=135 && userDrawnBearing < 225) finalAngleForInput = 270; // Opzionale per direzione
+        } else {
+            // Linea disegnata prevalentemente E-W o W-E
+            // Per ottenere linee E-W, il nostro generatore ha bisogno di un angolo di 0° (o 180°)
+            finalAngleForInput = 0;
+            if (userDrawnBearing >=225 && userDrawnBearing < 315) finalAngleForInput = 180; // Opzionale per direzione
+        }
+        // Questo approccio "snap" l'angolo a 0/90/180/270.
+
+        // Manteniamo l'angolo ESATTO disegnato dall'utente per la rotazione,
+        // e la descrizione nella UI deve essere chiara su cosa significa quell'angolo.
+        // La descrizione attuale è: "0° for E-W lines, 90° for N-S lines"
+        // Se l'utente disegna una linea N-S, il bearing è ~0°. L'input si setterà a 0°. Le linee saranno E-W.
+        // Questo è coerente con la descrizione, ma non con l'intuito del disegno.
+
+        // SOLUZIONE PER FAR SÌ CHE LA LINEA DISEGNATA SIA LA DIREZIONE DELLE STRISCIATE:
+        // Il `gridAngleDeg` che passiamo a `generateSurveyGridWaypoints` deve essere l'angolo
+        // che fa sì che le linee generate (che sono E-W nel sistema ruotato a 0) siano
+        // allineate con `userDrawnBearing`.
+        // Quindi, `gridAngleDeg` deve essere `userDrawnBearing` stesso.
+        // Se questo produce un offset di 90°, allora c'è un problema nella funzione di rotazione
+        // o nell'interpretazione degli assi in `generateSurveyGridWaypoints`.
+
+        // L'errore di 90° che hai visto suggerisce che se `gridAngleDeg` = `userDrawnBearing`,
+        // le linee vengono generate PERPENDICOLARI.
+        // Quindi, per avere linee PARALLELE a `userDrawnBearing`, `gridAngleDeg` deve essere `userDrawnBearing - 90` (o `+90`).
+
+        let correctedAngleForGenerator = (userDrawnBearing - 90 + 360) % 360;
+
+        surveyGridAngleInputEl.value = Math.round(correctedAngleForGenerator);
+        // <<< FINE MODIFICA >>>
+        
+        console.log(`[SurveyGridAngle] Line drawn. User Bearing: ${userDrawnBearing.toFixed(1)}°. Corrected Angle for Generator: ${surveyGridAngleInputEl.value}°`);
         
         finalizeGridAngleLineDrawing(); 
     } else {
-        console.warn("[SurveyGridAngle] Unexpected number of points for angle line:", gridAngleLinePoints.length);
-        finalizeGridAngleLineDrawing(); // Finalizza comunque per resettare lo stato
-    }
-}
 
 function finalizeGridAngleLineDrawing() {
     console.log("[SurveyGridAngle] Finalizing grid angle line drawing.");
