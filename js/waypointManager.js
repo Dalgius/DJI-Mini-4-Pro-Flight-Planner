@@ -104,33 +104,37 @@ function deleteSelectedWaypoint() {
         return;
     }
 
+    const wasHomePoint = (waypoints.length > 0 && waypoints[0].id === selectedWaypoint.id); // Verifica se era l'Home Point
+    const deletedWaypointId = selectedWaypoint.id;
+
     if (selectedWaypoint.marker) {
         map.removeLayer(selectedWaypoint.marker);
     }
 
-    const deletedWaypointId = selectedWaypoint.id;
     waypoints = waypoints.filter(wp => wp.id !== deletedWaypointId);
 
-    // If the deleted waypoint was also in multi-select, remove it
     if (selectedForMultiEdit.has(deletedWaypointId)) {
         selectedForMultiEdit.delete(deletedWaypointId);
-        // No need to call updateMarkerIconStyle here as the marker is gone
     }
 
     selectedWaypoint = null;
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
 
-    updateWaypointList();
+    updateWaypointList(); // Aggiorna la lista HTML
     updateFlightPath();
     updateFlightStatistics();
-    updateMultiEditPanelVisibility(); // Check if multi-edit panel needs to update/hide
-    showCustomAlert("Waypoint deleted.", "Success");
+    updateMultiEditPanelVisibility(); 
+    // updateHomeWaypointInfoDisplay(); // Se hai questa funzione per l'ID nella UI
 
-    // Optionally, select the previous or next waypoint if list is not empty
-    if (waypoints.length > 0) {
-        // Logic to select another waypoint could be added here
-        // For now, just deselects.
-    }
+    // !!! NUOVA LOGICA: Aggiorna le icone di tutti i marker rimanenti !!!
+    // Questo assicura che se l'Home Point è cambiato, l'icona venga aggiornata.
+    waypoints.forEach(wp => updateMarkerIconStyle(wp)); 
+    // Se non ci sono più waypoint, questo loop non farà nulla, il che è corretto.
+    // Se c'è un nuovo waypoints[0], la sua icona diventerà 'home'.
+    // Se il vecchio Home Point non era selezionato, e viene cancellato un altro WP,
+    // l'icona dell'Home Point (waypoints[0]) viene comunque ricalcolata correttamente.
+
+    showCustomAlert("Waypoint deleted.", "Success"); // Questa può essere rimossa se dà fastidio
 }
 
 /**
