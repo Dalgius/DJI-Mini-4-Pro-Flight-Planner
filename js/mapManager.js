@@ -1,21 +1,16 @@
 // File: mapManager.js
 
-// Depends on: config.js (for map, defaultTileLayer, satelliteTileLayer, satelliteView, userLocationMarker, isDrawingSurveyArea)
+// Depends on: config.js (for map, defaultTileLayer, satelliteTileLayer, satelliteView, userLocationMarker, isDrawingSurveyArea, waypoints, selectedWaypoint, selectedForMultiEdit)
 // Depends on: utils.js (for showCustomAlert)
-// Depends on: waypointManager.js (for addWaypoint - gestito da handleMapClick)
-// Depends on: poiManager.js (for addPOI - gestito da handleMapClick)
-// La dipendenza da waypointManager e poiManager per le funzioni addWaypoint/addPOI è implicita tramite handleMapClick.
+// Depends on: waypointManager.js (for addWaypoint - gestito da handleMapClick) - indiretta
+// Depends on: poiManager.js (for addPOI - gestito da handleMapClick) - indiretta
 
 /**
  * Initializes the Leaflet map and its basic functionalities.
  */
 function initializeMap() {
-    // Assicurati che 'map' sia definito in config.js e accessibile globalmente.
-    // config.js dovrebbe avere: let map;
     map = L.map('map', { maxZoom: 22 }).setView([37.7749, -122.4194], 13);
 
-    // Assicurati che defaultTileLayer e satelliteTileLayer siano definiti in config.js
-    // config.js dovrebbe avere: let defaultTileLayer, satelliteTileLayer;
     defaultTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 22,
@@ -28,47 +23,35 @@ function initializeMap() {
         maxNativeZoom: 21
     });
 
-    // Map click listener - USA LA FUNZIONE NOMINATA handleMapClick
     map.on('click', handleMapClick);
-
-    // Prevent default context menu on map
-    map.on('contextmenu', e => {
-        e.originalEvent.preventDefault(); // Previene il menu contestuale del browser sulla mappa
-    });
-
+    map.on('contextmenu', e => e.originalEvent.preventDefault());
     console.log("[MapManager] Map initialized and base layers added.");
 }
 
 /**
- * Handles click events on the map.
- * Adds a waypoint on a normal click, or a POI if Ctrl key is pressed.
- * This function now checks 'isDrawingSurveyArea' to avoid conflicts.
- * @param {L.LeafletMouseEvent} e - The Leaflet mouse event.
+ * Handles click events on the map for general actions.
  */
 function handleMapClick(e) {
-    // DEBUG: Controlla il valore di isDrawingSurveyArea come lo vede mapManager
-    console.log(`[MapManager] handleMapClick: Received click. isDrawingSurveyArea = ${isDrawingSurveyArea} (type: ${typeof isDrawingSurveyArea})`);
+    console.log(`[MapManager] handleMapClick: isDrawingSurveyArea = ${isDrawingSurveyArea}, isSettingHomePointMode = ${typeof isSettingHomePointMode !== 'undefined' ? isSettingHomePointMode : 'undefined'}`);
 
+    if (typeof isSettingHomePointMode !== 'undefined' && isSettingHomePointMode === true) {
+        console.log("[MapManager] handleMapClick: In Set Home Point mode, ignoring default map click.");
+        return; 
+    }
     if (typeof isDrawingSurveyArea !== 'undefined' && isDrawingSurveyArea === true) {
-        console.log("[MapManager] handleMapClick: In survey area drawing mode, IGNORING default map click. Survey listener should handle it.");
-        // Non fare L.DomEvent.stopPropagation(e.originalEvent) qui.
-        // Lascia che il listener di disegno del poligono in surveyGridManager.js si occupi della propagazione.
+        console.log("[MapManager] handleMapClick: In survey area drawing mode, ignoring default map click.");
         return; 
     }
 
     console.log("[MapManager] handleMapClick: Processing default map click (add waypoint/POI).");
-
     if (e.originalEvent.target === map.getContainer()) {
-        console.log("[MapManager] Click was directly on map container.");
         if (e.originalEvent.ctrlKey) {
-            console.log("[MapManager] Ctrl key pressed, attempting to add POI.");
-            addPOI(e.latlng); // Funzione da poiManager.js
+            addPOI(e.latlng);
         } else {
-            console.log("[MapManager] No Ctrl key, attempting to add Waypoint.");
-            addWaypoint(e.latlng); // Funzione da waypointManager.js
+            addWaypoint(e.latlng);
         }
     } else {
-        console.log("[MapManager] handleMapClick: Click was NOT directly on map container. Ignored by default handler.");
+        console.log("[MapManager] Click was NOT directly on map container.");
     }
 }
 
@@ -76,121 +59,102 @@ function handleMapClick(e) {
  * Toggles between default and satellite map views.
  */
 function toggleSatelliteView() {
-    if (!map || !defaultTileLayer || !satelliteTileLayer || !satelliteToggleBtn) {
-        console.error("[MapManager] Cannot toggle satellite view: map or layer not initialized, or button missing.");
-        return;
-    }
-
-    // satelliteView è una variabile globale da config.js
+    if (!map || !defaultTileLayer || !satelliteTileLayer || !satelliteToggleBtn) return;
     if (satelliteView) {
-        map.removeLayer(satelliteTileLayer);
-        map.addLayer(defaultTileLayer);
+        map.removeLayer(satelliteTileLayer); map.addLayer(defaultTileLayer);
         satelliteToggleBtn.textContent = '📡 Satellite';
     } else {
-        map.removeLayer(defaultTileLayer);
-        map.addLayer(satelliteTileLayer);
+        map.removeLayer(defaultTileLayer); map.addLayer(satelliteTileLayer);
         satelliteToggleBtn.textContent = '🗺️ Map';
     }
-    satelliteView = !satelliteView; // Aggiorna lo stato globale
+    satelliteView = !satelliteView;
     console.log(`[MapManager] Satellite view toggled. Now: ${satelliteView ? 'Satellite' : 'Default'}`);
 }
 
 /**
- * Fits the map view to show all waypoints, or all POIs if no waypoints exist.
- * If neither exist, sets a default view.
+ * Fits the map view to show all waypoints/POIs.
  */
 function fitMapToWaypoints() {
-    if (!map) {
-        console.error("[MapManager] Cannot fit map to waypoints: map not initialized.");
-        return;
-    }
-
+    if (!map) return;
     if (waypoints.length > 0) {
-        const bounds = L.latLngBounds(waypoints.map(wp => wp.latlng));
-        map.fitBounds(bounds.pad(0.1)); // Add some padding
-        console.log("[MapManager] Map fitted to waypoints bounds.");
+        map.fitBounds(L.latLngBounds(waypoints.map(wp => wp.latlng)).pad(0.1));
     } else if (pois.length > 0) {
-        const bounds = L.latLngBounds(pois.map(p => p.latlng));
-        map.fitBounds(bounds.pad(0.1));
-        console.log("[MapManager] Map fitted to POIs bounds (no waypoints).");
+        map.fitBounds(L.latLngBounds(pois.map(p => p.latlng)).pad(0.1));
     } else {
-        map.setView([37.7749, -122.4194], 13); // Default view
-        console.log("[MapManager] Map set to default view (no waypoints or POIs).");
+        map.setView([37.7749, -122.4194], 13);
     }
+    console.log("[MapManager] Map fitted to bounds.");
 }
 
 /**
  * Tries to show the user's current location on the map.
  */
 function showCurrentLocation() {
-    if (!map) {
-        console.error("[MapManager] Cannot show current location: map not initialized.");
-        return;
-    }
-
+    if (!map) return;
     if (!navigator.geolocation) {
-        showCustomAlert('Geolocation is not supported by this browser.', "Error");
-        console.warn("[MapManager] Geolocation not supported by browser.");
-        return;
+        showCustomAlert('Geolocation is not supported.', "Error"); return;
     }
-
-    console.log("[MapManager] Attempting to get current location...");
     navigator.geolocation.getCurrentPosition(
         (position) => {
             const latlng = L.latLng(position.coords.latitude, position.coords.longitude);
-            // userLocationMarker è una variabile globale da config.js
             if (userLocationMarker) {
                 userLocationMarker.setLatLng(latlng);
             } else {
                 userLocationMarker = L.marker(latlng, {
                     icon: L.divIcon({
-                        className: 'user-location-marker', // Per eventuale stile CSS specifico
+                        className: 'user-location-marker',
                         html: '<div style="background:red;border-radius:50%;width:16px;height:16px;border:2px solid white;box-shadow: 0 0 5px #333;"></div>',
-                        iconSize: [16, 16],
-                        iconAnchor: [8, 8] // Centro dell'icona
+                        iconSize: [16, 16], iconAnchor: [8, 8]
                     })
                 }).addTo(map);
             }
-            map.setView(latlng, 15); // Zoom in to the user's location
-            console.log("[MapManager] User location displayed:", latlng);
+            map.setView(latlng, 15);
         },
-        () => {
-            showCustomAlert('Unable to retrieve your location.', "Error");
-            console.error("[MapManager] Error retrieving user location.");
-        }
+        () => { showCustomAlert('Unable to retrieve your location.', "Error"); }
     );
 }
 
 /**
  * Creates a Leaflet DivIcon for a waypoint marker.
- * (Questa funzione è usata da waypointManager.js e flightPathManager.js, ma è tematicamente legata alla mappa)
  * @param {number} id - The waypoint ID.
  * @param {boolean} isSelectedSingle - True if this waypoint is the currently active `selectedWaypoint`.
  * @param {boolean} [isMultiSelected=false] - True if this waypoint is part of `selectedForMultiEdit`.
+ * @param {boolean} [isHomePoint=false] - True if this waypoint is the Home/Takeoff point.
  * @returns {L.DivIcon} The Leaflet DivIcon.
  */
-function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false) {
-    let bgColor = '#3498db'; // Default (blu)
-    // zIndexOffset e scaleFactor sono gestiti da updateMarkerIconStyle se necessario
+function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false, isHomePoint = false) {
+    let bgColor = '#3498db'; 
+    let iconHtmlContent = String(id); // Convert id to string in case it's used directly
     let borderStyle = '2px solid white';
-    let classNameSuffix = ''; // Per stili CSS aggiuntivi
+    let classNameSuffix = '';
+    let currentSize = 24; // Default size
+    let currentFontSize = 12; // Default font size
 
-    if (isSelectedSingle) {
-        bgColor = '#e74c3c'; // Rosso per selezionato singolarmente
+    if (isHomePoint) {
+        bgColor = '#27ae60'; // Green for Home Point (più scuro di #2ecc71)
+        iconHtmlContent = '🏠'; 
+        borderStyle = '2px solid #ffffff';
+        classNameSuffix = 'home-point-wp'; // Classe specifica se serve
+        currentSize = 28; // Leggermente più grande
+        currentFontSize = 16; // Font più grande per l'emoji
+    } else if (isSelectedSingle) {
+        bgColor = '#e74c3c'; 
         classNameSuffix = 'selected-single';
-        if (isMultiSelected) {
-            borderStyle = '3px solid #f39c12'; // Bordo arancione per indicare entrambi
+        currentSize = 24 * 1.2;
+        currentFontSize = 12 * 1.2;
+        if (isMultiSelected) { 
+            borderStyle = '3px solid #f39c12'; 
         }
     } else if (isMultiSelected) {
-        bgColor = '#f39c12'; // Arancione per multi-selezionato (non attivo singolarmente)
+        bgColor = '#f39c12'; 
         classNameSuffix = 'selected-multi';
-        borderStyle = '2px solid #ffeb3b'; // Bordo giallo
+        currentSize = 24 * 1.1;
+        currentFontSize = 12 * 1.1;
+        borderStyle = '2px solid #ffeb3b';
     }
-
-    // La scala dell'icona può essere gestita qui o tramite CSS.
-    // Per semplicità, manteniamo la dimensione base qui, e gli zIndexOffset in updateMarkerIconStyle.
-    const size = 24; // Dimensione base
-    const fontSize = 12; // Dimensione font base
+    // Arrotonda le dimensioni per evitare problemi di rendering sub-pixel
+    currentSize = Math.round(currentSize);
+    currentFontSize = Math.round(currentFontSize);
 
     return L.divIcon({
         className: `waypoint-marker ${classNameSuffix}`,
@@ -198,52 +162,45 @@ function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false) {
                     background: ${bgColor};
                     color: white;
                     border-radius: 50%;
-                    width: ${size}px;
-                    height: ${size}px;
+                    width: ${currentSize}px;
+                    height: ${currentSize}px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    font-size: ${fontSize}px;
+                    font-size: ${currentFontSize}px;
                     font-weight: bold;
                     border: ${borderStyle};
                     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                    transition: all 0.1s ease-out; 
-                ">${id}</div>`,
-        iconSize: [size, size], // Dimensione dell'icona
-        iconAnchor: [size / 2, size / 2], // Punto di ancoraggio (centro)
-        popupAnchor: [0, -size / 2] // Ancoraggio del popup rispetto all'iconAnchor
+                    transition: all 0.1s ease-out;
+                    line-height: ${currentSize}px; /* Per centrare meglio l'emoji/testo verticalmente */
+                }">${iconHtmlContent}</div>`,
+        iconSize: [currentSize, currentSize],
+        iconAnchor: [currentSize / 2, currentSize / 2],
+        popupAnchor: [0, -currentSize / 2]
     });
 }
 
 /**
- * Updates the visual style (icon and z-index) of a waypoint marker based on its selection state.
- * (Questa funzione è usata principalmente da waypointManager.js)
- * @param {object} waypoint - The waypoint object, which should have a `marker` property.
+ * Updates the visual style (icon and z-index) of a waypoint marker.
+ * @param {object} waypoint - The waypoint object.
  */
 function updateMarkerIconStyle(waypoint) {
     if (waypoint && waypoint.marker) {
         const isSelectedSingle = selectedWaypoint && selectedWaypoint.id === waypoint.id;
         const isMultiSelected = selectedForMultiEdit.has(waypoint.id);
-        
-        waypoint.marker.setIcon(createWaypointIcon(waypoint.id, isSelectedSingle, isMultiSelected));
+        // Determina se è l'Home Point (il primo waypoint nell'array waypoints)
+        const isHome = waypoints.length > 0 && waypoints[0].id === waypoint.id;
 
-        // Gestisci zIndex e scale qui per dare priorità visiva
+        waypoint.marker.setIcon(createWaypointIcon(waypoint.id, isSelectedSingle, isMultiSelected, isHome));
+
         let zOffset = 0;
-        let scale = 1.0;
-
-        if (isSelectedSingle) {
-            zOffset = 1000; // Più in alto
-            scale = 1.2;    // Più grande
+        if (isHome) {
+            zOffset = 1500; // Home point sempre molto in alto per visibilità
+        } else if (isSelectedSingle) {
+            zOffset = 1000;
         } else if (isMultiSelected) {
-            zOffset = 500;  // Tra normale e selezionato singolo
-            scale = 1.1;    // Leggermente più grande
+            zOffset = 500;
         }
-        
         waypoint.marker.setZIndexOffset(zOffset);
-        // Per scalare il marker DOM element, avremmo bisogno di accedere al _icon property del marker.
-        // Esempio: if (waypoint.marker._icon) waypoint.marker._icon.style.transform = `scale(${scale})`;
-        // Tuttavia, createWaypointIcon ora può variare la dimensione direttamente, il che è più pulito se le dimensioni sono calcolate lì.
-        // Se createWaypointIcon già gestisce le dimensioni basate sulla selezione, la manipolazione della scala qui potrebbe non essere necessaria
-        // o potrebbe causare un doppio effetto. Assicuriamoci che createWaypointIcon sia la fonte della verità per la dimensione.
     }
 }
