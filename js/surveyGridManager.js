@@ -173,43 +173,43 @@ function handleCancelSurveyGrid() {
 function handleSetGridAngleByLine() {
     console.log("[SurveyGridAngle] handleSetGridAngleByLine called - START");
 
-    // Se un'area era in corso o finalizzata, resettala prima di disegnare l'angolo.
-    // Questo permette all'utente di cambiare l'angolo anche se aveva già un poligono.
-    if (isDrawingSurveyArea || currentPolygonPoints.length > 0) {
-        console.log("[SurveyGridAngle] Previous survey area existed. Resetting polygon state first.");
-        isDrawingSurveyArea = false;
-        currentPolygonPoints = [];
-        // Pulisci solo le parti del poligono, non la linea dell'angolo se c'era
-        if (tempPolygonLayer) { map.removeLayer(tempPolygonLayer); tempPolygonLayer = null; }
-        tempVertexMarkers.forEach(marker => map.removeLayer(marker)); tempVertexMarkers = [];
-        
-        // Rimuovi il listener nativo del poligono se era attivo
-        const mapContainer = map.getContainer();
-        if (mapContainer && typeof nativeMapClickListener === 'function') {
-            mapContainer.removeEventListener('click', nativeMapClickListener, true);
-            // nativeMapClickListener = null; // Non nullificarlo qui, cancelSurveyAreaDrawing lo farà se necessario
-            console.log("[SurveyGridAngle] NATIVE DOM listener for polygon REMOVED to draw angle line.");
-        }
-         map.off('click', handleSurveyAreaMapClick); // Rimuovi anche il fallback Leaflet per il poligono
+    // Non resettare l'area se esiste già e si sta solo cambiando l'angolo
+    // if (isDrawingSurveyArea || currentPolygonPoints.length > 0) {
+    //     console.log("[SurveyGridAngle] Previous survey area existed. Polygon state will be preserved.");
+    //     // Non resettare currentPolygonPoints o isDrawingSurveyArea qui
+    //     // Ma dobbiamo comunque pulire i listener del disegno del poligono se erano attivi
+    //     const mapContainer = map.getContainer();
+    //     if (mapContainer && typeof nativeMapClickListener === 'function') {
+    //         mapContainer.removeEventListener('click', nativeMapClickListener, true);
+    //         console.log("[SurveyGridAngle] NATIVE DOM listener for polygon REMOVED to draw angle line (if was active).");
+    //     }
+    //      map.off('click', handleSurveyAreaMapClick);
+    // }
+    // La logica sopra è complicata perché nativeMapClickListener è null se il poligono era solo finalizzato.
+    // È più semplice lasciare che cancelSurveyAreaDrawing faccia un reset parziale
+    // e poi ripristinare lo stato del poligono se esisteva.
 
-
-        // Aggiorna UI per riflettere che l'area non è più definita
-        if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined (reset for new angle).";
-        if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
-        if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block'; // Permetti di ridisegnare l'area dopo l'angolo
-        console.log("[SurveyGridAngle] Polygon drawing state and visuals reset.");
-    }
-    // Ora isDrawingSurveyArea è sicuramente false.
-
+    // Meglio: attiva la modalità disegno angolo. Se un poligono esisteva, finalizeGridAngleLineDrawing lo considererà.
+    
     isDrawingGridAngleLine = true;
-    gridAngleLinePoints = [];
-    clearTemporaryDrawing(); // Pulisce specificamente i layer della linea dell'angolo
-    console.log("[SurveyGridAngle] State set: isDrawingGridAngleLine=true, angle points/line cleared.");
+    gridAngleLinePoints = []; 
+    // Pulisci solo i layer/marker temporanei della *linea dell'angolo precedente*
+    if (tempGridAngleLineLayer) { map.removeLayer(tempGridAngleLineLayer); tempGridAngleLineLayer = null; }
+    tempGridAnglePointMarkers.forEach(marker => map.removeLayer(marker)); tempGridAnglePointMarkers = [];
+    console.log("[SurveyGridAngle] State set: isDrawingGridAngleLine=true, previous angle line graphics cleared.");
+
 
     if (map && typeof handleMapClick === 'function') {
         map.off('click', handleMapClick);
         console.log("[SurveyGridAngle] Default map click listener (handleMapClick) REMOVED.");
     }
+    // Disattiva anche il listener di disegno del poligono se era attivo
+    const mapContainer = map.getContainer();
+    if (mapContainer && typeof nativeMapClickListener === 'function') {
+         mapContainer.removeEventListener('click', nativeMapClickListener, true);
+         // Non impostare nativeMapClickListener = null; potrebbe essere riattivato se si annulla il disegno dell'angolo
+    }
+    map.off('click', handleSurveyAreaMapClick);
     
     if (map) {
         map.on('click', handleGridAngleLineMapClick);
@@ -264,31 +264,38 @@ function handleGridAngleLineMapClick(e) {
 
 function finalizeGridAngleLineDrawing() {
     console.log("[SurveyGridAngle] Finalizing grid angle line drawing.");
-    // ... (rimozione listener) ...
+    isDrawingGridAngleLine = false;
+    map.off('click', handleGridAngleLineMapClick);
+    map.off('mousemove', handleGridAngleLineMouseMove);
+    map.getContainer().style.cursor = '';
     
     if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'flex';
-    if (typeof handleMapClick === 'function') map.on('click', handleMapClick);
+    // Riattiva il listener di click corretto: se c'è un'area definita, nessun listener di disegno.
+    // Altrimenti, il listener di default.
+    if (currentPolygonPoints.length >= MIN_POLYGON_POINTS && isDrawingSurveyArea) {
+        // Area definita, ma il listener per *aggiungere* punti al poligono è già stato rimosso da handleFinalizeSurveyArea.
+        // Non riattivare handleMapClick qui, perché l'utente deve ancora cliccare "Generate" o "Cancel".
+        console.log("[SurveyGridAngle] Angle set. Polygon area was already defined. Modal shown.");
+    } else if (typeof handleMapClick === 'function') {
+        map.on('click', handleMapClick); // Se non c'era un'area definita, ripristina il default
+        console.log("[SurveyGridAngle] Angle set. No valid polygon area. Default listener restored.");
+    }
     
-    const angleValue = surveyGridAngleInputEl ? surveyGridAngleInputEl.value : 'N/A';
-
-    if (surveyGridInstructionsEl) {
-        surveyGridInstructionsEl.innerHTML = `Grid angle set to ${angleValue}°. Now click "Draw Survey Area" to define the polygon.`;
-        console.log("[SurveyGridAngle] Instructions updated:", surveyGridInstructionsEl.innerHTML);
+    // AGGIORNA LA UI DELLA MODALE IN BASE ALLO STATO DEL POLIGONO
+    if (currentPolygonPoints.length >= MIN_POLYGON_POINTS && isDrawingSurveyArea) {
+        // C'era già un'area valida, l'angolo è stato solo aggiornato.
+        if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = `<strong style="color: #2ecc71;">Area defined.</strong> Angle updated to ${surveyGridAngleInputEl.value}°. Click "Generate Grid".`;
+        if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = `Area defined with ${currentPolygonPoints.length} points. Angle: ${surveyGridAngleInputEl.value}°`;
+        if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'none';
+        if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false; // ABILITA generazione
+    } else {
+        // Non c'era un'area valida, o è stata resettata. Chiedi di disegnare l'area.
+        if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = `Grid angle set to ${surveyGridAngleInputEl.value}°. Now click "Draw Survey Area" to define the polygon.`;
+        if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined (angle has been set).";
+        if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
+        if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
     }
-    if (surveyAreaStatusEl) {
-        surveyAreaStatusEl.textContent = "Area not defined (angle has been set).";
-        console.log("[SurveyGridAngle] Area status updated:", surveyAreaStatusEl.textContent);
-    }
-    if (startDrawingSurveyAreaBtnEl) {
-        startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
-        console.log("[SurveyGridAngle] Start Drawing Area button display:", startDrawingSurveyAreaBtnEl.style.display);
-    }
-    if (confirmSurveyGridBtnEl) {
-        confirmSurveyGridBtnEl.disabled = true; 
-        console.log("[SurveyGridAngle] Confirm Grid button disabled:", confirmSurveyGridBtnEl.disabled);
-    }
-
-    console.log("[SurveyGridAngle] Angle line drawing finalized. Modal UI should be updated. Ready to draw survey area.");
+    console.log("[SurveyGridAngle] Angle line drawing finalized. Modal UI updated.");
 }
 
 // === LOGICA PER DISEGNARE L'AREA DI SURVEY (POLIGONO) ===
