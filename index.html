@@ -46,44 +46,43 @@
             <h2 id="surveyGridModalTitle">Create Survey Grid</h2>
             <div class="modal-body">
                 <p id="surveyGridInstructions" style="font-size: 0.9em; margin-bottom: 15px;">
-                    Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon.
+                    Define area and flight parameters for the survey grid.
                 </p>
 
-                <!-- Flight Altitude con input corto -->
-                <div class="control-group inline-group">
-                    <label for="surveyGridAltitudeInput" class="control-label">Flight Altitude (m):</label>
+                <div class="control-group">
+                    <label for="surveyGridAltitudeInput">Flight Altitude (m):</label>
                     <input type="number" id="surveyGridAltitudeInput" class="control-input short-numeric" value="50" min="5">
                 </div>
 
-                <!-- Sidelap con input corto -->
-                <div class="control-group inline-group">
-                    <label for="surveySidelapInput" class="control-label">Sidelap (%):</label>
-                    <input type="number" id="surveySidelapInput" class="control-input short-numeric" value="70" min="10" max="95" title="Overlap between parallel flight lines (e.g., 60-80%)">
+                <div class="control-group">
+                    <label for="surveySidelapInput">Sidelap (%):</label>
+                    <input type="number" id="surveySidelapInput" class="control-input short-numeric" value="70" min="10" max="95" title="Overlap between parallel flight lines">
                 </div>
                 
-                <!-- Frontlap con input corto -->
-                <div class="control-group inline-group">
-                    <label for="surveyFrontlapInput" class="control-label">Frontlap (%):</label>
-                    <input type="number" id="surveyFrontlapInput" class="control-input short-numeric" value="80" min="10" max="95" title="Overlap between consecutive photos along a flight line (e.g., 70-90%)">
+                <div class="control-group">
+                    <label for="surveyFrontlapInput">Frontlap (%):</label>
+                    <input type="number" id="surveyFrontlapInput" class="control-input short-numeric" value="80" min="10" max="95" title="Overlap between consecutive photos">
                 </div>
                 
-                <div class="control-group"> <!-- No inline-group qui, la label va sopra -->
-                    <label for="surveyGridAngleInput" class="control-label">Grid Angle (°):</label> 
-                    <input type="number" id="surveyGridAngleInput" class="control-input" value="0" min="-359" max="359" step="1">
-                    <div class="input-description"> <!-- Usa la nuova classe per la descrizione -->
-                        Flight line direction: 0° for E-W lines, 90° for N-S lines.
+                <div class="control-group">
+                    <label class="control-label">Grid Angle (°):</label>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 3px;">
+                        <input type="number" id="surveyGridAngleInput" class="control-input short-numeric" value="0" min="-359" max="359" step="1" title="Calculated angle or manual input">
+                        <button id="setGridAngleByLineBtn" class="btn-secondary" style="padding: 6px 10px; font-size:0.8em; width:auto; flex-shrink:0;">Draw Direction</button>
+                    </div>
+                    <div class="input-description">
+                        Flight line direction: 0° for E-W lines, 90° for N-S lines. Angle is auto-set by drawing.
                     </div>
                 </div>
-
-                <!-- Overshoot è stato rimosso -->
 
                 <div id="surveyAreaStatus" style="margin-top: 10px; font-style: italic;">
                     Area not defined.
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="startDrawingSurveyAreaBtn" class="modal-btn">Start Drawing Area</button>
-                <button id="finalizeSurveyAreaBtn" class="modal-btn" style="display: none;">Finalize Area</button>
+                <button id="startDrawingSurveyAreaBtn" class="modal-btn">Draw Survey Area</button>
+                <!-- finalizeSurveyAreaBtn era per un flusso diverso, per ora lo commento -->
+                <!-- <button id="finalizeSurveyAreaBtn" class="modal-btn" style="display: none;">Finalize Area</button> -->
                 <button id="confirmSurveyGridBtn" class="modal-btn" disabled>Generate Grid</button>
                 <button id="cancelSurveyGridBtn" class="modal-btn modal-btn-secondary">Cancel</button>
             </div>
