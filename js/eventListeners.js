@@ -173,7 +173,8 @@ function setupEventListeners() {
     if (createSurveyGridBtn) {
         createSurveyGridBtn.addEventListener('click', openSurveyGridModal);
     }
-    if (setGridAngleByLineBtn) { // NUOVO LISTENER
+    if (setGridAngleByLineBtn) {
+        console.log("[EventListeners] Adding click listener to setGridAngleByLineBtn"); // DEBUG
         setGridAngleByLineBtn.addEventListener('click', handleSetGridAngleByLine);
     }
     if (startDrawingSurveyAreaBtnEl) {
