@@ -376,6 +376,9 @@ body {
     margin-top: 5px; /* Spazio sopra la descrizione */
 }
 
+.waypoint-marker.home-point div { /* Stile più specifico se createWaypointIcon aggiunge la classe */
+    /* Esempio: font-size: 14px; se usi 'H' o un'icona testo */
+}
 /* Potresti voler uno stile specifico per le label della modale survey se sono diverse */
 #surveyGridModalOverlay .control-label {
     /* eventuali stili specifici per le label della survey grid modal */
@@ -384,5 +387,6 @@ body {
 #surveyGridModalOverlay .control-input {
     /* eventuali stili specifici per gli input della survey grid modal */
 }
+
 
 /* === FINE NUOVI STILI === */
