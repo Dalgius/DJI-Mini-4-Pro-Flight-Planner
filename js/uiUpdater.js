@@ -273,3 +273,14 @@ function updateSingleWaypointEditControls() {
 
     waypointControlsDiv.style.display = 'block';
 }
+
+function updateHomeWaypointInfoDisplay() {
+    const homeIdEl = document.getElementById('homeWaypointIdInfo');
+    if (homeIdEl) {
+        if (waypoints.length > 0) {
+            homeIdEl.textContent = waypoints[0].id;
+        } else {
+            homeIdEl.textContent = "Not Set";
+        }
+    }
+}
