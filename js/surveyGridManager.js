@@ -169,19 +169,38 @@ function handleCancelSurveyGrid() { // Chiamato dal pulsante "Cancel" della moda
 function handleSetGridAngleByLine() {
     console.log("[SurveyGridAngle] handleSetGridAngleByLine called");
     if (isDrawingSurveyArea) {
-        showCustomAlert("Please finalize or cancel current survey area drawing first.", "Info"); return;
+        showCustomAlert("Please finalize or cancel current survey area drawing first.", "Info");
+        return;
     }
-    isDrawingGridAngleLine = true;
-    gridAngleLinePoints = [];
+    isDrawingGridAngleLine = true; // Imposta la globale da config.js
+    gridAngleLinePoints = [];    // Resetta la globale da config.js
     clearTemporaryDrawing(); 
+    console.log("[SurveyGridAngle] State set: isDrawingGridAngleLine=true, points cleared.");
 
-    if (typeof handleMapClick === 'function') map.off('click', handleMapClick);
+    // Disattiva listener di default
+    if (typeof handleMapClick === 'function') {
+        map.off('click', handleMapClick);
+        console.log("[SurveyGridAngle] Default map click listener (handleMapClick) REMOVED.");
+    } else {
+        console.warn("[SurveyGridAngle] handleMapClick function not found globally to remove.");
+    }
+    
+    // Assicurati che altri listener specifici del survey siano disattivati
+    if (typeof nativeMapClickListener === 'function' && map.getContainer()) {
+        map.getContainer().removeEventListener('click', nativeMapClickListener, true);
+        // nativeMapClickListener = null; // Non nullificarlo qui, potrebbe servire se si cancella questa modalità
+        console.log("[SurveyGridAngle] Native polygon listener (if active) REMOVED.");
+    }
+    map.off('click', handleSurveyAreaMapClick); // Rimuovi listener poligono Leaflet (fallback)
+
+    // Aggiungi il NUOVO listener per la linea dell'angolo
     map.on('click', handleGridAngleLineMapClick);
     map.getContainer().style.cursor = 'crosshair';
+    console.log("[SurveyGridAngle] 'handleGridAngleLineMapClick' listener ADDED to map. Cursor set.");
     
-    if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none';
+    if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none'; 
     showCustomAlert("Draw Grid Direction: Click map for line start, click again for end.", "Set Angle");
-    console.log("[SurveyGridAngle] Angle line drawing mode ACTIVATED.");
+    console.log("[SurveyGridAngle] Angle line drawing mode ACTIVATED. Modal hidden.");
 }
 
 function handleGridAngleLineMouseMove(e) {
@@ -191,23 +210,17 @@ function handleGridAngleLineMouseMove(e) {
 }
 
 function handleGridAngleLineMapClick(e) {
-    console.log("[SurveyGridAngle] handleGridAngleLineMapClick TRIGGERED!", e.latlng);
-    if (!isDrawingGridAngleLine) return;
-    L.DomEvent.stopPropagation(e.originalEvent);
-
-    gridAngleLinePoints.push(e.latlng);
-    const marker = L.circleMarker(e.latlng, { radius: 5, color: 'cyan' }).addTo(map);
-    tempGridAnglePointMarkers.push(marker);
-
-    if (gridAngleLinePoints.length === 1) {
-        map.on('mousemove', handleGridAngleLineMouseMove);
-        console.log("[SurveyGridAngle] First point set.");
-    } else if (gridAngleLinePoints.length === 2) {
-        const userDrawnBearing = calculateBearing(gridAngleLinePoints[0], gridAngleLinePoints[1]);
-        surveyGridAngleInputEl.value = Math.round(userDrawnBearing);
-        console.log(`[SurveyGridAngle] Line drawn. Bearing: ${userDrawnBearing.toFixed(1)}°. Set Grid Angle to: ${surveyGridAngleInputEl.value}°`);
-        finalizeGridAngleLineDrawing();
+    // PRIMISSIMO LOG QUI
+    console.log("[SurveyGridAngle] handleGridAngleLineMapClick ACTUALLY TRIGGERED!", e.latlng); 
+    if (!isDrawingGridAngleLine) { // Controlla la globale
+        console.log("[SurveyGridAngle] Not in angle line drawing mode, exiting.");
+        return;
     }
+
+    L.DomEvent.stopPropagation(e.originalEvent); 
+    console.log("[SurveyGridAngle] Event propagation stopped.");
+
+    // ... resto della funzione come prima ...
 }
 
 function finalizeGridAngleLineDrawing() {
