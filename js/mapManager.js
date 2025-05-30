@@ -32,14 +32,18 @@ function initializeMap() {
  * Handles click events on the map for general actions.
  */
 function handleMapClick(e) {
-    console.log(`[MapManager] handleMapClick: isDrawingSurveyArea = ${isDrawingSurveyArea}, isSettingHomePointMode = ${typeof isSettingHomePointMode !== 'undefined' ? isSettingHomePointMode : 'undefined'}`);
+    console.log(`[MapManager] handleMapClick: isDrawingSurveyArea = ${isDrawingSurveyArea}, isSettingHomePointMode = ${typeof isSettingHomePointMode !== 'undefined' ? isSettingHomePointMode : 'undefined'}, isDrawingGridAngleLine = ${isDrawingGridAngleLine}`);
 
     if (typeof isSettingHomePointMode !== 'undefined' && isSettingHomePointMode === true) {
-        console.log("[MapManager] handleMapClick: In Set Home Point mode, ignoring default map click.");
+        console.log("[MapManager] handleMapClick: In Set Home Point mode, ignoring.");
         return; 
     }
+    if (typeof isDrawingGridAngleLine !== 'undefined' && isDrawingGridAngleLine === true) { // NUOVO CONTROLLO
+        console.log("[MapManager] handleMapClick: In Grid Angle Line drawing mode, ignoring.");
+        return;
+    }
     if (typeof isDrawingSurveyArea !== 'undefined' && isDrawingSurveyArea === true) {
-        console.log("[MapManager] handleMapClick: In survey area drawing mode, ignoring default map click.");
+        console.log("[MapManager] handleMapClick: In survey area drawing mode, ignoring.");
         return; 
     }
 
