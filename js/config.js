@@ -3,6 +3,8 @@
 // --- Global Application State & Configuration ---
 let map; // Leaflet map instance
 let isDrawingSurveyArea = false;
+let isDrawingGridAngleLine = false; // NUOVO: true quando si disegna la linea per l'angolo
+let gridAngleLinePoints = [];     // NUOVO: array per i due punti della linea di angolo
 let waypoints = [];
 let pois = [];
 let selectedWaypoint = null; // Holds the currently selected waypoint object for single editing
@@ -34,6 +36,7 @@ const OPENTOPODATA_API_BASE = 'https://api.opentopodata.org/v1/srtm90m';
 // Sidebar Controls
 let defaultAltitudeSlider, defaultAltitudeValueEl, flightSpeedSlider, flightSpeedValueEl;
 let pathTypeSelect;
+let setGridAngleByLineBtn;
 
 // Waypoint Specific Controls
 let waypointControlsDiv; // Container for single waypoint editing
