@@ -12,15 +12,15 @@
 // Global function: showCustomAlert (from utils.js)
 
 
-let currentPolygonPoints = [];        // Vertices of the survey area polygon
-let tempPolygonLayer = null;          // Leaflet layer for the temporary survey polygon
-let tempVertexMarkers = [];         // Leaflet markers for survey polygon vertices
+let currentPolygonPoints = [];
+let tempPolygonLayer = null;
+let tempVertexMarkers = [];
 
-let tempGridAngleLineLayer = null;    // Leaflet layer for the temporary angle direction line
-let tempGridAnglePointMarkers = []; // Leaflet markers for angle direction line points
-let nativeMapClickListener = null;    // Holds the native DOM event listener for map clicks (used for polygon drawing)
+let tempGridAngleLineLayer = null;
+let tempGridAnglePointMarkers = [];
+let nativeMapClickListener = null;
 
-const MIN_POLYGON_POINTS = 3;         // Minimum points for a valid polygon
+const MIN_POLYGON_POINTS = 3;
 
 const FIXED_CAMERA_PARAMS = {
     sensorWidth_mm: 8.976,
@@ -38,7 +38,6 @@ function clearTemporaryDrawing() {
 }
 
 function updateTempPolygonDisplay() {
-    // console.log("[SurveyGrid] updateTempPolygonDisplay called"); // Can be noisy
     if (tempPolygonLayer) { map.removeLayer(tempPolygonLayer); tempPolygonLayer = null; }
     if (currentPolygonPoints.length < 2) return;
     const opts = { color: 'rgba(0, 100, 255, 0.7)', weight: 2, fillColor: 'rgba(0, 100, 255, 0.2)', fillOpacity: 0.3 };
@@ -105,14 +104,14 @@ function calculateFootprint(altitudeAGL, cameraParams) {
 function openSurveyGridModal() {
     console.log("[SurveyGrid] openSurveyGridModal called");
     if (!surveyGridModalOverlayEl || !defaultAltitudeSlider || !surveyGridAltitudeInputEl || !surveySidelapInputEl || !surveyFrontlapInputEl || !surveyGridAngleInputEl || !confirmSurveyGridBtnEl || !startDrawingSurveyAreaBtnEl || !surveyAreaStatusEl || !surveyGridInstructionsEl) {
-        showCustomAlert("Survey grid modal elements not found or incomplete.", "Error"); return;
+        showCustomAlert("Survey grid modal elements not found.", "Error"); return;
     }
     surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value;
     if (!surveySidelapInputEl.value) surveySidelapInputEl.value = 70;
     if (!surveyFrontlapInputEl.value) surveyFrontlapInputEl.value = 80;
     if (surveyGridAngleInputEl && (surveyGridAngleInputEl.value === "" || surveyGridAngleInputEl.value === null)) surveyGridAngleInputEl.value = 0;
     
-    cancelSurveyAreaDrawing(); // Full reset
+    cancelSurveyAreaDrawing();
     
     confirmSurveyGridBtnEl.disabled = true;
     startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
@@ -122,48 +121,34 @@ function openSurveyGridModal() {
     console.log("[SurveyGrid] Modal displayed");
 }
 
-function cancelSurveyAreaDrawing() { // Questa funzione ora è il reset COMPLETO di TUTTI gli stati di disegno survey
-    console.log("[SurveyGrid] cancelSurveyAreaDrawing (full reset for all survey drawing states)");
-    const wasInAnyInteractionMode = isDrawingSurveyArea || (typeof nativeMapClickListener === 'function') || isDrawingGridAngleLine;
-    
-    isDrawingSurveyArea = false;
-    isDrawingGridAngleLine = false;
-    gridAngleLinePoints = [];
-    currentPolygonPoints = [];
+function cancelSurveyAreaDrawing() {
+    console.log("[SurveyGrid] cancelSurveyAreaDrawing (full reset)");
+    const wasActive = isDrawingSurveyArea || (typeof nativeMapClickListener === 'function') || isDrawingGridAngleLine;
+    isDrawingSurveyArea = false; isDrawingGridAngleLine = false;
+    gridAngleLinePoints = []; currentPolygonPoints = [];
 
     if (map) {
         const mapContainer = map.getContainer();
-        // Rimuovi listener nativo del poligono, se esiste
         if (mapContainer && typeof nativeMapClickListener === 'function') {
             mapContainer.removeEventListener('click', nativeMapClickListener, true);
-            console.log("[SurveyGrid] NATIVE DOM listener for polygon REMOVED by cancel.");
         }
-        nativeMapClickListener = null; 
-
-        // Rimuovi listener Leaflet
-        map.off('click', handleSurveyAreaMapClick);    // Per disegno poligono
-        map.off('click', handleGridAngleLineMapClick);  // Per disegno linea angolo
-        map.off('mousemove', handleGridAngleLineMouseMove); // Per linea angolo
+        nativeMapClickListener = null;
+        map.off('click', handleSurveyAreaMapClick); map.off('click', handleGridAngleLineMapClick);
+        map.off('mousemove', handleGridAngleLineMouseMove);
         map.getContainer().style.cursor = '';
-        console.log("All survey-related map click/mousemove listeners removed by cancel.");
-
-        if ((wasInAnyInteractionMode || !map.hasEventListeners('click', handleMapClick)) && typeof handleMapClick === 'function') {
-            map.on('click', handleMapClick);
-            console.log("Default map click listener RE-ENSURED by cancel.");
+        console.log("All survey listeners removed by cancel.");
+        if ((wasActive || !map.hasEventListeners('click', handleMapClick)) && typeof handleMapClick === 'function') {
+            map.on('click', handleMapClick); console.log("Default map listener RE-ENSURED by cancel.");
         }
     }
-    clearTemporaryDrawing(); // Pulisce tutti i layer/marker temporanei (poligono E linea angolo)
-    
-    // Ripristina UI modale
+    clearTemporaryDrawing();
     if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
-    if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true; // Disabilita Generate perché l'area è stata resettata
+    if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
     if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined.";
     if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = 'Set parameters. Click "Draw Direction" (optional) then "Draw Survey Area".';
-    // Anche l'input dell'angolo potrebbe essere resettato a 0 se lo si desidera quando si cancella tutto
-    // if (surveyGridAngleInputEl) surveyGridAngleInputEl.value = 0;
 }
 
-function handleCancelSurveyGrid() { 
+function handleCancelSurveyGrid() {
     console.log("[SurveyGrid] handleCancelSurveyGrid (modal cancel button)");
     cancelSurveyAreaDrawing();
     if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none';
@@ -172,50 +157,33 @@ function handleCancelSurveyGrid() {
 // === LOGICA PER DISEGNARE LA LINEA DI DIREZIONE DELL'ANGOLO ===
 function handleSetGridAngleByLine() {
     console.log("[SurveyGridAngle] handleSetGridAngleByLine called - START");
-
-    // Non resettare l'area se esiste già e si sta solo cambiando l'angolo
-    // if (isDrawingSurveyArea || currentPolygonPoints.length > 0) {
-    //     console.log("[SurveyGridAngle] Previous survey area existed. Polygon state will be preserved.");
-    //     // Non resettare currentPolygonPoints o isDrawingSurveyArea qui
-    //     // Ma dobbiamo comunque pulire i listener del disegno del poligono se erano attivi
-    //     const mapContainer = map.getContainer();
-    //     if (mapContainer && typeof nativeMapClickListener === 'function') {
-    //         mapContainer.removeEventListener('click', nativeMapClickListener, true);
-    //         console.log("[SurveyGridAngle] NATIVE DOM listener for polygon REMOVED to draw angle line (if was active).");
-    //     }
-    //      map.off('click', handleSurveyAreaMapClick);
-    // }
-    // La logica sopra è complicata perché nativeMapClickListener è null se il poligono era solo finalizzato.
-    // È più semplice lasciare che cancelSurveyAreaDrawing faccia un reset parziale
-    // e poi ripristinare lo stato del poligono se esisteva.
-
-    // Meglio: attiva la modalità disegno angolo. Se un poligono esisteva, finalizeGridAngleLineDrawing lo considererà.
-    
-    isDrawingGridAngleLine = true;
-    gridAngleLinePoints = []; 
-    // Pulisci solo i layer/marker temporanei della *linea dell'angolo precedente*
-    if (tempGridAngleLineLayer) { map.removeLayer(tempGridAngleLineLayer); tempGridAngleLineLayer = null; }
-    tempGridAnglePointMarkers.forEach(marker => map.removeLayer(marker)); tempGridAnglePointMarkers = [];
-    console.log("[SurveyGridAngle] State set: isDrawingGridAngleLine=true, previous angle line graphics cleared.");
-
-
-    if (map && typeof handleMapClick === 'function') {
-        map.off('click', handleMapClick);
-        console.log("[SurveyGridAngle] Default map click listener (handleMapClick) REMOVED.");
+    if (isDrawingSurveyArea || currentPolygonPoints.length > 0) {
+        console.log("[SurveyGridAngle] Previous survey area existed/active. Resetting polygon state first.");
+        isDrawingSurveyArea = false; currentPolygonPoints = [];
+        if (tempPolygonLayer) { map.removeLayer(tempPolygonLayer); tempPolygonLayer = null; }
+        tempVertexMarkers.forEach(marker => map.removeLayer(marker)); tempVertexMarkers = [];
+        const mapContainer = map.getContainer();
+        if (mapContainer && typeof nativeMapClickListener === 'function') {
+            mapContainer.removeEventListener('click', nativeMapClickListener, true);
+        }
+        map.off('click', handleSurveyAreaMapClick);
+        if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined (reset for new angle).";
+        if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
+        if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
+        console.log("[SurveyGridAngle] Polygon drawing state and visuals reset.");
     }
-    // Disattiva anche il listener di disegno del poligono se era attivo
-    const mapContainer = map.getContainer();
-    if (mapContainer && typeof nativeMapClickListener === 'function') {
-         mapContainer.removeEventListener('click', nativeMapClickListener, true);
-         // Non impostare nativeMapClickListener = null; potrebbe essere riattivato se si annulla il disegno dell'angolo
-    }
-    map.off('click', handleSurveyAreaMapClick);
+
+    isDrawingGridAngleLine = true; gridAngleLinePoints = [];
+    clearTemporaryDrawing(); // Pulisce anche i resti della linea angolo precedente
+    console.log("[SurveyGridAngle] State set: isDrawingGridAngleLine=true, points/line cleared.");
+
+    if (map && typeof handleMapClick === 'function') map.off('click', handleMapClick);
     
     if (map) {
         map.on('click', handleGridAngleLineMapClick);
         map.getContainer().style.cursor = 'crosshair';
-        console.log("[SurveyGridAngle] 'handleGridAngleLineMapClick' listener ADDED to map. Cursor set.");
-    } else { /* ... errore map non disponibile ... */ return; }
+        console.log("[SurveyGridAngle] 'handleGridAngleLineMapClick' listener ADDED.");
+    } else { console.error("MAP NOT AVAILABLE!"); isDrawingGridAngleLine = false; return; }
     
     if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none'; 
     showCustomAlert("Draw Grid Direction: Click map for line start, click again for end.", "Set Angle");
@@ -229,267 +197,131 @@ function handleGridAngleLineMouseMove(e) {
 }
 
 function handleGridAngleLineMapClick(e) {
-    console.log("[SurveyGridAngle] handleGridAngleLineMapClick ACTUALLY TRIGGERED!", e.latlng, "Current points count before add:", gridAngleLinePoints.length); 
-    if (!isDrawingGridAngleLine) { 
-        console.log("[SurveyGridAngle] Not in angle line drawing mode, exiting."); return;
-    }
+    console.log("[SurveyGridAngle] handleGridAngleLineMapClick TRIGGERED!", e.latlng, "Points before add:", gridAngleLinePoints.length); 
+    if (!isDrawingGridAngleLine) { console.log("Not in angle line drawing mode."); return; }
     L.DomEvent.stopPropagation(e.originalEvent); 
-    console.log("[SurveyGridAngle] Event propagation stopped.");
 
     gridAngleLinePoints.push(e.latlng); 
-    console.log("[SurveyGridAngle] Point pushed. New count:", gridAngleLinePoints.length);
-
+    console.log("Point pushed. New count:", gridAngleLinePoints.length);
     const marker = L.circleMarker(e.latlng, { radius: 5, color: 'cyan' }).addTo(map);
     tempGridAnglePointMarkers.push(marker);
-    console.log("[SurveyGridAngle] Temp marker for angle line point added.");
 
     if (gridAngleLinePoints.length === 1) { 
         map.on('mousemove', handleGridAngleLineMouseMove);
-        console.log("[SurveyGridAngle] First point set. Added mousemove listener. gridAngleLinePoints:", gridAngleLinePoints.map(p=>[p.lat,p.lng]));
+        console.log("First point set. Added mousemove. Points:", gridAngleLinePoints.map(p=>[p.lat,p.lng]));
     } else if (gridAngleLinePoints.length === 2) { 
-        console.log("[SurveyGridAngle] Second point set. Attempting to finalize. gridAngleLinePoints:", gridAngleLinePoints.map(p=>[p.lat,p.lng]));
-        const p1 = gridAngleLinePoints[0];
-        const p2 = gridAngleLinePoints[1];
-        const userDrawnBearing = calculateBearing(p1, p2); // 0=N, 90=E, 180=S, 270=W
+        console.log("Second point set. Finalizing. Points:", gridAngleLinePoints.map(p=>[p.lat,p.lng]));
+        const userDrawnBearing = calculateBearing(gridAngleLinePoints[0], gridAngleLinePoints[1]); // 0=N, 90=E
         
-        // RIGA ORIGINALE (o simile):
-        // surveyGridAngleInputEl.value = Math.round(userDrawnBearing); 
-
-        // <<< INIZIO MODIFICA >>>
-        let angleForGenerator;
-        // Se l'utente disegna una linea N-S (bearing ~0° o ~180°), vogliamo che il generatore usi 90° (per linee N-S).
-        // Se l'utente disegna una linea E-W (bearing ~90° o ~270°), vogliamo che il generatore usi 0° (per linee E-W).
-
-        // Normalizziamo il bearing per capire se è più verticale o orizzontale
-        const normalizedBearing = userDrawnBearing % 180; // Risultato tra 0 e 179.99...
-
-        if (normalizedBearing > 45 && normalizedBearing < 135) {
-            // La linea disegnata è prevalentemente orizzontale (Est-Ovest, bearing ~90° o ~270°)
-            // Il nostro generatore produce linee E-W con gridAngleDeg = 0 (o 180)
-            angleForGenerator = 0; // O potremmo usare userDrawnBearing e vedere se la rotazione lo gestisce
-                                   // Per maggiore precisione con la linea disegnata, usiamo userDrawnBearing.
-                                   // La descrizione UI deve essere chiara.
-                                   // Se l'utente disegna E-W (90), e il nostro generatore vuole 0 per E-W, dobbiamo sottrarre 90.
-            angleForGenerator = (userDrawnBearing - 90 + 360) % 360;
-
-
-        } else {
-            // La linea disegnata è prevalentemente verticale (Nord-Sud, bearing ~0° o ~180°)
-            // Il nostro generatore produce linee N-S con gridAngleDeg = 90 (o 270)
-            angleForGenerator = (userDrawnBearing + 90 + 360) % 360; // Se disegna N (0), diventa 90.
-        }
-
-        // Semplificazione: l'angolo del generatore è sempre il bearing disegnato - 90 gradi.
-        // Questo perché la nostra logica di generazione interna (iterazione su Lat per le linee, poi Lng per i punti)
-        // crea naturalmente linee E-W se il sistema di coordinate non è ruotato.
-        // Per allineare queste linee E-W interne alla linea disegnata dall'utente (userDrawnBearing),
-        // dobbiamo ruotare il sistema di coordinate in modo che l'asse X del sistema ruotato
-        // sia parallelo a userDrawnBearing. L'angolo di rotazione del sistema (gridAngleDeg)
-        // necessario è userDrawnBearing stesso, se la nostra rotazione allinea l'asse X con quell'angolo.
-
-        // Confusione precedente:
-        // Il gridAngleDeg che passiamo a generateSurveyGridWaypoints è l'angolo a cui le linee di volo RISULTANO.
-        // Se generateSurveyGridWaypoints(..., angle=0) -> linee E-W
-        // Se generateSurveyGridWaypoints(..., angle=90) -> linee N-S
-        //
-        // L'utente disegna una linea con userDrawnBearing (0=N, 90=E).
-        // Se userDrawnBearing = 0 (N-S), vogliamo che angle=90.
-        // Se userDrawnBearing = 90 (E-W), vogliamo che angle=0.
-        // Quindi: angle = (90 - userDrawnBearing + 360) % 360; (No, questo è sbagliato)
-        // Proviamo: angle = (userDrawnBearing + 90) % 360 se userDrawnBearing è per la direzione delle linee.
-        // No, se userDrawnBearing è la direzione della linea (0=N), e il nostro generatore per 0° fa E-W,
-        // allora l'angolo che l'utente imposta nel box deve essere quello che il generatore si aspetta.
-        // Quindi l'utente che disegna una linea N-S (bearing 0) si aspetta linee N-S. Deve vedere 90 nel box.
-
-        let finalAngleForInput;
-        if ((userDrawnBearing >= 0 && userDrawnBearing < 45) || (userDrawnBearing >= 315 && userDrawnBearing < 360) || (userDrawnBearing >= 135 && userDrawnBearing < 225) ) {
-            // Linea disegnata prevalentemente N-S o S-N
-            // Per ottenere linee N-S, il nostro generatore ha bisogno di un angolo di 90° (o 270°)
-            // Se l'utente ha disegnato verso Nord (0) o Sud (180), vogliamo che il risultato sia 90.
-            finalAngleForInput = 90;
-            if (userDrawnBearing >=135 && userDrawnBearing < 225) finalAngleForInput = 270; // Opzionale per direzione
-        } else {
-            // Linea disegnata prevalentemente E-W o W-E
-            // Per ottenere linee E-W, il nostro generatore ha bisogno di un angolo di 0° (o 180°)
-            finalAngleForInput = 0;
-            if (userDrawnBearing >=225 && userDrawnBearing < 315) finalAngleForInput = 180; // Opzionale per direzione
-        }
-        // Questo approccio "snap" l'angolo a 0/90/180/270.
-
-        // Manteniamo l'angolo ESATTO disegnato dall'utente per la rotazione,
-        // e la descrizione nella UI deve essere chiara su cosa significa quell'angolo.
-        // La descrizione attuale è: "0° for E-W lines, 90° for N-S lines"
-        // Se l'utente disegna una linea N-S, il bearing è ~0°. L'input si setterà a 0°. Le linee saranno E-W.
-        // Questo è coerente con la descrizione, ma non con l'intuito del disegno.
-
-        // SOLUZIONE PER FAR SÌ CHE LA LINEA DISEGNATA SIA LA DIREZIONE DELLE STRISCIATE:
-        // Il `gridAngleDeg` che passiamo a `generateSurveyGridWaypoints` deve essere l'angolo
-        // che fa sì che le linee generate (che sono E-W nel sistema ruotato a 0) siano
-        // allineate con `userDrawnBearing`.
-        // Quindi, `gridAngleDeg` deve essere `userDrawnBearing` stesso.
-        // Se questo produce un offset di 90°, allora c'è un problema nella funzione di rotazione
-        // o nell'interpretazione degli assi in `generateSurveyGridWaypoints`.
-
-        // L'errore di 90° che hai visto suggerisce che se `gridAngleDeg` = `userDrawnBearing`,
-        // le linee vengono generate PERPENDICOLARI.
-        // Quindi, per avere linee PARALLELE a `userDrawnBearing`, `gridAngleDeg` deve essere `userDrawnBearing - 90` (o `+90`).
-
-        let correctedAngleForGenerator = (userDrawnBearing - 90 + 360) % 360;
-
-        surveyGridAngleInputEl.value = Math.round(correctedAngleForGenerator);
-        // <<< FINE MODIFICA >>>
+        // Se userDrawnBearing = 0 (N-S), vogliamo che angleForGenerator sia 90 (per linee N-S nel nostro sistema).
+        // Se userDrawnBearing = 90 (E-W), vogliamo che angleForGenerator sia 0 (per linee E-W nel nostro sistema).
+        // Questo significa: angleForGenerator = (userDrawnBearing === 0 || userDrawnBearing === 180) ? 90 : 0; NO, troppo grezzo.
+        // La nostra convenzione interna per generateSurveyGridWaypoints è che gridAngleDeg è l'orientamento finale delle linee.
+        // Se gridAngleDeg = 0 -> linee E-W. Se gridAngleDeg = 90 -> linee N-S.
+        // Se l'utente disegna una linea N-S (bearing 0), e vuole linee N-S, allora l'input deve diventare 90.
+        // Se l'utente disegna una linea E-W (bearing 90), e vuole linee E-W, allora l'input deve diventare 0.
+        // L'angolo per il generatore è (bearing_linea_disegnata - 90 + 360) % 360
+        // se la linea disegnata rappresenta la PERPENDICOLARE alle linee di volo.
+        // Ma se la linea disegnata rappresenta la DIREZIONE delle linee di volo, allora l'angolo per il generatore è il bearing stesso.
+        // Il problema è che il *nostro generatore* produce linee E-W quando l'angolo di rotazione del sistema è 0.
+        // Se l'utente disegna N-S (bearing 0), e vogliamo linee N-S, dobbiamo ruotare il sistema di 90.
+        // Quindi, l'angolo da mettere nell'input e usare per la rotazione è (bearing_disegnato + 90) o (bearing_disegnato - 90).
         
-        console.log(`[SurveyGridAngle] Line drawn. User Bearing: ${userDrawnBearing.toFixed(1)}°. Corrected Angle for Generator: ${surveyGridAngleInputEl.value}°`);
-        
+        // Se la linea disegnata dall'UTENTE è la DIREZIONE DELLE LINEE DI VOLO:
+        // E il nostro `gridAngleDeg` passato a `generateSurveyGridWaypoints` è l'angolo
+        // a cui le linee di volo sono orientate (0 = E-W, 90 = N-S).
+        // Allora `surveyGridAngleInputEl.value` deve essere `userDrawnBearing`.
+        // Se questo risulta in un offset di 90°, la correzione è:
+        let correctedAngleForInput = (userDrawnBearing - 90 + 360) % 360;
+
+        surveyGridAngleInputEl.value = Math.round(correctedAngleForInput);
+        console.log(`[SurveyGridAngle] User Bearing: ${userDrawnBearing.toFixed(1)}°. Corrected Angle for Input/Generator: ${surveyGridAngleInputEl.value}°`);
         finalizeGridAngleLineDrawing(); 
-    } else {
+    }
+}
 
 function finalizeGridAngleLineDrawing() {
     console.log("[SurveyGridAngle] Finalizing grid angle line drawing.");
     isDrawingGridAngleLine = false;
-    map.off('click', handleGridAngleLineMapClick);
-    map.off('mousemove', handleGridAngleLineMouseMove);
+    map.off('click', handleGridAngleLineMapClick); map.off('mousemove', handleGridAngleLineMouseMove);
     map.getContainer().style.cursor = '';
-    
     if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'flex';
-    // Riattiva il listener di click corretto: se c'è un'area definita, nessun listener di disegno.
-    // Altrimenti, il listener di default.
-    if (currentPolygonPoints.length >= MIN_POLYGON_POINTS && isDrawingSurveyArea) {
-        // Area definita, ma il listener per *aggiungere* punti al poligono è già stato rimosso da handleFinalizeSurveyArea.
-        // Non riattivare handleMapClick qui, perché l'utente deve ancora cliccare "Generate" o "Cancel".
-        console.log("[SurveyGridAngle] Angle set. Polygon area was already defined. Modal shown.");
-    } else if (typeof handleMapClick === 'function') {
-        map.on('click', handleMapClick); // Se non c'era un'area definita, ripristina il default
-        console.log("[SurveyGridAngle] Angle set. No valid polygon area. Default listener restored.");
-    }
+    if (typeof handleMapClick === 'function') map.on('click', handleMapClick);
     
-    // AGGIORNA LA UI DELLA MODALE IN BASE ALLO STATO DEL POLIGONO
-    if (currentPolygonPoints.length >= MIN_POLYGON_POINTS && isDrawingSurveyArea) {
-        // C'era già un'area valida, l'angolo è stato solo aggiornato.
-        if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = `<strong style="color: #2ecc71;">Area defined.</strong> Angle updated to ${surveyGridAngleInputEl.value}°. Click "Generate Grid".`;
-        if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = `Area defined with ${currentPolygonPoints.length} points. Angle: ${surveyGridAngleInputEl.value}°`;
-        if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'none';
-        if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false; // ABILITA generazione
-    } else {
-        // Non c'era un'area valida, o è stata resettata. Chiedi di disegnare l'area.
-        if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = `Grid angle set to ${surveyGridAngleInputEl.value}°. Now click "Draw Survey Area" to define the polygon.`;
-        if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined (angle has been set).";
-        if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
-        if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
-    }
-    console.log("[SurveyGridAngle] Angle line drawing finalized. Modal UI updated.");
+    const angleVal = surveyGridAngleInputEl ? surveyGridAngleInputEl.value : 'N/A';
+    if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = `Grid angle set to ${angleVal}°. Now click "Draw Survey Area".`;
+    if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined (angle set)."; // Area è stata resettata
+    if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
+    if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true; // Richiede ridisegno area
+    console.log("[SurveyGridAngle] Finalized. Modal UI updated. Ready to draw survey area.");
 }
 
 // === LOGICA PER DISEGNARE L'AREA DI SURVEY (POLIGONO) ===
-function handleStartDrawingSurveyArea() {
-    console.log("[SurveyGrid] handleStartDrawingSurveyArea called");
-    if (isDrawingGridAngleLine) {
-        showCustomAlert("Please finish drawing the grid angle line first or cancel it.", "Info"); return;
-    }
-    if (!map || !surveyGridModalOverlayEl) { console.error("Map or Modal missing"); return; }
-    
-    isDrawingSurveyArea = true; currentPolygonPoints = []; clearTemporaryDrawing();
-    console.log("Drawing polygon started, isDrawingSurveyArea=true.");
-
-    if (typeof handleMapClick === 'function') map.off('click', handleMapClick);
-    map.off('click', handleGridAngleLineMapClick); 
-    
-    const mapContainer = map.getContainer();
-    if (mapContainer) {
-        if (typeof nativeMapClickListener === 'function') {
-            mapContainer.removeEventListener('click', nativeMapClickListener, true);
-        }
-        nativeMapClickListener = function(event) {
-            console.log("!!! NATIVE MAP CLICK (Polygon Mode) !!! Target:", event.target);
-            if (!isDrawingSurveyArea) { console.log("NATIVE CLICK (Polygon): not drawing."); return; }
-            if (event.target && (event.target === mapContainer || event.target.closest('.leaflet-pane') || event.target.closest('.leaflet-container'))) {
-                try {
-                    const latlng = map.mouseEventToLatLng(event);
-                    handleSurveyAreaMapClick({ latlng: latlng, originalEvent: event });
-                } catch (mapError) { console.error("NATIVE CLICK (Polygon) Error:", mapError); }
-            } else { console.log("NATIVE CLICK (Polygon): Target not map/pane."); }
-        };
-        mapContainer.addEventListener('click', nativeMapClickListener, true);
-        console.log("[SurveyGrid] NATIVE DOM listener for polygon ADDED.");
-    }
-    map.getContainer().style.cursor = 'crosshair';
-    surveyGridModalOverlayEl.style.display = 'none';
-    console.log("Modal HIDDEN for polygon drawing.");
-    showCustomAlert("Drawing survey area: Click on map to add corners. Click the first point (min 3 total) to finalize.", "Survey Drawing Active");
-    console.log("Polygon drawing mode activated.");
-}
-
+function handleStartDrawingSurveyArea() { /* ... identica a prima ... */ }
 function handleSurveyAreaMapClick(e) { /* ... identica a prima ... */ }
 function handleFinalizeSurveyArea() { /* ... identica a prima ... */ }
 // (Incollo per completezza)
+function handleStartDrawingSurveyArea() {
+    console.log("[SurveyGrid] handleStartDrawingSurveyArea called");
+    if (isDrawingGridAngleLine) { showCustomAlert("Finish drawing grid angle line first.", "Info"); return; }
+    if (!map || !surveyGridModalOverlayEl) { console.error("Map or Modal missing"); return; }
+    isDrawingSurveyArea = true; currentPolygonPoints = []; clearTemporaryDrawing();
+    console.log("Drawing polygon started, isDrawingSurveyArea=true.");
+    if (typeof handleMapClick === 'function') map.off('click', handleMapClick);
+    map.off('click', handleGridAngleLineMapClick); 
+    const mapContainer = map.getContainer();
+    if (mapContainer) {
+        if (typeof nativeMapClickListener === 'function') mapContainer.removeEventListener('click', nativeMapClickListener, true);
+        nativeMapClickListener = function(event) {
+            if (!isDrawingSurveyArea) return;
+            if (event.target === mapContainer || event.target.closest('.leaflet-pane') || event.target.closest('.leaflet-container')) {
+                try { handleSurveyAreaMapClick({ latlng: map.mouseEventToLatLng(event), originalEvent: event }); }
+                catch (mapError) { console.error("NATIVE CLICK (Polygon) Error:", mapError); }
+            }
+        };
+        mapContainer.addEventListener('click', nativeMapClickListener, true);
+        console.log("NATIVE DOM listener for polygon ADDED.");
+    }
+    map.getContainer().style.cursor = 'crosshair';
+    surveyGridModalOverlayEl.style.display = 'none';
+    showCustomAlert("Drawing survey area: Click map for corners. Click first point (min 3) to finalize.", "Survey Drawing Active");
+    console.log("Polygon drawing mode activated.");
+}
 function handleSurveyAreaMapClick(e) {
     console.log("[SurveyGrid] handleSurveyAreaMapClick TRIGGERED! LatLng:", e.latlng);
     if (!isDrawingSurveyArea) { console.log("Not in drawing mode."); return; }
-    const clickedLatLng = e.latlng;
-    currentPolygonPoints.push(clickedLatLng);
+    const clickedLatLng = e.latlng; currentPolygonPoints.push(clickedLatLng);
     console.log("Point added, total:", currentPolygonPoints.length);
-    const vertexMarker = L.circleMarker(clickedLatLng, { radius: 6, color: 'rgba(255,0,0,0.8)', fillColor: 'rgba(255,0,0,0.5)', fillOpacity: 0.7, pane: 'markerPane' }).addTo(map);
+    const vertexMarker = L.circleMarker(clickedLatLng, { radius: 6, color: 'rgba(255,0,0,0.8)',fillColor:'rgba(255,0,0,0.5)',fillOpacity:0.7,pane:'markerPane'}).addTo(map);
     if (tempVertexMarkers.length === 0) {
-        vertexMarker.on('click', (markerClickEvent) => {
-            console.log("First vertex marker CLICKED for finalization.");
-            if (isDrawingSurveyArea && currentPolygonPoints.length >= MIN_POLYGON_POINTS) {
-                L.DomEvent.stopPropagation(markerClickEvent); L.DomEvent.preventDefault(markerClickEvent);
-                handleFinalizeSurveyArea();
-            }
-        });
+        vertexMarker.on('click', (ev) => { L.DomEvent.stopPropagation(ev); if (isDrawingSurveyArea && currentPolygonPoints.length >= MIN_POLYGON_POINTS) handleFinalizeSurveyArea(); });
     }
-    tempVertexMarkers.push(vertexMarker);
-    updateTempPolygonDisplay();
+    tempVertexMarkers.push(vertexMarker); updateTempPolygonDisplay();
 }
-
 function handleFinalizeSurveyArea() {
     console.log("[SurveyGrid] handleFinalizeSurveyArea called");
-    if (!isDrawingSurveyArea) { 
-        console.log("[SurveyGrid] Not in drawing mode or already finalized."); 
-        // Se non stavamo disegnando l'area, ma forse l'angolo era appena stato finalizzato, 
-        // la modale potrebbe essere aperta. Non fare nulla qui che possa sovrascrivere lo stato UI dell'angolo.
-        return; 
-    }
-    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) {
-        showCustomAlert(`Area requires at least ${MIN_POLYGON_POINTS} points.`, "Info"); 
-        // Non uscire dalla modalità disegno, permetti di aggiungere altri punti.
-        // O se si vuole resettare:
-        // cancelSurveyAreaDrawing(); // Potrebbe essere troppo drastico
-        // if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'flex'; // Riapri modale
-        return;
-    }
-    
+    if (!isDrawingSurveyArea) { console.log("Not in drawing mode or already finalized."); return; }
+    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) { showCustomAlert(`Area needs ${MIN_POLYGON_POINTS} points.`, "Info"); return; }
     const mapContainer = map.getContainer();
     if (mapContainer && typeof nativeMapClickListener === 'function') {
-        mapContainer.removeEventListener('click', nativeMapClickListener, true);
-        nativeMapClickListener = null; 
-        console.log("[SurveyGrid] NATIVE DOM listener REMOVED after polygon finalize.");
+        mapContainer.removeEventListener('click', nativeMapClickListener, true); nativeMapClickListener = null;
     }
     map.getContainer().style.cursor = '';
-    // isDrawingSurveyArea rimane true (area definita, in attesa di generazione o cancellazione)
-    // Il listener per *aggiungere* punti è rimosso.
-    // Il listener di default handleMapClick è ancora disattivato.
-
-    if (surveyGridModalOverlayEl) {
-        surveyGridModalOverlayEl.style.display = 'flex'; // Riapri modale
-        console.log("Modal SHOWN for confirmation after polygon finalization.");
-    }
-
-    // QUI È L'AGGIORNAMENTO CRUCIALE DELLA UI
-    if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'none'; // Hai finito di disegnare l'area
-    if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false; // ABILITA "Generate Grid"
-    if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = `Area defined with ${currentPolygonPoints.length} points. Angle: ${surveyGridAngleInputEl.value}°`; // Aggiorna lo stato
+    isDrawingSurveyArea = true; // Area è definita, ma non stiamo più *aggiungendo punti*
+    console.log("NATIVE DOM listener REMOVED after polygon finalize. isDrawingSurveyArea STILL TRUE.");
+    if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'flex';
+    if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'none';
+    if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false;
+    if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = `Area defined: ${currentPolygonPoints.length} pts. Angle: ${surveyGridAngleInputEl.value}°`;
     if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = '<strong style="color: #2ecc71;">Area finalized!</strong> Adjust parameters or click "Generate Grid".';
-    
     if (tempPolygonLayer) tempPolygonLayer.setStyle({ color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' });
     tempVertexMarkers.forEach(marker => marker.off('click'));
-    console.log("[SurveyGrid] Area finalized. Modal UI updated for generation. isDrawingSurveyArea is STILL TRUE.");
+    console.log("Area finalized. Modal UI updated for generation.");
 }
 
-
 // === GRID GENERATION LOGIC (NO OVERSHOOT) ===
-function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapPercent, frontlapPercent, gridAngleDeg, flightSpeed) { /* ... identica all'ultima versione funzionante senza overshoot ... */ }
-function handleConfirmSurveyGridGeneration() { /* ... identica all'ultima versione funzionante senza overshoot ... */ }
+function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapPercent, frontlapPercent, gridAngleDeg, flightSpeed) { /* ... identica all'ultima versione funzionante ... */ }
+function handleConfirmSurveyGridGeneration() { /* ... identica all'ultima versione funzionante ... */ }
 // (Incollo per completezza)
 function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapPercent, frontlapPercent, gridAngleDeg, flightSpeed) {
     console.log("[SurveyGridGen] Starting generation (NO OVERSHOOT) with:", {
@@ -548,7 +380,6 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
                 finalWaypointsData.push({ latlng: actualGeoPt, options: wpOptions });
             }
         });
-        // console.log(`  Added ${lineCandRot.filter(rotPt => isPointInPolygon(rotateLatLng(rotPt, rotationCenter, angleRad), polygonLatLngs)).length} waypoints for line ${lines}.`);
         
         currentRotLat += lineSpacingRotLat;
         if (lines > 2000) { console.error("Too many lines"); break; }
@@ -578,7 +409,7 @@ function handleConfirmSurveyGridGeneration() {
     const sidelap = parseFloat(surveySidelapInputEl.value);
     const frontlap = parseFloat(surveyFrontlapInputEl.value);
     const angle = parseFloat(surveyGridAngleInputEl.value);
-    // const overshoot = 0; // Non più un input
+    // const overshoot = 0; // Non più un input, quindi non passarlo
     const speed = parseFloat(flightSpeedSlider.value);
 
     if (isNaN(altitude) || altitude < 1) { showCustomAlert("Invalid altitude.", "Error"); return; }
@@ -588,7 +419,7 @@ function handleConfirmSurveyGridGeneration() {
     if (isNaN(speed) || speed <= 0) {showCustomAlert("Invalid flight speed.", "Error"); return; }
 
     if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = "Generating grid waypoints...";
-    const surveyWaypoints = generateSurveyGridWaypoints(currentPolygonPoints, altitude, sidelap, frontlap, angle, speed);
+    const surveyWaypoints = generateSurveyGridWaypoints(currentPolygonPoints, altitude, sidelap, frontlap, angle, speed); // Rimosso overshoot
 
     if (surveyWaypoints && surveyWaypoints.length > 0) {
        surveyWaypoints.forEach(wpData => addWaypoint(wpData.latlng, wpData.options));
