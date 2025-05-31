@@ -313,200 +313,164 @@ function exportToGoogleEarthKml() {
  */
 function exportToDjiWpmlKmz() {
     if (typeof JSZip === 'undefined') {
-        showCustomAlert("JSZip library is not loaded. KMZ export unavailable.", "Export Error");
+        if(typeof showCustomAlert === 'function') showCustomAlert("JSZip library not loaded. KMZ export unavailable.", "Error");
         console.error("JSZip is required for KMZ export.");
         return;
     }
-    if (waypoints.length === 0) {
-        showCustomAlert("No waypoints to export to DJI WPML KMZ.", "Export Error");
+    if (waypoints.length === 0) { // waypoints è globale
+        if(typeof showCustomAlert === 'function') showCustomAlert("No waypoints to export to DJI WPML KMZ.", "Export Error");
         return;
     }
 
-    // Reset DJI-specific counters for this export
-    actionGroupCounter = 1;
-    actionCounter = 1;
+    actionGroupCounter = 1; // globale
+    actionCounter = 1;      // globale
 
-    const missionFlightSpeed = parseFloat(flightSpeedSlider.value);
-    const missionPathTypeUi = pathTypeSelect.value; // 'straight' or 'curved'
+    const missionFlightSpeed = parseFloat(flightSpeedSlider.value); // flightSpeedSlider è globale
+    const missionPathType = pathTypeSelect.value; // pathTypeSelect è globale
 
     const now = new Date();
     const createTimeMillis = now.getTime().toString();
-    // waylineId is often an integer, can be timestamp or a unique ID for the mission
     const waylineIdInt = Math.floor(now.getTime() / 1000);
 
     let kmlTotalDistance = 0;
     if (waypoints.length >= 2) {
-        // DJI WPML distance is typically straight-line segments for calculation,
-        // even if path is curved. The drone handles the curve.
         for (let i = 0; i < waypoints.length - 1; i++) {
-            kmlTotalDistance += haversineDistance(waypoints[i].latlng, waypoints[i + 1].latlng);
+            // Assicurati che haversineDistance sia disponibile globalmente
+            kmlTotalDistance += (typeof haversineDistance === 'function' ? haversineDistance(waypoints[i].latlng, waypoints[i+1].latlng) : 0);
         }
     }
     let kmlTotalHoverTime = waypoints.reduce((sum, wp) => sum + (wp.hoverTime || 0), 0);
     const kmlTotalDuration = (kmlTotalDistance / (missionFlightSpeed > 0 ? missionFlightSpeed : 1)) + kmlTotalHoverTime;
 
-    // --- template.kml content ---
-    // Basic mission configuration. Drone type (droneEnumValue) might need adjustment for specific models.
-    // 68 is often used for Mavic 3 Enterprise series.
     let templateKmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.uav.com/wpmz/1.0.2">
-  <Document>
-    <wpml:author>FlightPlannerWebApp</wpml:author>
-    <wpml:createTime>${createTimeMillis}</wpml:createTime>
-    <wpml:updateTime>${createTimeMillis}</wpml:updateTime>
-    <wpml:missionConfig>
-      <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
-      <wpml:finishAction>goHome</wpml:finishAction>
-      <wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>
-      <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction>
-      <wpml:globalTransitionalSpeed>${missionFlightSpeed.toFixed(1)}</wpml:globalTransitionalSpeed>
-      <wpml:droneInfo>
-        <wpml:droneEnumValue>68</wpml:droneEnumValue> {/* Example: Mavic 3E Series */}
-        <wpml:droneSubEnumValue>0</wpml:droneSubEnumValue>
-      </wpml:droneInfo>
-      <wpml:payloadInfo>
-        <wpml:payloadEnumValue>0</wpml:payloadEnumValue> {/* Example: Visual Camera */}
-        <wpml:payloadSubEnumValue>0</wpml:payloadSubEnumValue>
-        <wpml:payloadPositionIndex>0</wpml:payloadPositionIndex>
-      </wpml:payloadInfo>
-    </wpml:missionConfig>
-  </Document>
-</kml>`;
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
+<Document>
+  <wpml:author>FlightPlannerWebApp</wpml:author>
+  <wpml:createTime>${createTimeMillis}</wpml:createTime>
+  <wpml:updateTime>${createTimeMillis}</wpml:updateTime>
+  <wpml:missionConfig>
+    <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
+    <wpml:finishAction>goHome</wpml:finishAction>
+    <wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>
+    <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction>
+    <wpml:globalTransitionalSpeed>${missionFlightSpeed.toFixed(1)}</wpml:globalTransitionalSpeed>
+    <wpml:droneInfo><wpml:droneEnumValue>68</wpml:droneEnumValue><wpml:droneSubEnumValue>0</wpml:droneSubEnumValue></wpml:droneInfo>
+    <wpml:payloadInfo><wpml:payloadEnumValue>0</wpml:payloadEnumValue><wpml:payloadSubEnumValue>0</wpml:payloadSubEnumValue><wpml:payloadPositionIndex>0</wpml:payloadPositionIndex></wpml:payloadInfo>
+  </wpml:missionConfig>
+</Document></kml>`;
 
-    // --- waylines.wpml content ---
     let waylinesWpmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.uav.com/wpmz/1.0.2">
-  <Document>
-    <wpml:missionConfig>
-      <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
-      <wpml:finishAction>goHome</wpml:finishAction>
-      <wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>
-      <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction>
-      <wpml:globalTransitionalSpeed>${missionFlightSpeed.toFixed(1)}</wpml:globalTransitionalSpeed>
-      <wpml:droneInfo><wpml:droneEnumValue>68</wpml:droneEnumValue><wpml:droneSubEnumValue>0</wpml:droneSubEnumValue></wpml:droneInfo>
-      <wpml:payloadInfo><wpml:payloadEnumValue>0</wpml:payloadEnumValue><wpml:payloadSubEnumValue>0</wpml:payloadSubEnumValue><wpml:payloadPositionIndex>0</wpml:payloadPositionIndex></wpml:payloadInfo>
-    </wpml:missionConfig>
-    <Folder>
-      <name>Wayline Mission ${waylineIdInt}</name>
-      <wpml:templateId>0</wpml:templateId> {/* Corresponds to template.kml */}
-      <wpml:executeHeightMode>relativeToStartPoint</wpml:executeHeightMode> {/* Altitudes are relative to takeoff */}
-      <wpml:waylineId>${waylineIdInt}</wpml:waylineId>
-      <wpml:distance>${kmlTotalDistance.toFixed(2)}</wpml:distance>
-      <wpml:duration>${kmlTotalDuration.toFixed(2)}</wpml:duration>
-      <wpml:autoFlightSpeed>${missionFlightSpeed.toFixed(1)}</wpml:autoFlightSpeed>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
+<Document>
+  <wpml:missionConfig>
+    <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
+    <wpml:finishAction>goHome</wpml:finishAction>
+    <wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>
+    <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction>
+    <wpml:globalTransitionalSpeed>${missionFlightSpeed.toFixed(1)}</wpml:globalTransitionalSpeed>
+    <wpml:droneInfo><wpml:droneEnumValue>68</wpml:droneEnumValue><wpml:droneSubEnumValue>0</wpml:droneSubEnumValue></wpml:droneInfo>
+    <wpml:payloadInfo><wpml:payloadEnumValue>0</wpml:payloadEnumValue><wpml:payloadSubEnumValue>0</wpml:payloadSubEnumValue><wpml:payloadPositionIndex>0</wpml:payloadPositionIndex></wpml:payloadInfo>
+  </wpml:missionConfig>
+  <Folder>
+    <name>Wayline Mission ${waylineIdInt}</name>
+    <wpml:templateId>0</wpml:templateId>
+    <wpml:executeHeightMode>relativeToStartPoint</wpml:executeHeightMode>
+    <wpml:waylineId>${waylineIdInt}</wpml:waylineId>
+    <wpml:distance>${kmlTotalDistance.toFixed(2)}</wpml:distance>
+    <wpml:duration>${kmlTotalDuration.toFixed(2)}</wpml:duration>
+    <wpml:autoFlightSpeed>${missionFlightSpeed.toFixed(1)}</wpml:autoFlightSpeed>
 `;
 
     waypoints.forEach((wp, index) => {
-        // ... (Point, index, executeHeight, waypointSpeed come prima) ...
+        waylinesWpmlContent += `      <Placemark>\n`;
+        waylinesWpmlContent += `        <Point><coordinates>${wp.latlng.lng.toFixed(10)},${wp.latlng.lat.toFixed(10)}</coordinates></Point>\n`;
+        waylinesWpmlContent += `        <wpml:index>${index}</wpml:index>\n`;
+        waylinesWpmlContent += `        <wpml:executeHeight>${parseFloat(wp.altitude).toFixed(1)}</wpml:executeHeight>\n`;
+        waylinesWpmlContent += `        <wpml:waypointSpeed>${missionFlightSpeed.toFixed(1)}</wpml:waypointSpeed>\n`;
 
-        // === Waypoint Heading Param ===
         waylinesWpmlContent += `        <wpml:waypointHeadingParam>\n`;
-        let headingMode, headingAngle, headingAngleEnable, headingPathMode;
+        let headingMode, headingAngle = 0, headingAngleEnable = 0, headingPathMode = 'followBadArc';
+        let poiPointXml = `          <wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>\n`;
 
         if (wp.headingControl === 'fixed') {
             headingMode = 'lockCourse';
             headingAngle = wp.fixedHeading;
             headingAngleEnable = 1;
-            headingPathMode = 'smoothTransition'; // Prova questo come DJI
-        } else if (wp.headingControl === 'poi_track' && /* ... POI logic ... */ ) {
-            // ... la tua logica per POI track (sembrava ok) ...
-            // headingPathMode = 'followBadArc'; // Tipico per POI track
-        } else { // Default 'auto' o 'followWayline'
-            if (index === 0) { // Primo waypoint
-                headingMode = 'lockCourse'; // Forziamo un heading iniziale per la prima linea
-                // Assumiamo che wp.fixedHeading sia impostato correttamente per la prima linea
-                // dalla logica di generazione della griglia
-                headingAngle = wp.fixedHeading !== undefined ? wp.fixedHeading : 0; 
+            headingPathMode = 'smoothTransition';
+        } else if (wp.headingControl === 'poi_track' && wp.targetPoiId != null) {
+            const targetPoi = pois.find(p => p.id === wp.targetPoiId); // pois è globale
+            if (targetPoi) {
+                headingMode = 'towardPOI';
+                headingAngleEnable = 1; 
+                let poiAlt = targetPoi.altitude !== undefined ? parseFloat(targetPoi.altitude) : 0.0;
+                poiPointXml = `          <wpml:waypointPoiPoint>${targetPoi.latlng.lat.toFixed(6)},${targetPoi.latlng.lng.toFixed(6)},${poiAlt.toFixed(1)}</wpml:waypointPoiPoint>\n`;
+            } else { 
+                headingMode = 'followWayline'; // Fallback
+            }
+        } else { // 'auto' or default
+             // Per le griglie, wp.fixedHeading dovrebbe essere impostato da generateSurveyGridWaypoints
+            if (typeof wp.fixedHeading !== 'undefined' && wp.headingControl !== 'followWayline') { // Se c'è un fixedHeading (es. da griglia) usa lockCourse
+                headingMode = 'lockCourse';
+                headingAngle = wp.fixedHeading;
                 headingAngleEnable = 1;
                 headingPathMode = 'smoothTransition';
-            } else {
-                headingMode = 'followWayline'; // Per le virate tra le linee, se non c'è un heading fisso
-                headingAngle = 0; // L'angolo non è usato attivamente
-                headingAngleEnable = 0;
-                headingPathMode = 'followBadArc';
+            } else { // Altrimenti, vero followWayline
+                headingMode = 'followWayline';
             }
         }
-        // Se la tua logica di generazione griglia imposta SEMPRE headingControl='fixed' e un fixedHeading valido
-        // per TUTTI i waypoint della griglia, allora il blocco 'else' sopra potrebbe non essere mai raggiunto per una griglia.
-        // Questo è probabilmente ciò che vuoi per una griglia rigida.
 
         waylinesWpmlContent += `          <wpml:waypointHeadingMode>${headingMode}</wpml:waypointHeadingMode>\n`;
         waylinesWpmlContent += `          <wpml:waypointHeadingAngle>${headingAngle}</wpml:waypointHeadingAngle>\n`;
-        // Aggiungi placeholder <wpml:waypointPoiPoint> se non è towardPOI
-        if (headingMode !== 'towardPOI') {
-             waylinesWpmlContent += `          <wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>\n`;
-        }
+        waylinesWpmlContent += poiPointXml;
         waylinesWpmlContent += `          <wpml:waypointHeadingAngleEnable>${headingAngleEnable}</wpml:waypointHeadingAngleEnable>\n`;
         waylinesWpmlContent += `          <wpml:waypointHeadingPathMode>${headingPathMode}</wpml:waypointHeadingPathMode>\n`;
         waylinesWpmlContent += `          <wpml:waypointHeadingPoiIndex>0</wpml:waypointHeadingPoiIndex>\n`;
         waylinesWpmlContent += `        </wpml:waypointHeadingParam>\n`;
 
-        // === Waypoint Turn Param & Use Straight Line ===
-        // Per la griglia, vogliamo segmenti dritti e virate definite
-        let turnMode = 'toPointAndStopWithContinuityCurvature';
-        let useStraight = '1'; 
-        // Se pathType è 'curved' nel planner, allora dovresti usare la logica che abbiamo discusso prima
-        // if (missionPathType === 'curved') { useStraight = '0'; turnMode = ...; }
-
+        let turnMode, useStraight;
+        if (missionPathType === 'curved') {
+            useStraight = '0';
+            turnMode = (index === 0 || index === waypoints.length - 1) ? 'toPointAndStopWithContinuityCurvature' : 'toPointAndPassWithContinuityCurvature';
+        } else {
+            useStraight = '1';
+            turnMode = 'toPointAndStopWithContinuityCurvature';
+        }
         waylinesWpmlContent += `        <wpml:waypointTurnParam>\n`;
         waylinesWpmlContent += `          <wpml:waypointTurnMode>${turnMode}</wpml:waypointTurnMode>\n`;
         waylinesWpmlContent += `          <wpml:waypointTurnDampingDist>0.0</wpml:waypointTurnDampingDist>\n`;
         waylinesWpmlContent += `        </wpml:waypointTurnParam>\n`;
         waylinesWpmlContent += `        <wpml:useStraightLine>${useStraight}</wpml:useStraightLine>\n`;
 
-        // === Azioni (Gimbal e Camera) ===
         let actionsXmlBlock = "";
-        // Azione Gimbal: solo al primo waypoint per impostare il pitch desiderato
-        if (index === 0) {
-            actionsXmlBlock += `          <wpml:action>\n`;
-            actionsXmlBlock += `            <wpml:actionId>${actionCounter++}</wpml:actionId>\n`;
-            actionsXmlBlock += `            <wpml:actionActuatorFunc>gimbalRotate</wpml:actionActuatorFunc>\n`;
-            actionsXmlBlock += `            <wpml:actionActuatorFuncParam>\n`;
-            actionsXmlBlock += `              <wpml:gimbalPitchRotateEnable>1</wpml:gimbalPitchRotateEnable>\n`;
-            actionsXmlBlock += `              <wpml:gimbalPitchRotateAngle>${parseFloat(wp.gimbalPitch).toFixed(1)}</wpml:gimbalPitchRotateAngle>\n`;
-            actionsXmlBlock += `              <wpml:payloadPositionIndex>0</wpml:payloadPositionIndex>\n`;
-            actionsXmlBlock += `              <wpml:gimbalHeadingYawBase>aircraft</wpml:gimbalHeadingYawBase>\n`; // Come da file DJI
-            actionsXmlBlock += `              <wpml:gimbalRotateMode>absoluteAngle</wpml:gimbalRotateMode>\n`; // Come da file DJI
-            actionsXmlBlock += `              <wpml:gimbalRollRotateEnable>0</wpml:gimbalRollRotateEnable>\n`;
-            actionsXmlBlock += `              <wpml:gimbalYawRotateEnable>0</wpml:gimbalYawRotateEnable>\n`;
-            actionsXmlBlock += `              <wpml:gimbalRotateTimeEnable>0</wpml:gimbalRotateTimeEnable>\n`;
-            actionsXmlBlock += `            </wpml:actionActuatorFuncParam>\n`;
-            actionsXmlBlock += `          </wpml:action>\n`;
+        if (index === 0) { // Azione Gimbal solo al primo waypoint (o se cambia)
+            actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId><wpml:actionActuatorFunc>gimbalRotate</wpml:actionActuatorFunc><wpml:actionActuatorFuncParam>`;
+            actionsXmlBlock += `<wpml:gimbalPitchRotateEnable>1</wpml:gimbalPitchRotateEnable><wpml:gimbalPitchRotateAngle>${parseFloat(wp.gimbalPitch).toFixed(1)}</wpml:gimbalPitchRotateAngle>`;
+            actionsXmlBlock += `<wpml:payloadPositionIndex>0</wpml:payloadPositionIndex><wpml:gimbalHeadingYawBase>aircraft</wpml:gimbalHeadingYawBase><wpml:gimbalRotateMode>absoluteAngle</wpml:gimbalRotateMode>`;
+            actionsXmlBlock += `<wpml:gimbalRollRotateEnable>0</wpml:gimbalRollRotateEnable><wpml:gimbalYawRotateEnable>0</wpml:gimbalYawRotateEnable><wpml:gimbalRotateTimeEnable>0</wpml:gimbalRotateTimeEnable>`;
+            actionsXmlBlock += `</wpml:actionActuatorFuncParam></wpml:action>\n`;
         }
-
-        if (wp.hoverTime > 0) { /* ... azione hover come prima ... */ }
-        if (wp.cameraAction === 'takePhoto') { // Solo takePhoto per le griglie di solito
-            actionsXmlBlock += `          <wpml:action>\n`;
-            actionsXmlBlock += `            <wpml:actionId>${actionCounter++}</wpml:actionId>\n`;
-            actionsXmlBlock += `            <wpml:actionActuatorFunc>takePhoto</wpml:actionActuatorFunc>\n`;
-            actionsXmlBlock += `            <wpml:actionActuatorFuncParam><wpml:payloadPositionIndex>0</wpml:payloadPositionIndex><wpml:useGlobalPayloadLensIndex>0</wpml:useGlobalPayloadLensIndex></wpml:actionActuatorFuncParam>\n`;
-            actionsXmlBlock += `          </wpml:action>\n`;
+        if (wp.hoverTime > 0) {
+            actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId><wpml:actionActuatorFunc>HOVER</wpml:actionActuatorFunc><wpml:actionActuatorFuncParam><wpml:hoverTime>${wp.hoverTime}</wpml:hoverTime></wpml:actionActuatorFuncParam></wpml:action>\n`;
         }
-        // Aggiungi altre azioni camera (start/stop record) se necessario per il tuo tipo di missione
+        if (wp.cameraAction === 'takePhoto') {
+            actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId><wpml:actionActuatorFunc>takePhoto</wpml:actionActuatorFunc><wpml:actionActuatorFuncParam><wpml:payloadPositionIndex>0</wpml:payloadPositionIndex><wpml:useGlobalPayloadLensIndex>0</wpml:useGlobalPayloadLensIndex></wpml:actionActuatorFuncParam></wpml:action>\n`;
+        } // Aggiungi start/stop record se necessario
 
         if (actionsXmlBlock) {
-            waylinesWpmlContent += `        <wpml:actionGroup>\n`;
-            // ... (resto di actionGroup come prima, usando actionGroupMode 'sequence' o 'parallel' come appropriato)
-            waylinesWpmlContent += `          <wpml:actionGroupId>${actionGroupCounter++}</wpml:actionGroupId>\n`;
-            waylinesWpmlContent += `          <wpml:actionGroupStartIndex>${index}</wpml:actionGroupStartIndex>\n`;
-            waylinesWpmlContent += `          <wpml:actionGroupEndIndex>${index}</wpml:actionGroupEndIndex>\n`;
-            waylinesWpmlContent += `          <wpml:actionGroupMode>sequence</wpml:actionGroupMode>\n`;
-            waylinesWpmlContent += `          <wpml:actionTrigger><wpml:actionTriggerType>reachPoint</wpml:actionTriggerType></wpml:actionTrigger>\n`;
+            waylinesWpmlContent += `        <wpml:actionGroup><wpml:actionGroupId>${actionGroupCounter++}</wpml:actionGroupId><wpml:actionGroupStartIndex>${index}</wpml:actionGroupStartIndex><wpml:actionGroupEndIndex>${index}</wpml:actionGroupEndIndex><wpml:actionGroupMode>sequence</wpml:actionGroupMode><wpml:actionTrigger><wpml:actionTriggerType>reachPoint</wpml:actionTriggerType></wpml:actionTrigger>\n`;
             waylinesWpmlContent += actionsXmlBlock;
             waylinesWpmlContent += `        </wpml:actionGroup>\n`;
         }
-        // NON includere più <wpml:waypointGimbalParam> se gestisci il gimbal con le azioni
         waylinesWpmlContent += `      </Placemark>\n`;
     });
 
     waylinesWpmlContent += `    </Folder>\n  </Document>\n</kml>`;
 
-    // Create KMZ file
     const zip = new JSZip();
-    const wpmzFolder = zip.folder("wpmz"); // DJI standard folder structure
-    wpmzFolder.folder("res"); // Resource folder, usually empty for simple waylines
+    const wpmzFolder = zip.folder("wpmz");
+    wpmzFolder.folder("res");
     wpmzFolder.file("template.kml", templateKmlContent);
-    wpmzFolder.file("waylines.wpml", waylinesWpmlContent); // Note: some DJI apps expect .kml extension even for this file. Test with target app. Using .wpml as per some specs.
+    wpmzFolder.file("waylines.wpml", waylinesWpmlContent);
 
     zip.generateAsync({ type: "blob", mimeType: "application/vnd.google-earth.kmz" })
         .then(function(blob) {
@@ -517,10 +481,10 @@ function exportToDjiWpmlKmz() {
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(link.href);
-            showCustomAlert("Flight plan exported as DJI WPML KMZ.", "Export Success");
+            if(typeof showCustomAlert === 'function') showCustomAlert("DJI WPML KMZ exported.", "Success");
         })
         .catch(function(err) {
-            showCustomAlert("Error generating KMZ file: " + err.message, "Export Error");
+            if(typeof showCustomAlert === 'function') showCustomAlert("Error generating KMZ: " + err.message, "Error");
             console.error("KMZ generation error:", err);
         });
 }
