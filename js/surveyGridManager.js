@@ -426,33 +426,64 @@ class SurveyGridManager {
     }
 
     handleSetGridAngleByLine() {
-        console.log("[SurveyGridManager] handleSetGridAngleByLine called");
-        // this.state.setDebounceTimeout('setAngle', () => { 
-        console.log("[SurveyGridManager] Executing core logic of handleSetGridAngleByLine (debounce bypassed or called)..."); // NUOVO LOG
-            if (this.state.isDrawingSurveyArea && this.state.nativeMapClickListener) { // Se si sta disegnando attivamente il poligono
-                showCustomAlert("Finalize or cancel current survey area drawing first.", "Info"); return;
+        console.log("[SurveyGridManager] handleSetGridAngleByLine called"); // LOG A (lo vedi)
+
+        // Bypassing debounce per ora:
+        // this.state.setDebounceTimeout('setAngle', () => {
+            console.log("[SurveyGridManager] Executing core logic of handleSetGridAngleByLine (debounce bypassed or called)..."); // LOG B (lo vedi)
+
+            const mapContainer = map.getContainer(); // map è globale
+            // Controlla se si sta attivamente disegnando il poligono (non ancora finalizzato)
+            if (this.state.isDrawingSurveyArea && this.state.nativeMapClickListener && this.state.polygonPoints.length > 0 && this.state.polygonPoints.length < SURVEY_CONFIG.MIN_POLYGON_POINTS) {
+                 console.log("[SurveyGridAngle] LOG C1: Actively drawing polygon, cannot set angle now."); // LOG C1
+                 if (typeof showCustomAlert === 'function') showCustomAlert("Please finalize or cancel current survey area drawing first.", "Info"); 
+                 // this.state.clearDebounceTimeout('setAngle'); // Non necessario se debounce è bypassato
+                 return;
             }
+            console.log("[SurveyGridAngle] LOG C2: Not actively drawing incomplete polygon."); // LOG C2
+
+
             // Se un poligono era già finalizzato, i suoi dati (this.state.polygonPoints e isDrawingSurveyArea=true) rimangono.
-            // Disattiviamo solo i listener del poligono per permettere il disegno dell'angolo.
-            const mapContainer = map.getContainer();
+            // Disattiviamo solo il listener nativo del poligono se era ancora in qualche modo agganciato.
             if (mapContainer && typeof this.state.nativeMapClickListener === 'function') {
                 mapContainer.removeEventListener('click', this.state.nativeMapClickListener, true);
+                 console.log("[SurveyGridAngle] LOG D: Paused NATIVE DOM listener for polygon (if it was active).");
             }
-             map.off('click', this.mapHandler.handleSurveyAreaClick.bind(this.mapHandler));
+            if (map) map.off('click', this.mapHandler.handleSurveyAreaClick.bind(this.mapHandler)); // Rimuovi anche il fallback
+            console.log("[SurveyGridAngle] LOG E: Leaflet polygon drawing listener (if any) removed.");
+
 
             this.state.isDrawingGridAngleLine = true;
             this.state.gridAngleLinePoints = [];
             if (this.state.tempGridAngleLineLayer) map.removeLayer(this.state.tempGridAngleLineLayer); this.state.tempGridAngleLineLayer = null;
             this.state.tempGridAnglePointMarkers.forEach(m => map.removeLayer(m)); this.state.tempGridAnglePointMarkers = [];
-            
-            if (map && typeof handleMapClick === 'function') map.off('click', handleMapClick);
-            if (map) {
-                map.on('click', this.mapHandler.handleGridAngleLineClick.bind(this.mapHandler));
-                map.getContainer().style.cursor = 'crosshair';
+            console.log("[SurveyGridAngle] LOG F: State set: isDrawingGridAngleLine=true, previous angle line graphics cleared.");
+
+            if (map && typeof handleMapClick === 'function') { // handleMapClick è globale
+                map.off('click', handleMapClick);
+                console.log("[SurveyGridAngle] LOG G: Default map click listener (handleMapClick) REMOVED.");
+            } else { 
+                console.warn("[SurveyGridAngle] LOG G-Warn: Global handleMapClick not found or map not ready for .off");
             }
-            if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none';
-            showCustomAlert("Draw Grid Direction: Click map for line start, then end.", "Set Angle");
-        // });
+            
+            if (map) {
+                map.on('click', this.mapHandler.handleGridAngleLineClick.bind(this.mapHandler)); // mapHandler è this.mapHandler
+                map.getContainer().style.cursor = 'crosshair';
+                console.log("[SurveyGridAngle] LOG H: 'handleGridAngleLineClick' listener ADDED.");
+            } else { 
+                console.error("[SurveyGridAngle] LOG H-Error: MAP NOT AVAILABLE!"); 
+                this.state.isDrawingGridAngleLine = false; 
+                // this.state.clearDebounceTimeout('setAngle'); // Non necessario se debounce è bypassato
+                return; 
+            }
+            
+            // surveyGridModalOverlayEl è globale da domCache
+            if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none'; 
+            else { console.warn("[SurveyGridAngle] LOG I-Warn: surveyGridModalOverlayEl not found to hide."); }
+
+            if (typeof showCustomAlert === 'function') showCustomAlert("Draw Grid Direction: Click map for line start, then end.", "Set Angle");
+            console.log("[SurveyGridAngle] LOG J: Angle line drawing mode FULLY ACTIVATED.");
+        // }); // Chiusura del debounce commentata
     }
 
     finalizeGridAngleLineDrawing() { // Chiamato da MapInteractionHandler
