@@ -32,27 +32,24 @@ function initializeMap() {
  * Handles click events on the map for general actions.
  */
 function handleMapClick(e) {
-    console.log(`[MapManager] handleMapClick: isDrawingSurveyArea = ${isDrawingSurveyArea}, isSettingHomePointMode = ${typeof isSettingHomePointMode !== 'undefined' ? isSettingHomePointMode : 'undefined'}, isDrawingGridAngleLine = ${isDrawingGridAngleLine}`);
+    // isSettingHomePointMode è ancora una variabile globale da config.js, la manteniamo
+    const currentHomePointMode = (typeof isSettingHomePointMode !== 'undefined') ? isSettingHomePointMode : false;
 
-    if (typeof isSettingHomePointMode !== 'undefined' && isSettingHomePointMode === true) {
+    console.log(`[MapManager] handleMapClick: homePointMode=${currentHomePointMode}`);
+
+    if (currentHomePointMode) {
         console.log("[MapManager] handleMapClick: In Set Home Point mode, ignoring.");
         return; 
     }
-    if (typeof isDrawingGridAngleLine !== 'undefined' && isDrawingGridAngleLine === true) { // NUOVO CONTROLLO
-        console.log("[MapManager] handleMapClick: In Grid Angle Line drawing mode, ignoring.");
-        return;
-    }
-    if (typeof isDrawingSurveyArea !== 'undefined' && isDrawingSurveyArea === true) {
-        console.log("[MapManager] handleMapClick: In survey area drawing mode, ignoring.");
-        return; 
-    }
+    // NESSUN ALTRO CONTROLLO SU isDrawingSurveyArea o isDrawingGridAngleLine QUI
 
     console.log("[MapManager] handleMapClick: Processing default map click (add waypoint/POI).");
     if (e.originalEvent.target === map.getContainer()) {
+        console.log("[MapManager] Click was directly on map container.");
         if (e.originalEvent.ctrlKey) {
-            addPOI(e.latlng);
+            if (typeof addPOI === 'function') addPOI(e.latlng);
         } else {
-            addWaypoint(e.latlng);
+            if (typeof addWaypoint === 'function') addWaypoint(e.latlng);
         }
     } else {
         console.log("[MapManager] Click was NOT directly on map container.");
