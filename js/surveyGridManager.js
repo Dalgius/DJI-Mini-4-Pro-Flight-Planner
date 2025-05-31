@@ -452,7 +452,7 @@ class SurveyGridManager {
             }
             if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none';
             showCustomAlert("Draw Grid Direction: Click map for line start, then end.", "Set Angle");
-        });
+        // });
     }
 
     finalizeGridAngleLineDrawing() { // Chiamato da MapInteractionHandler
