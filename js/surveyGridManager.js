@@ -1,9 +1,9 @@
 // File: surveyGridManager.js
-// Merged, verified, and completed.
+// Cleaned version ensuring no class duplications.
 
 // Global dependencies (expected from other files):
 // map, (DOM elements like surveyGridModalOverlayEl etc. from domCache.js)
-// R_EARTH (constant from config.js)
+// R_EARTH (constant from config.js, though SURVEY_CONFIG.R_EARTH_METERS is preferred internally)
 // showCustomAlert (global function from utils.js)
 // handleMapClick (global function from mapManager.js, for default map interaction)
 // addWaypoint, updateWaypointList, updateFlightPath, updateFlightStatistics, fitMapToWaypoints (global functions)
@@ -13,28 +13,25 @@
 // ===========================
 const SURVEY_CONFIG = {
     MIN_POLYGON_POINTS: 3,
-    MAX_LINES_GENERATED: 2000, // Safety break for grid generation
+    MAX_LINES_GENERATED: 2000, 
     MIN_PHOTO_INTERVAL_SECONDS: 1.8, 
     MIN_SPACING_METERS: 0.1,      
     DEBOUNCE_DELAY_MS: 150,     
-    R_EARTH_METERS: (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000, // Use global R_EARTH if available
+    R_EARTH_METERS: (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000,
 
     CAMERA_PARAMS: { 
         sensorWidth_mm: 8.976,
         sensorHeight_mm: 6.716,
         focalLength_mm: 6.88
     },
-    STYLES: { /* ... come definito prima ... */ }
+    STYLES: {
+        TEMP_POLYGON: { color: 'rgba(0, 100, 255, 0.7)', weight: 2, fillColor: 'rgba(0, 100, 255, 0.2)', fillOpacity: 0.3 },
+        FINALIZED_POLYGON: { color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' },
+        VERTEX_MARKER: { radius: 6, color: 'rgba(255,0,0,0.8)', fillColor: 'rgba(255,0,0,0.5)', fillOpacity: 0.7, pane: 'markerPane' },
+        ANGLE_LINE: { color: 'cyan', weight: 2, dashArray: '5, 5' },
+        ANGLE_MARKER: { radius: 5, color: 'cyan' }
+    }
 };
-// Incollo gli stili per completezza
-SURVEY_CONFIG.STYLES = {
-    TEMP_POLYGON: { color: 'rgba(0, 100, 255, 0.7)', weight: 2, fillColor: 'rgba(0, 100, 255, 0.2)', fillOpacity: 0.3 },
-    FINALIZED_POLYGON: { color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' },
-    VERTEX_MARKER: { radius: 6, color: 'rgba(255,0,0,0.8)', fillColor: 'rgba(255,0,0,0.5)', fillOpacity: 0.7, pane: 'markerPane' },
-    ANGLE_LINE: { color: 'cyan', weight: 2, dashArray: '5, 5' },
-    ANGLE_MARKER: { radius: 5, color: 'cyan' }
-};
-
 
 // ===========================
 // STATE MANAGEMENT (SurveyState class)
@@ -42,8 +39,8 @@ SURVEY_CONFIG.STYLES = {
 class SurveyState {
     constructor() { this.reset(); }
     reset() {
-        this.isDrawingSurveyArea = false;   // True when actively drawing polygon points
-        this.isSurveyAreaFinalized = false; // True when polygon is drawn and finalized
+        this.isDrawingSurveyArea = false;  
+        this.isSurveyAreaFinalized = false; 
         this.isDrawingGridAngleLine = false;
         this.polygonPoints = [];
         this.gridAngleLinePoints = [];
@@ -71,10 +68,8 @@ class SurveyState {
 }
 
 // ===========================
-// UTILITY FUNCTIONS (SurveyUtils class)
+// UTILITY FUNCTIONS (SurveyUtils class) - DEFINED ONCE
 // ===========================
-class SurveyUtils { /* ... come l'ultima versione corretta ... */ }
-// Incollo SurveyUtils corretto
 class SurveyUtils {
     static toRad(degrees) { return degrees * Math.PI / 180; }
     static toDeg(radians) { return radians * 180 / Math.PI; }
@@ -118,13 +113,14 @@ class SurveyUtils {
         const lat1 = this.toRad(startLatLng.lat); const lon1 = this.toRad(startLatLng.lng);
         const lat2 = Math.asin(Math.sin(lat1) * Math.cos(angularDistance) + Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearingRad));
         let lon2 = lon1 + Math.atan2(Math.sin(bearingRad) * Math.sin(angularDistance) * Math.cos(lat1), Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2));
-        lon2 = (lon2 + 3 * Math.PI) % (2 * Math.PI) - Math.PI; // normalize to -180..+180
+        lon2 = (lon2 + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
         return L.latLng(this.toDeg(lat2), this.toDeg(lon2));
     }
 
     static calculateFootprint(altitudeAGL, cameraParams = SURVEY_CONFIG.CAMERA_PARAMS) {
-        if (!cameraParams || typeof cameraParams.focalLength_mm !== 'number' || cameraParams.focalLength_mm === 0 ||
-            typeof cameraParams.sensorWidth_mm !== 'number' || typeof cameraParams.sensorHeight_mm !== 'number') {
+        if (!cameraParams || typeof cameraParams.focalLength_mm !== 'number' || cameraParams.focalLength_mm <= 0 ||
+            typeof cameraParams.sensorWidth_mm !== 'number' || cameraParams.sensorWidth_mm <=0 ||
+            typeof cameraParams.sensorHeight_mm !== 'number' || cameraParams.sensorHeight_mm <=0 ) {
             console.error("[SurveyUtils] Invalid camera parameters:", cameraParams);
             return { width: 0, height: 0 };
         }
@@ -143,15 +139,15 @@ class SurveyUtils {
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         return R * c;
     }
-     static metersToDegreesLat(meters) { return meters / (SURVEY_CONFIG.R_EARTH_METERS / (180/Math.PI)) ; } // Più preciso
+    static metersToDegreesLat(meters) { return meters / (SURVEY_CONFIG.R_EARTH_METERS * (Math.PI / 180)); }
 }
 
 
 // ===========================
-// MAP INTERACTION HANDLER
+// MAP INTERACTION HANDLER - DEFINED ONCE
 // ===========================
-class MapInteractionHandler { /* ... come l'ultima versione corretta, usando this.surveyManager.state ... */ }
-// Incollo MapInteractionHandler corretto
+class MapInteractionHandler { /* ... come l'ultima versione, usando this.surveyManager.state e this.surveyManager.metodi() ... */ }
+// Incollo MapInteractionHandler
 class MapInteractionHandler {
     constructor(surveyManagerInstance) {
         this.surveyManager = surveyManagerInstance;
@@ -185,7 +181,7 @@ class MapInteractionHandler {
     }
     addVertexMarker(latlng) {
         const vertexMarker = L.circleMarker(latlng, SURVEY_CONFIG.STYLES.VERTEX_MARKER).addTo(map);
-        if (this.surveyManager.state.tempVertexMarkers.length === 0) { // Solo per il primo marker
+        if (this.surveyManager.state.tempVertexMarkers.length === 0) {
             vertexMarker.on('click', (ev) => {
                 L.DomEvent.stopPropagation(ev);
                 if (this.surveyManager.state.isDrawingSurveyArea && this.surveyManager.state.polygonPoints.length >= SURVEY_CONFIG.MIN_POLYGON_POINTS) {
@@ -200,16 +196,7 @@ class MapInteractionHandler {
         const points = this.surveyManager.state.gridAngleLinePoints;
         if (points.length >= 2) {
             const userDrawnBearing = SurveyUtils.calculateBearing(points[0], points[1]);
-            // Correzione per allineare la DIREZIONE DELLE LINEE DI VOLO alla linea disegnata
-            // Se il nostro generatore per angle=0 fa linee E-W, e userDrawnBearing=0 è N
-            // Per avere linee N-S (userDrawnBearing=0), il generatore ha bisogno di angle=90
-            // Per avere linee E-W (userDrawnBearing=90), il generatore ha bisogno di angle=0
-            // Quindi, angle_per_generatore = (userDrawnBearing === 0 || userDrawnBearing === 180) ? 90 : (userDrawnBearing === 90 || userDrawnBearing === 270 ? 0 : userDrawnBearing);
-            // No, la correzione -90 era per un'altra interpretazione.
-            // Se `gridAngleDeg` in `generateSurveyGridWaypoints` è l'orientamento finale delle linee (0=E, 90=N)
-            // e `userDrawnBearing` è (0=N, 90=E), allora `gridAngleDeg` dovrebbe essere `userDrawnBearing`.
-            // Se l'output è ruotato di 90°, la correzione era `(userDrawnBearing - 90 + 360) % 360`.
-             let correctedAngle = (userDrawnBearing - 90 + 360) % 360;
+            let correctedAngle = (userDrawnBearing - 90 + 360) % 360;
             if (surveyGridAngleInputEl) surveyGridAngleInputEl.value = Math.round(correctedAngle);
             console.log(`[SurveyMap] User Bearing: ${userDrawnBearing.toFixed(1)}°. Corrected Angle for Input: ${correctedAngle.toFixed(1)}°`);
         }
@@ -218,10 +205,10 @@ class MapInteractionHandler {
 }
 
 // ===========================
-// GRID GENERATION LOGIC (GridGenerator class)
+// GRID GENERATION LOGIC (GridGenerator class) - DEFINED ONCE
 // ===========================
 class GridGenerator { /* ... come l'ultima versione corretta ... */ }
-// Incollo GridGenerator corretto
+// Incollo GridGenerator
 class GridGenerator {
     constructor() {
         this.maxLines = SURVEY_CONFIG.MAX_LINES_GENERATED;
@@ -232,7 +219,7 @@ class GridGenerator {
         try {
             const { polygonPoints, altitude, sidelap, frontlap, gridAngle, flightSpeed } = params;
             console.log("[GridGenerator] Camera Params being used:", SURVEY_CONFIG.CAMERA_PARAMS);
-            const footprint = SurveyUtils.calculateFootprint(altitude, SURVEY_CONFIG.CAMERA_PARAMS);
+            const footprint = SurveyUtils.calculateFootprint(altitude, SURVEY_CONFIG.CAMERA_PARAMS); 
             if (!footprint || typeof footprint.width === 'undefined' || typeof footprint.height === 'undefined') {
                 throw new Error("Footprint calculation failed critically (returned undefined).");
             }
@@ -264,7 +251,6 @@ class GridGenerator {
             const earthR = SURVEY_CONFIG.R_EARTH_METERS;
             const lineSpacingRotLat = (calculatedLineSpacing / earthR) * (180 / Math.PI);
             const photoSpacingRotLng = (calculatedPhotoInterval / (earthR * Math.cos(SurveyUtils.toRad(rotationCenter.lat)))) * (180 / Math.PI);
-            console.log(`[GridGenerator] lineSpacingRotLat: ${lineSpacingRotLat.toFixed(10)}, photoSpacingRotLng: ${photoSpacingRotLng.toFixed(10)}`);
             if (lineSpacingRotLat <= 1e-9 || photoSpacingRotLng <= 1e-9) throw new Error("Degree spacing calc error (too small or zero)");
 
             const waypoints = []; 
@@ -306,22 +292,32 @@ class GridGenerator {
     }
     calculateLineSpacing(fw, sl) { return Math.max(fw * (1 - sl / 100), SURVEY_CONFIG.MIN_SPACING_METERS); }
     calculatePhotoInterval(fh, fl) { return Math.max(fh * (1 - fl / 100), SURVEY_CONFIG.MIN_SPACING_METERS); }
-    calculatePolygonBounds(points) { /* ... come prima ... */ }
-    calculateEstimatedFlightTime(wps, speed) { /* ... come prima ... */ }
+    calculatePolygonBounds(points) {
+        let north = -90, south = 90, east = -180, west = 180;
+        points.forEach(point => {
+            north = Math.max(north, point.lat); south = Math.min(south, point.lat);
+            east = Math.max(east, point.lng); west = Math.min(west, point.lng);
+        });
+        return { north, south, east, west };
+    }
+    calculateEstimatedFlightTime(waypoints, speed) {
+        if (!waypoints || waypoints.length < 2 || !speed || speed <= 0) return "0 min 0 sec";
+        let totalDistance = 0;
+        for (let i = 1; i < waypoints.length; i++) {
+            if (waypoints[i-1].latlng && waypoints[i].latlng) {
+                totalDistance += SurveyUtils.calculateDistance(waypoints[i-1].latlng, waypoints[i].latlng);
+            }
+        }
+        const flightTimeSeconds = totalDistance / speed;
+        const minutes = Math.floor(flightTimeSeconds / 60);
+        const seconds = Math.round(flightTimeSeconds % 60);
+        return `${minutes} min ${seconds} sec`;
+    }
 }
-// Implementazioni complete per GridGenerator helper
-GridGenerator.prototype.calculatePolygonBounds = function(points) {
-    let north = -90, south = 90, east = -180, west = 180;
-    points.forEach(point => {
-        north = Math.max(north, point.lat); south = Math.min(south, point.lat);
-        east = Math.max(east, point.lng); west = Math.min(west, point.lng);
-    });
-    return { north, south, east, west };
-};
 
 
 // ===========================
-// MAIN SURVEY GRID MANAGER CLASS
+// MAIN SURVEY GRID MANAGER CLASS - DEFINED ONCE
 // ===========================
 class SurveyGridManager {
     constructor() {
@@ -329,70 +325,263 @@ class SurveyGridManager {
         this.mapHandler = new MapInteractionHandler(this);
         this.gridGenerator = new GridGenerator();
         console.log("[SurveyGridManager] Initialized.");
+        // Event listeners for UI buttons are now set up globally in eventListeners.js,
+        // calling methods on the surveyGridManagerInstance.
     }
 
-    clearTemporaryDrawing() { /* ... chiama this.state ... */ }
-    updateTempPolygonDisplay() { /* ... chiama this.state ... */ }
-    // Metodi UI
-    openSurveyGridModal() { /* ... come l'ultima versione che hai, che chiama this.fullResetAndUICleanup ... */ }
-    fullResetAndUICleanup() { /* ... come l'ultima versione che hai, che usa this.state ... */ }
-    updateModalUIState(uiState) { /* ... come l'ultima versione che hai, che usa this.state ... */ }
-    handleCancelSurveyGrid() { /* ... come l'ultima versione che hai ... */ }
-    // Metodi Disegno Angolo
-    handleSetGridAngleByLine() { /* ... come l'ultima versione che hai, che usa this.state e this.mapHandler ... */ }
-    finalizeGridAngleLineDrawing() { /* ... come l'ultima versione che hai, che usa this.state e this.mapHandler ... */ }
-    // Metodi Disegno Area Poligono
-    handleStartDrawingSurveyArea() { /* ... come l'ultima versione che hai, che usa this.state e this.mapHandler ... */ }
-    finalizeSurveyArea() { /* ... come l'ultima versione che hai, che usa this.state ... */ }
-    // Generazione Griglia
-    handleConfirmSurveyGridGeneration() { /* ... come l'ultima versione che hai, che usa this.state e this.gridGenerator ... */ }
-    handleGridGenerationSuccess(gridResult) { /* ... come l'ultima versione che hai ... */ }
-    handleGridGenerationError(errorMessage) { /* ... come l'ultima versione che hai ... */ }
-}
-// Riscrivo i metodi principali di SurveyGridManager per usare this.state e this.mapHandler
-SurveyGridManager.prototype.clearTemporaryDrawing = function() {
-    if (this.state.tempPolygonLayer) { map.removeLayer(this.state.tempPolygonLayer); this.state.tempPolygonLayer = null; }
-    this.state.tempVertexMarkers.forEach(marker => map.removeLayer(marker)); this.state.tempVertexMarkers = [];
-    if (this.state.tempGridAngleLineLayer) { map.removeLayer(this.state.tempGridAngleLineLayer); this.state.tempGridAngleLineLayer = null; }
-    this.state.tempGridAnglePointMarkers.forEach(marker => map.removeLayer(marker)); this.state.tempGridAnglePointMarkers = [];
-    console.log("[SurveyGridManager] Temporary drawings cleared by instance method.");
-};
-SurveyGridManager.prototype.updateTempPolygonDisplay = function() {
-    if (this.state.tempPolygonLayer) { map.removeLayer(this.state.tempPolygonLayer); this.state.tempPolygonLayer = null; }
-    if (this.state.polygonPoints.length < 2) return;
-    const opts = SURVEY_CONFIG.STYLES.TEMP_POLYGON;
-    if (this.state.polygonPoints.length === 2) this.state.tempPolygonLayer = L.polyline(this.state.polygonPoints, opts).addTo(map);
-    else if (this.state.polygonPoints.length >= SURVEY_CONFIG.MIN_POLYGON_POINTS) this.state.tempPolygonLayer = L.polygon(this.state.polygonPoints, opts).addTo(map);
-};
-SurveyGridManager.prototype.openSurveyGridModal = function() { /* ... usa this.fullResetAndUICleanup e this.updateModalUIState ... */ }; // Come prima
-SurveyGridManager.prototype.fullResetAndUICleanup = function() { /* ... usa this.state.isDrawingSurveyArea, ecc. e this.clearTemporaryDrawing, this.updateModalUIState ... */ }; // Come prima
-SurveyGridManager.prototype.updateModalUIState = function(uiState) { /* ... usa this.state.polygonPoints, ecc. ... */ }; // Come prima
-SurveyGridManager.prototype.handleCancelSurveyGrid = function() { /* ... usa this.fullResetAndUICleanup ... */ }; // Come prima
-SurveyGridManager.prototype.handleSetGridAngleByLine = function() { /* ... usa this.state, this.mapHandler, this.clearTemporaryDrawing ... */ }; // Come prima
-SurveyGridManager.prototype.finalizeGridAngleLineDrawing = function() { /* ... usa this.state, this.mapHandler, this.updateModalUIState ... */ }; // Come prima
-SurveyGridManager.prototype.handleStartDrawingSurveyArea = function() { /* ... usa this.state, this.mapHandler, this.clearTemporaryDrawing ... */ }; // Come prima
-SurveyGridManager.prototype.finalizeSurveyArea = function() { /* ... usa this.state, this.updateModalUIState ... */ }; // Come prima
-SurveyGridManager.prototype.handleConfirmSurveyGridGeneration = function() { /* ... usa this.state, this.gridGenerator, this.handleGridGenerationSuccess/Error ... */ }; // Come prima
-SurveyGridManager.prototype.handleGridGenerationSuccess = function(gridResult) { /* ... come prima ... */ };
-SurveyGridManager.prototype.handleGridGenerationError = function(errorMessage) { /* ... come prima ... */ };
+    clearTemporaryDrawing() {
+        if (this.state.tempPolygonLayer) { map.removeLayer(this.state.tempPolygonLayer); this.state.tempPolygonLayer = null; }
+        this.state.tempVertexMarkers.forEach(marker => map.removeLayer(marker)); this.state.tempVertexMarkers = [];
+        if (this.state.tempGridAngleLineLayer) { map.removeLayer(this.state.tempGridAngleLineLayer); this.state.tempGridAngleLineLayer = null; }
+        this.state.tempGridAnglePointMarkers.forEach(marker => map.removeLayer(marker)); this.state.tempGridAnglePointMarkers = [];
+        console.log("[SurveyGridManager] Temporary drawings cleared by instance method.");
+    }
 
-// (Devo reincollare il contenuto completo dei metodi di SurveyGridManager come li avevamo definiti)
-// Per evitare di troncare, reincollerò tutto il file nella prossima risposta se necessario,
-// ma i cambiamenti principali sono assicurarsi che this.state, this.mapHandler, this.gridGenerator
-// siano usati consistentemente all'interno dei metodi della classe SurveyGridManager.
+    updateTempPolygonDisplay() {
+        if (this.state.tempPolygonLayer) { map.removeLayer(this.state.tempPolygonLayer); this.state.tempPolygonLayer = null; }
+        if (this.state.polygonPoints.length < 2) return;
+        const opts = SURVEY_CONFIG.STYLES.TEMP_POLYGON;
+        if (this.state.polygonPoints.length === 2) this.state.tempPolygonLayer = L.polyline(this.state.polygonPoints, opts).addTo(map);
+        else if (this.state.polygonPoints.length >= SURVEY_CONFIG.MIN_POLYGON_POINTS) this.state.tempPolygonLayer = L.polygon(this.state.polygonPoints, opts).addTo(map);
+    }
+    
+    openSurveyGridModal() {
+        console.log("[SurveyGridManager] openSurveyGridModal method called");
+        if (!surveyGridModalOverlayEl || !defaultAltitudeSlider || !surveyGridAltitudeInputEl || !surveySidelapInputEl || !surveyFrontlapInputEl || !surveyGridAngleInputEl || !confirmSurveyGridBtnEl || !startDrawingSurveyAreaBtnEl || !surveyAreaStatusEl || !surveyGridInstructionsEl) {
+            if(typeof showCustomAlert === 'function') showCustomAlert("Survey grid modal elements not found.", "Error"); 
+            return;
+        }
+        this.fullResetAndUICleanup(); 
+        surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value;
+        if (!surveySidelapInputEl.value) surveySidelapInputEl.value = 70;
+        if (!surveyFrontlapInputEl.value) surveyFrontlapInputEl.value = 80;
+        if (surveyGridAngleInputEl && (surveyGridAngleInputEl.value === "" || surveyGridAngleInputEl.value === null || typeof surveyGridAngleInputEl.value === 'undefined')) surveyGridAngleInputEl.value = 0;
+        this.updateModalUIState('initial');
+        surveyGridModalOverlayEl.style.display = 'flex';
+    }
+
+    fullResetAndUICleanup() {
+        console.log("[SurveyGridManager] fullResetAndUICleanup called");
+        const wasInteracting = this.state.isDrawingSurveyArea || this.state.isDrawingGridAngleLine || (this.state.nativeMapClickListener !== null);
+        this.state.reset(); // Resetta lo stato interno del manager
+        // Le variabili globali isDrawingSurveyArea, ecc. non sono più usate direttamente da questo manager.
+
+        if (map) {
+            map.off('click', this.mapHandler.handleSurveyAreaClick.bind(this.mapHandler));
+            map.off('click', this.mapHandler.handleGridAngleLineClick.bind(this.mapHandler));
+            map.off('mousemove', this.mapHandler.handleGridAngleLineMouseMove.bind(this.mapHandler));
+            const mapContainer = map.getContainer();
+            if (mapContainer && typeof this.state.nativeMapClickListener === 'function') { // Controlla this.state
+                mapContainer.removeEventListener('click', this.state.nativeMapClickListener, true);
+            }
+            this.state.nativeMapClickListener = null; // Resetta anche qui
+            map.getContainer().style.cursor = '';
+            console.log("All survey-specific map listeners removed by fullReset.");
+
+            if ((wasInteracting || (typeof handleMapClick === 'function' && !map.hasEventListeners('click', handleMapClick))) && typeof handleMapClick === 'function') {
+                map.on('click', handleMapClick); 
+                console.log("Default map click listener RE-ENSURED by fullReset.");
+            }
+        }
+        this.clearTemporaryDrawing(); // Usa il metodo della classe
+        this.updateModalUIState('initial'); 
+    }
+    
+    updateModalUIState(uiState) { 
+        console.log(`[SurveyGridManager] Updating modal UI to state: ${uiState}`);
+        const angleVal = surveyGridAngleInputEl ? surveyGridAngleInputEl.value : '0';
+        switch(uiState) {
+            case 'initial':
+                if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
+                if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
+                if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined.";
+                if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = 'Set parameters. Click "Draw Direction" (optional) then "Draw Survey Area".';
+                break;
+            case 'angle_set': 
+                if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = `Grid angle set to ${angleVal}°. Now click "Draw Survey Area".`;
+                if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = "Area not defined (angle set).";
+                if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
+                if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
+                break;
+            case 'area_finalized': 
+                if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'none';
+                if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false;
+                if (surveyAreaStatusEl) surveyAreaStatusEl.textContent = `Area defined with ${this.state.polygonPoints.length} points. Angle: ${angleVal}°`;
+                if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = '<strong style="color: #2ecc71;">Area finalized!</strong> Click "Generate Grid".';
+                break;
+        }
+    }
+
+    handleCancelSurveyGrid() {
+        console.log("[SurveyGridManager] handleCancelSurveyGrid (modal button)");
+        this.fullResetAndUICleanup();
+        if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none';
+    }
+
+    handleSetGridAngleByLine() {
+        console.log("[SurveyGridManager] handleSetGridAngleByLine called");
+        this.state.setDebounceTimeout('setAngle', () => { // Usa debounce
+            console.log("[SurveyGridManager] Debounced setAngle executing...");
+            if (this.state.isDrawingSurveyArea && this.state.nativeMapClickListener && this.state.polygonPoints.length > 0 && !this.state.isSurveyAreaFinalized) {
+                 if (typeof showCustomAlert === 'function') showCustomAlert("Finalize or cancel current survey area drawing first.", "Info"); 
+                 return;
+            }
+            const mapContainer = map.getContainer();
+            if (mapContainer && typeof this.state.nativeMapClickListener === 'function') {
+                mapContainer.removeEventListener('click', this.state.nativeMapClickListener, true);
+            }
+            map.off('click', this.mapHandler.handleSurveyAreaClick.bind(this.mapHandler));
+
+            this.state.isDrawingGridAngleLine = true;
+            this.state.gridAngleLinePoints = [];
+            if (this.state.tempGridAngleLineLayer) map.removeLayer(this.state.tempGridAngleLineLayer); this.state.tempGridAngleLineLayer = null;
+            this.state.tempGridAnglePointMarkers.forEach(m => map.removeLayer(m)); this.state.tempGridAnglePointMarkers = [];
+            
+            if (map && typeof handleMapClick === 'function') map.off('click', handleMapClick);
+            if (map) {
+                map.on('click', this.mapHandler.handleGridAngleLineClick.bind(this.mapHandler));
+                map.getContainer().style.cursor = 'crosshair';
+            } else { this.state.isDrawingGridAngleLine = false; return; }
+            if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none';
+            if (typeof showCustomAlert === 'function') showCustomAlert("Draw Grid Direction: Click map for line start, then end.", "Set Angle");
+        });
+    }
+
+    finalizeGridAngleLineDrawing() {
+        console.log("[SurveyGridManager] Finalizing grid angle line drawing (manager method)");
+        this.state.isDrawingGridAngleLine = false;
+        map.off('click', this.mapHandler.handleGridAngleLineClick.bind(this.mapHandler));
+        map.off('mousemove', this.mapHandler.handleGridAngleLineMouseMove.bind(this.mapHandler));
+        map.getContainer().style.cursor = '';
+        if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'flex';
+        
+        if (this.state.isSurveyAreaFinalized && this.state.polygonPoints.length >= SURVEY_CONFIG.MIN_POLYGON_POINTS) {
+            this.updateModalUIState('area_finalized'); 
+        } else {
+            this.updateModalUIState('angle_set'); 
+            if (typeof handleMapClick === 'function') map.on('click', handleMapClick);
+        }
+    }
+    
+    handleStartDrawingSurveyArea() {
+        console.log("[SurveyGridManager] handleStartDrawingSurveyArea called");
+        this.state.setDebounceTimeout('drawArea', () => {
+            if (this.state.isDrawingGridAngleLine) { if (typeof showCustomAlert === 'function') showCustomAlert("Finish drawing grid angle line first.", "Info"); return; }
+            this.state.isDrawingSurveyArea = true;
+            this.state.isSurveyAreaFinalized = false; // Inizia un nuovo disegno
+            this.state.polygonPoints = []; 
+            this.clearTemporaryDrawing(); 
+            if (typeof handleMapClick === 'function') map.off('click', handleMapClick);
+            map.off('click', this.mapHandler.handleGridAngleLineClick.bind(this.mapHandler)); 
+            const mapContainer = map.getContainer();
+            if (mapContainer) {
+                if (typeof this.state.nativeMapClickListener === 'function') { mapContainer.removeEventListener('click', this.state.nativeMapClickListener, true); }
+                this.state.nativeMapClickListener = (event) => { 
+                    if (!this.state.isDrawingSurveyArea) return;
+                    if (event.target === mapContainer || event.target.closest('.leaflet-pane') || event.target.closest('.leaflet-container')) {
+                        try { this.mapHandler.handleSurveyAreaClick({ latlng: map.mouseEventToLatLng(event), originalEvent: event }); }
+                        catch (mapError) { console.error("NATIVE CLICK (Polygon) Error:", mapError); }
+                    }
+                };
+                mapContainer.addEventListener('click', this.state.nativeMapClickListener, true);
+            }
+            map.getContainer().style.cursor = 'crosshair';
+            if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none';
+            if (typeof showCustomAlert === 'function') showCustomAlert("Drawing survey area: Click map for corners. Click first point to finalize.", "Survey Drawing Active");
+        });
+    }
+
+    finalizeSurveyArea() {
+        console.log("[SurveyGridManager] Finalizing survey area (manager method)");
+        if (!this.state.isDrawingSurveyArea) return;
+        if (this.state.polygonPoints.length < SURVEY_CONFIG.MIN_POLYGON_POINTS) { /* ... errore ... */ return; }
+        const mapContainer = map.getContainer();
+        if (mapContainer && typeof this.state.nativeMapClickListener === 'function') {
+            mapContainer.removeEventListener('click', this.state.nativeMapClickListener, true);
+        }
+        map.getContainer().style.cursor = '';
+        this.state.isSurveyAreaFinalized = true; // Area è definita e finalizzata
+        // isDrawingSurveyArea rimane true finché non si esce o si genera.
+        if (this.state.tempPolygonLayer) this.state.tempPolygonLayer.setStyle(SURVEY_CONFIG.STYLES.FINALIZED_POLYGON);
+        this.state.tempVertexMarkers.forEach(marker => marker.off('click'));
+        if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'flex';
+        this.updateModalUIState('area_finalized');
+    }
+
+    handleConfirmSurveyGridGeneration() {
+        console.log("[SurveyGridManager] handleConfirmSurveyGridGeneration called");
+        if (!this.state.isSurveyAreaFinalized || this.state.polygonPoints.length < SURVEY_CONFIG.MIN_POLYGON_POINTS) {
+            if(typeof showCustomAlert === 'function') showCustomAlert("Survey area not defined or not finalized.", "Error"); return; 
+        }
+        // ... (resto come prima, usando this.state.polygonPoints, this.gridGenerator, ecc.)
+        // Assicurati che i parametri per this.gridGenerator.generateGrid siano corretti
+        const altitude = parseFloat(surveyGridAltitudeInputEl.value);
+        const sidelap = parseFloat(surveySidelapInputEl.value);
+        const frontlap = parseFloat(surveyFrontlapInputEl.value);
+        const angle = parseFloat(surveyGridAngleInputEl.value);
+        const speed = parseFloat(flightSpeedSlider.value); // Assicurati che flightSpeedSlider sia accessibile
+
+        if (isNaN(altitude) || /*...altre validazioni...*/ isNaN(speed) || speed <=0 ) {
+            if(typeof showCustomAlert === 'function') showCustomAlert("Invalid parameters for grid generation.", "Input Error");
+            return;
+        }
+
+        if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = "Generating grid waypoints...";
+        
+        const gridResult = this.gridGenerator.generateGrid({
+            polygonPoints: this.state.polygonPoints,
+            altitude: altitude,
+            sidelap: sidelap,
+            frontlap: frontlap,
+            gridAngle: angle,
+            flightSpeed: speed
+        });
+        
+        if (gridResult.success) {
+            this.handleGridGenerationSuccess(gridResult);
+        } else {
+            this.handleGridGenerationError(gridResult.error || "Unknown generation error.");
+        }
+        this.fullResetAndUICleanup();
+        if(surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none';
+    }
+
+    handleGridGenerationSuccess(gridResult) {
+        console.log("[SurveyGridManager] Grid generation successful", gridResult);
+        if (gridResult.waypoints && gridResult.waypoints.length > 0) {
+            gridResult.waypoints.forEach(wpData => {
+                const latlng = L.latLng(wpData.latlng.lat, wpData.latlng.lng); // Assicura che sia L.LatLng
+                addWaypoint(latlng, wpData.options);
+            });
+            if(typeof updateWaypointList === 'function') updateWaypointList(); 
+            if(typeof updateFlightPath === 'function') updateFlightPath(); 
+            if(typeof updateFlightStatistics === 'function') updateFlightStatistics(); 
+            if(typeof fitMapToWaypoints === 'function') fitMapToWaypoints();
+            if(typeof showCustomAlert === 'function') showCustomAlert(`${gridResult.waypointCount} survey waypoints generated! Est. time: ${gridResult.estimatedTime}`, "Success");
+        } else {
+            if(typeof showCustomAlert === 'function') showCustomAlert("No waypoints were generated for the survey grid.", "Info");
+        }
+    }
+    handleGridGenerationError(errorMessage) {
+        console.error("[SurveyGridManager] Grid generation failed:", errorMessage);
+        if(typeof showCustomAlert === 'function') showCustomAlert(`Failed to generate survey grid: ${errorMessage}`, "Error");
+    }
+}
+
 
 // ===========================
 // INITIALIZATION
 // ===========================
 let surveyGridManagerInstance;
+
 if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             surveyGridManagerInstance = new SurveyGridManager();
-            console.log("[SurveyGridManager] Instance created on DOMContentLoaded.");
+            console.log("[SurveyGridManager] Instance created on DOMContentLoaded (v2).");
         });
     } else {
         surveyGridManagerInstance = new SurveyGridManager();
-        console.log("[SurveyGridManager] Instance created immediately.");
+        console.log("[SurveyGridManager] Instance created immediately (v2).");
     }
 }
