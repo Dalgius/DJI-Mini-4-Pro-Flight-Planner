@@ -144,19 +144,25 @@ function clearWaypoints() {
     waypoints.forEach(wp => {
         if (wp.marker) map.removeLayer(wp.marker);
     });
-    waypoints = [];
-    selectedWaypoint = null;
-    waypointCounter = 1; // Reset counter
-    actionGroupCounter = 1; // Reset for DJI export
-    actionCounter = 1;    // Reset for DJI export
-
-    clearMultiSelection(); // Clears multi-select set and updates UI
-
+    waypoints = []; 
+    selectedWaypoint = null; 
+    waypointCounter = 1;
+    actionGroupCounter = 1; 
+    actionCounter = 1;
+    
+    clearMultiSelection(); 
+    
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
-    updateWaypointList();
-    updateFlightPath();
+    updateWaypointList(); 
+    updateFlightPath(); 
     updateFlightStatistics();
-    // updateMultiEditPanelVisibility() is called by clearMultiSelection
+    // updateHomeWaypointInfoDisplay(); // Se usi questa
+
+    // !!! NUOVA CHIAMATA !!!
+    if (typeof surveyGridManagerInstance !== 'undefined' && surveyGridManagerInstance && typeof surveyGridManagerInstance.fullResetAndUICleanup === 'function') {
+        console.log("[WaypointManager] Calling surveyGridManagerInstance.fullResetAndUICleanup() after clearing waypoints.");
+        surveyGridManagerInstance.fullResetAndUICleanup();
+    }
 }
 
 /**
