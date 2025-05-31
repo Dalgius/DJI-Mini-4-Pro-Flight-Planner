@@ -427,7 +427,8 @@ class SurveyGridManager {
 
     handleSetGridAngleByLine() {
         console.log("[SurveyGridManager] handleSetGridAngleByLine called");
-        this.state.setDebounceTimeout('setAngle', () => {
+        // this.state.setDebounceTimeout('setAngle', () => { 
+        console.log("[SurveyGridManager] Executing core logic of handleSetGridAngleByLine (debounce bypassed or called)..."); // NUOVO LOG
             if (this.state.isDrawingSurveyArea && this.state.nativeMapClickListener) { // Se si sta disegnando attivamente il poligono
                 showCustomAlert("Finalize or cancel current survey area drawing first.", "Info"); return;
             }
