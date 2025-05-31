@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en"> <!-- Cambiato lang in "en" per coerenza con la UI -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DJI Mini 4 Pro Flight Planner</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">Processing...</div>
+
+    <div id="customAlertOverlay" class="modal-overlay" style="display:none;">
+        <div class="modal-content custom-alert-content">
+            <h3 id="customAlertTitle" style="margin-bottom: 15px; color: #e0e0e0;">Notification</h3>
+            <p id="customAlertMessage" style="color:white; margin-bottom:20px; font-size: 14px;"></p>
+            <button id="customAlertOkButton" class="btn" style="min-width: 80px;">OK</button>
+        </div>
+    </div>
+
+    <div id="orbitModalOverlay" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <h2 data-i18n-key="createOrbitModalTitle" style="color: #3498db; margin-bottom: 20px;">Create POI Orbit</h2>
+            <div class="control-group">
+                <label for="orbitPoiSelect" class="control-label" data-i18n-key="orbitModalCenterPoiLabel">Center POI:</label>
+                <select id="orbitPoiSelect" class="control-input"></select>
+            </div>
+            <div class="control-group">
+                <label for="orbitRadiusInput" class="control-label" data-i18n-key="orbitModalRadiusLabel">Radius (m):</label>
+                <input type="number" id="orbitRadiusInput" class="control-input" value="30" min="5" step="1">
+            </div>
+            <div class="control-group">
+                <label for="orbitPointsInput" class="control-label" data-i18n-key="orbitModalNumWaypointsLabel">Number of Waypoints:</label>
+                <input type="number" id="orbitPointsInput" class="control-input" value="8" min="3" step="1">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button id="cancelOrbitBtn" class="btn btn-secondary" style="width: auto;" data-i18n-key="cancelBtn">Cancel</button>
+                <button id="confirmOrbitBtn" class="btn" style="width: auto;" data-i18n-key="createOrbitBtnModal">Create Orbit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Survey Grid Modal -->
+    <div id="surveyGridModalOverlay" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h2 id="surveyGridModalTitle">Create Survey Grid</h2>
+            <div class="modal-body">
+                <p id="surveyGridInstructions" style="font-size: 0.9em; margin-bottom: 15px;">
+                    Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon.
+                </p>
+
+                <!-- Flight Altitude con input corto -->
+                <div class="control-group inline-group">
+                    <label for="surveyGridAltitudeInput" class="control-label">Flight Altitude (m):</label>
+                    <input type="number" id="surveyGridAltitudeInput" class="control-input short-numeric" value="50" min="5">
+                </div>
+
+                <!-- Sidelap con input corto -->
+                <div class="control-group inline-group">
+                    <label for="surveySidelapInput" class="control-label">Sidelap (%):</label>
+                    <input type="number" id="surveySidelapInput" class="control-input short-numeric" value="70" min="10" max="95" title="Overlap between parallel flight lines (e.g., 60-80%)">
+                </div>
+                
+                <!-- Frontlap con input corto -->
+                <div class="control-group inline-group">
+                    <label for="surveyFrontlapInput" class="control-label">Frontlap (%):</label>
+                    <input type="number" id="surveyFrontlapInput" class="control-input short-numeric" value="80" min="10" max="95" title="Overlap between consecutive photos along a flight line (e.g., 70-90%)">
+                </div>
+                
+                <div class="control-group"> <!-- No inline-group qui, la label va sopra -->
+                    <label for="surveyGridAngleInput" class="control-label">Grid Angle (°):</label> 
+                    <input type="number" id="surveyGridAngleInput" class="control-input" value="0" min="-359" max="359" step="1">
+                    <div class="input-description"> <!-- Usa la nuova classe per la descrizione -->
+                        Flight line direction: 0° for E-W lines, 90° for N-S lines.
+                    </div>
+                </div>
+
+                <!-- Overshoot è stato rimosso -->
+
+                <div id="surveyAreaStatus" style="margin-top: 10px; font-style: italic;">
+                    Area not defined.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="startDrawingSurveyAreaBtn" class="modal-btn">Start Drawing Area</button>
+                <button id="finalizeSurveyAreaBtn" class="modal-btn" style="display: none;">Finalize Area</button>
+                <button id="confirmSurveyGridBtn" class="modal-btn" disabled>Generate Grid</button>
+                <button id="cancelSurveyGridBtn" class="modal-btn modal-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="app-header">
+                <div class="app-title">✈️ DJI Mini 4 Pro</div>
+                <div class="app-subtitle" data-i18n-key="appSubtitle">Flight Planner</div>
+            </div>
+             <div class="section" style="padding: 10px; margin-bottom:15px; background: rgba(0,0,0,0.2);">
+                <label for="langSelect" class="control-label" data-i18n-key="languageLabel" style="margin-bottom: 3px;">Language:</label>
+                <select id="langSelect" class="control-input" style="padding: 5px 8px; font-size: 13px;">
+                    <option value="en">English</option>
+                    <option value="it">Italiano</option>
+                </select>
+            </div>
+
+            <div class="section">
+                <div class="section-title" data-i18n-key="flightSettingsTitle">🛩️ Flight Settings</div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="defaultAltitudeLabel">Default Altitude (m) <span style="font-style: italic; color: #95a5a6;">(Rel. to Takeoff)</span></label>
+                    <div class="slider-container">
+                        <input type="range" class="slider" id="defaultAltitude" min="5" max="120" value="50"> <span class="slider-value" id="defaultAltitudeValue"></span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="flightSpeedLabel">Flight Speed (m/s)</label>
+                    <div class="slider-container">
+                        <input type="range" class="slider" id="flightSpeed" min="1" max="17" value="2.5"> <span class="slider-value" id="flightSpeedValue"></span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="pathTypeLabel">Path Type (Turn Mode)</label>
+                    <select class="control-input" id="pathType">
+                        <option value="straight" data-i18n-key="pathTypeStraight">Straight (ToPointAndStopWithContinuity)</option>
+                        <option value="curved" data-i18n-key="pathTypeCurved">Curved (ToPointAndPassWithContinuity)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title" data-i18n-key="waypointsTitle">📍 Waypoints</div>
+                 <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="selectAllWaypointsCheckbox" style="transform: scale(1.2);">
+                    <label for="selectAllWaypointsCheckbox" style="font-size: 12px; cursor:pointer;" data-i18n-key="selectAllWaypointsLabel">Select/Deselect All</label>
+                </div>
+                <button class="btn btn-danger" id="clearWaypointsBtn" data-i18n-key="clearAllWaypointsBtn">Clear All Waypoints</button>
+                <div class="waypoint-list" id="waypointList"></div>
+            </div>
+            
+            <div class="section" id="multiWaypointEditControls" style="display: none; border-top: 2px solid #f39c12; background: rgba(52,73,94,0.5);">
+                <div class="section-title" style="color: #f39c12;" data-i18n-key="multiEditTitle" data-i18n-html="true">⚙️ Edit <span id="selectedWaypointsCount">0</span> Selected Waypoints</div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="multiEditHeadingLabel">New Heading Control</label>
+                    <select class="control-input" id="multiHeadingControl">
+                        <option value="" data-i18n-key="multiEditNoChange">-- Do Not Change --</option>
+                        <option value="auto" data-i18n-key="headingControlAuto">Auto (Follow Wayline)</option>
+                        <option value="fixed" data-i18n-key="headingControlFixed">Fixed Heading (Lock Course)</option>
+                        <option value="poi_track" data-i18n-key="headingControlPoi">POI Tracking (Toward POI)</option>
+                    </select>
+                </div>
+                <div class="control-group" id="multiTargetPoiForHeadingGroup" style="display: none;">
+                    <label class="control-label" data-i18n-key="targetPoiForHeadingLabel">Target POI for Heading</label>
+                    <select class="control-input" id="multiTargetPoiSelect"> </select>
+                </div>
+                <div class="control-group" id="multiFixedHeadingGroup" style="display: none;">
+                    <label class="control-label" data-i18n-key="multiEditFixedHeadingLabel">New Fixed Heading (°)</label>
+                    <div class="slider-container">
+                        <input type="range" class="slider" id="multiFixedHeading" min="0" max="359" value="0"><span class="slider-value" id="multiFixedHeadingValue"></span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="multiEditCameraActionLabel">New Camera Action</label>
+                    <select class="control-input" id="multiCameraActionSelect">
+                        <option value="" data-i18n-key="multiEditNoChange">-- Do Not Change --</option>
+                        <option value="none" data-i18n-key="cameraActionNone">No Action</option>
+                        <option value="takePhoto" data-i18n-key="cameraActionTakePhoto">Take Photo</option>
+                        <option value="startRecord" data-i18n-key="cameraActionStartRecord">Start Recording</option>
+                        <option value="stopRecord" data-i18n-key="cameraActionStopRecord">Stop Recording</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="multiEditGimbalPitchLabel">New Gimbal Pitch (°)</label>
+                     <div class="slider-container">
+                        <input type="checkbox" id="multiChangeGimbalPitchCheckbox" style="margin-right: 5px; transform: scale(1.2);"><span class="control-label" style="margin-bottom:0; cursor:pointer;" onclick="document.getElementById('multiChangeGimbalPitchCheckbox').click()" data-i18n-key="multiEditChangeBtn">Change</span>
+                        <input type="range" class="slider" id="multiGimbalPitch" min="-90" max="60" value="0" disabled><span class="slider-value" id="multiGimbalPitchValue"></span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="multiEditHoverTimeLabel">New Hover Time (s)</label>
+                    <div class="slider-container">
+                        <input type="checkbox" id="multiChangeHoverTimeCheckbox" style="margin-right: 5px; transform: scale(1.2);"><span class="control-label" style="margin-bottom:0; cursor:pointer;" onclick="document.getElementById('multiChangeHoverTimeCheckbox').click()" data-i18n-key="multiEditChangeBtn">Change</span>
+                        <input type="range" class="slider" id="multiHoverTime" min="0" max="30" value="0" disabled><span class="slider-value" id="multiHoverTimeValue"></span>
+                    </div>
+                </div>
+                <button class="btn" id="applyMultiEditBtn" style="background: linear-gradient(135deg, #f39c12, #e67e22);" data-i18n-key="applyToSelectedBtn">Apply to Selected</button>
+                <button class="btn btn-secondary" id="clearMultiSelectionBtn" data-i18n-key="cancelMultiSelectionBtn">Cancel Multi-Selection</button>
+            </div>
+
+            <div class="section" id="waypointControls" style="display: none;">
+                <div class="section-title" data-i18n-key="waypointSettingsTitle">⚙️ Waypoint Settings</div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="altitudeLabel" data-i18n-html="true">Altitude (m) <span style="font-style: italic; color: #95a5a6;">(Rel. to Takeoff)</span></label>
+                    <div class="slider-container">
+                        <input type="range" class="slider" id="waypointAltitude" min="5" max="120"><span class="slider-value" id="waypointAltitudeValue"></span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="hoverTimeLabel">Hover Time (s)</label>
+                    <div class="slider-container">
+                        <input type="range" class="slider" id="hoverTime" min="0" max="30"><span class="slider-value" id="hoverTimeValue"></span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="gimbalPitchLabel">Gimbal Pitch (°)</label>
+                    <div class="slider-container">
+                        <input type="range" class="slider" id="gimbalPitch" min="-90" max="60" value="0"><span class="slider-value" id="gimbalPitchValue"></span>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="headingControlLabel">Heading Control</label>
+                    <select class="control-input" id="headingControl">
+                        <option value="auto" data-i18n-key="headingControlAuto">Auto (Follow Wayline)</option>
+                        <option value="fixed" data-i18n-key="headingControlFixed">Fixed Heading (Lock Course)</option>
+                        <option value="poi_track" data-i18n-key="headingControlPoi">POI Tracking (Toward POI)</option>
+                    </select>
+                </div>
+                <div class="control-group" id="targetPoiForHeadingGroup" style="display: none;">
+                    <label class="control-label" data-i18n-key="targetPoiForHeadingLabel">Target POI for Heading</label>
+                    <select class="control-input" id="targetPoiSelect"></select>
+                </div>
+                <div class="control-group" id="fixedHeadingGroup" style="display: none;">
+                    <label class="control-label" data-i18n-key="fixedHeadingLabel">Fixed Heading (°)</label>
+                    <div class="slider-container">
+                        <input type="range" class="slider" id="fixedHeading" min="0" max="359"><span class="slider-value" id="fixedHeadingValue"></span>
+                    </div>
+                </div>
+                <div class="section-title" style="margin-top: 20px; font-size: 14px; border-top: 1px solid #34495e; padding-top: 15px;" data-i18n-key="cameraActionsTitle">📸 Camera Actions</div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="cameraActionAtWaypointLabel">Camera Action at Waypoint</label>
+                    <select class="control-input" id="cameraActionSelect">
+                        <option value="none" data-i18n-key="cameraActionNone">No Action</option>
+                        <option value="takePhoto" data-i18n-key="cameraActionTakePhoto">Take Photo</option>
+                        <option value="startRecord" data-i18n-key="cameraActionStartRecord">Start Recording</option>
+                        <option value="stopRecord" data-i18n-key="cameraActionStopRecord">Stop Recording</option>
+                    </select>
+                </div>
+                <button class="btn btn-danger" id="deleteSelectedWaypointBtn" data-i18n-key="deleteWaypointBtn">Delete Waypoint</button>
+            </div>
+
+            <div class="section">
+                <div class="section-title" data-i18n-key="poiTitle">🎯 Points of Interest</div>
+                <div class="control-group">
+                    <input type="text" class="control-input" id="poiName" data-i18n-key="poiNamePlaceholder" placeholder="POI Name" maxlength="20">
+                </div>
+                <div style="font-size: 12px; color: #95a5a6; margin-bottom: 10px;" data-i18n-key="poiAddInstruction">Ctrl + Click on map to add POI</div>
+                <div class="poi-list" id="poiList"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-title" data-i18n-key="terrainOrbitTitle">🏞️ Terrain & Orbit Tools</div>
+                 <div class="control-group">
+                    <label class="control-label" data-i18n-key="takeoffElevationLabel">Takeoff Point Elevation (MSL, m)</label>
+                    <input type="number" class="control-input-small" id="homeElevationMsl" value="0" step="1">
+                    <button class="btn-secondary" id="getHomeElevationBtn" style="width:auto; padding: 5px 10px; margin-left:10px; font-size:11px;" data-i18n-key="useWp1ElevationBtn">Use WP1 Elev.</button>
+                </div>
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="desiredAGLLabel">Desired Altitude Above Ground (AGL, m)</label>
+                    <input type="number" class="control-input-small" id="desiredAGL" value="50" min="5">
+                </div>
+                <button class="btn" id="adaptToAGLBtn" data-i18n-key="adaptAGLBtn">Adapt Waypoint Altitudes to AGL</button>
+                <hr style="border-color: #34495e; margin: 15px 0;">
+                <button class="btn" id="createOrbitBtn" data-i18n-key="createOrbitBtn">Create POI Orbit</button>
+                <button id="createSurveyGridBtn" class="sidebar-btn btn" data-i18n-key="createSurveyGridBtn">Create Survey Grid</button> <!-- MODIFIED: Aggiunta classe btn per coerenza -->
+            </div>
+
+            <div class="section">
+                <div class="section-title" data-i18n-key="fileOpsTitle">📁 File Operations</div>
+                <button class="btn btn-secondary" id="importJsonBtn" data-i18n-key="importJsonBtn">Import Flight Plan (.json)</button>
+                <button class="btn btn-secondary" id="exportJsonBtn" data-i18n-key="exportJsonBtn">Export Flight Plan (.json)</button>
+                <button class="btn btn-secondary" id="exportKmzBtn" data-i18n-key="exportKmzBtn">Export DJI WPML (.kmz)</button>
+                <button class="btn btn-secondary" id="exportGoogleEarthBtn" data-i18n-key="exportGoogleEarthBtn">Export for Google Earth (.kml)</button>
+            </div>
+
+           
+            
+            <div class="section">
+                <div class="section-title" data-i18n-key="statsTitle">📊 Flight Statistics</div>
+                <div class="flight-stats">
+                    <div class="stat-row"><span class="stat-label" data-i18n-key="statsTotalDistance">Total Distance:</span><span class="stat-value" id="totalDistance">0 m</span></div>
+                    <div class="stat-row"><span class="stat-label" data-i18n-key="statsEstFlightTime">Est. Flight Time:</span><span class="stat-value" id="flightTime">0 min 0 sec</span></div>
+                    <div class="stat-row"><span class="stat-label" data-i18n-key="statsWaypoints">Waypoints:</span><span class="stat-value" id="waypointCount">0</span></div>
+                    <div class="stat-row"><span class="stat-label" data-i18n-key="statsPOIs">POIs:</span><span class="stat-value" id="poiCount">0</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="map-container">
+            <div id="map"></div>
+            <div class="map-controls">
+                <button class="map-btn" id="satelliteToggleBtn" data-i18n-key="mapBtnSatellite" data-i18n-target-text="true">📡 Satellite</button>
+                <button class="map-btn" id="fitMapBtn" data-i18n-key="mapBtnFitView">🎯 Fit View</button>
+                <button class="map-btn" id="myLocationBtn" data-i18n-key="mapBtnMyLocation">📍 My Location</button>
+            </div>
+        </div>
+    </div>
+    <input type="file" id="fileInput" accept=".json" style="display: none;">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <!-- Your Modularized Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/domCache.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/mapManager.js"></script>
+    <script src="js/uiUpdater.js"></script>
+    <script src="js/flightPathManager.js"></script>
+    <script src="js/poiManager.js"></script>
+    <script src="js/waypointManager.js"></script>
+    <script src="js/orbitManager.js"></script>
+    <script src="js/terrainManager.js"></script>
+    <script src="js/surveyGridManager.js"></script> <!-- NUOVO SCRIPT INCLUSO -->
+    <script src="js/importExportManager.js"></script>
+    <script src="js/eventListeners.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
