@@ -93,7 +93,24 @@ class SurveyUtils {
     static rotateLatLng(pointLatLng, centerLatLng, angleRadians) { /* ... come prima, usando this.toRad ... */ }
     static isPointInPolygon(point, polygonVertices) { /* ... come prima ... */ }
     static destinationPoint(startLatLng, bearingDeg, distanceMeters) { /* ... come prima, usando this.toRad e SURVEY_CONFIG.R_EARTH_METERS ... */ }
-    static calculateFootprint(altitudeAGL, cameraParams = SURVEY_CONFIG.CAMERA_PARAMS) { /* ... come prima ... */ }
+    static calculateFootprint(altitudeAGL, cameraParams = SURVEY_CONFIG.CAMERA_PARAMS) {
+        // Controllo se cameraParams è definito e se ha le proprietà necessarie come numeri validi
+        if (!cameraParams || 
+            typeof cameraParams.focalLength_mm !== 'number' || cameraParams.focalLength_mm === 0 ||
+            typeof cameraParams.sensorWidth_mm !== 'number' || 
+            typeof cameraParams.sensorHeight_mm !== 'number') { 
+            console.error("[SurveyUtils] Invalid or incomplete camera parameters for footprint calculation:", cameraParams);
+            return { width: 0, height: 0 }; // Restituisci SEMPRE un oggetto, anche in caso di errore
+        }
+        
+        // Se i parametri sono validi, procedi con il calcolo
+        const footprintWidth = (cameraParams.sensorWidth_mm / cameraParams.focalLength_mm) * altitudeAGL;
+        const footprintHeight = (cameraParams.sensorHeight_mm / cameraParams.focalLength_mm) * altitudeAGL;
+        
+        console.log(`[SurveyUtils] Footprint calc: Alt=${altitudeAGL}m, SensorW=${cameraParams.sensorWidth_mm}, SensorH=${cameraParams.sensorHeight_mm}, FocalL=${cameraParams.focalLength_mm} => FootprintW=${footprintWidth.toFixed(1)}m, FootprintH=${footprintHeight.toFixed(1)}m`);
+        
+        return { width: footprintWidth, height: footprintHeight };
+    }
     static lineIntersection(line1Start, line1End, line2Start, line2End) { /* ... come nel tuo codice ... */ }
     static calculateDistance(point1, point2) { /* ... come nel tuo codice, usando this.toRad e SURVEY_CONFIG.R_EARTH_METERS ... */ }
     static metersToDegreesLat(meters) { return meters / 111320; } // Valore approssimato
