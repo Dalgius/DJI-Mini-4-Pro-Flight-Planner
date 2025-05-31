@@ -146,12 +146,11 @@ class SurveyUtils {
 // ===========================
 // MAP INTERACTION HANDLER - DEFINED ONCE
 // ===========================
-class MapInteractionHandler { /* ... come l'ultima versione, usando this.surveyManager.state e this.surveyManager.metodi() ... */ }
-// Incollo MapInteractionHandler
 class MapInteractionHandler {
     constructor(surveyManagerInstance) {
         this.surveyManager = surveyManagerInstance;
     }
+
     handleSurveyAreaClick(e) {
         console.log("[SurveyMap] Survey area click:", e.latlng);
         if (!this.surveyManager.state.isDrawingSurveyArea) { console.log("[SurveyMap] Not in survey area drawing mode"); return; }
@@ -160,6 +159,7 @@ class MapInteractionHandler {
         this.addVertexMarker(e.latlng);
         this.surveyManager.updateTempPolygonDisplay();
     }
+
     handleGridAngleLineClick(e) {
         console.log("[SurveyMap] Grid angle line click:", e.latlng, "Points before:", this.surveyManager.state.gridAngleLinePoints.length);
         if (!this.surveyManager.state.isDrawingGridAngleLine) { console.log("[SurveyMap] Not in grid angle drawing mode"); return; }
@@ -174,14 +174,16 @@ class MapInteractionHandler {
             this.finalizeGridAngleLine();
         }
     }
+
     handleGridAngleLineMouseMove(e) {
         if (!this.surveyManager.state.isDrawingGridAngleLine || this.surveyManager.state.gridAngleLinePoints.length !== 1) return;
         if (this.surveyManager.state.tempGridAngleLineLayer) map.removeLayer(this.surveyManager.state.tempGridAngleLineLayer);
         this.surveyManager.state.tempGridAngleLineLayer = L.polyline([this.surveyManager.state.gridAngleLinePoints[0], e.latlng], SURVEY_CONFIG.STYLES.ANGLE_LINE).addTo(map);
     }
+
     addVertexMarker(latlng) {
         const vertexMarker = L.circleMarker(latlng, SURVEY_CONFIG.STYLES.VERTEX_MARKER).addTo(map);
-        if (this.surveyManager.state.tempVertexMarkers.length === 0) {
+        if (this.surveyManager.state.tempVertexMarkers.length === 0) { // Solo per il primo marker
             vertexMarker.on('click', (ev) => {
                 L.DomEvent.stopPropagation(ev);
                 if (this.surveyManager.state.isDrawingSurveyArea && this.surveyManager.state.polygonPoints.length >= SURVEY_CONFIG.MIN_POLYGON_POINTS) {
@@ -191,6 +193,7 @@ class MapInteractionHandler {
         }
         this.surveyManager.state.tempVertexMarkers.push(vertexMarker);
     }
+
     finalizeGridAngleLine() {
         console.log("[SurveyMap] Finalizing grid angle line from MapInteractionHandler");
         const points = this.surveyManager.state.gridAngleLinePoints;
