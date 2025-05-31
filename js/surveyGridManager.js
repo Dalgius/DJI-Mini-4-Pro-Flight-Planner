@@ -363,31 +363,38 @@ class SurveyGridManager {
     }
 
     fullResetAndUICleanup() {
-        console.log("[SurveyGridManager] fullResetAndUICleanup called");
-        const wasInteracting = this.state.isDrawingSurveyArea || this.state.isDrawingGridAngleLine || (this.state.nativeMapClickListener !== null);
-        this.state.reset(); // Resetta lo stato interno del manager
-        // Le variabili globali isDrawingSurveyArea, ecc. non sono più usate direttamente da questo manager.
+    console.log("[SurveyGridManager] fullResetAndUICleanup called FORCED");
+    const wasInteracting = this.state.isDrawingSurveyArea || this.state.isDrawingGridAngleLine || (this.state.nativeMapClickListener !== null);
+    
+    this.state.reset(); // Questo resetta polygonPoints, gridAngleLinePoints, isDrawing flags, ecc.
+                       // e anche i layer temporanei e i marker a null DENTRO this.state
 
-        if (map) {
-            map.off('click', this.mapHandler.handleSurveyAreaClick.bind(this.mapHandler));
-            map.off('click', this.mapHandler.handleGridAngleLineClick.bind(this.mapHandler));
-            map.off('mousemove', this.mapHandler.handleGridAngleLineMouseMove.bind(this.mapHandler));
-            const mapContainer = map.getContainer();
-            if (mapContainer && typeof this.state.nativeMapClickListener === 'function') { // Controlla this.state
-                mapContainer.removeEventListener('click', this.state.nativeMapClickListener, true);
-            }
-            this.state.nativeMapClickListener = null; // Resetta anche qui
-            map.getContainer().style.cursor = '';
-            console.log("All survey-specific map listeners removed by fullReset.");
+    // Rimuovi esplicitamente i layer dalla mappa se this.state.reset() non lo fa
+    // (la mia implementazione di SurveyState.reset() non rimuove i layer dalla mappa,
+    // ma solo le referenze. Quindi clearTemporaryDrawing è ancora necessario qui)
+    this.clearTemporaryDrawing(); // Questo rimuove i layer dalla mappa
 
-            if ((wasInteracting || (typeof handleMapClick === 'function' && !map.hasEventListeners('click', handleMapClick))) && typeof handleMapClick === 'function') {
-                map.on('click', handleMapClick); 
-                console.log("Default map click listener RE-ENSURED by fullReset.");
-            }
+    if (map) {
+        map.off('click', this.mapHandler.handleSurveyAreaClick.bind(this.mapHandler));
+        map.off('click', this.mapHandler.handleGridAngleLineClick.bind(this.mapHandler));
+        map.off('mousemove', this.mapHandler.handleGridAngleLineMouseMove.bind(this.mapHandler));
+        const mapContainer = map.getContainer();
+        if (mapContainer && typeof this.state.nativeMapClickListener === 'function') {
+            mapContainer.removeEventListener('click', this.state.nativeMapClickListener, true);
         }
-        this.clearTemporaryDrawing(); // Usa il metodo della classe
-        this.updateModalUIState('initial'); 
+        // this.state.nativeMapClickListener è già null da this.state.reset()
+
+        map.getContainer().style.cursor = '';
+        console.log("All survey-specific map listeners removed by fullReset.");
+
+        if ((wasInteracting || (typeof handleMapClick === 'function' && !map.hasEventListeners('click', handleMapClick))) && typeof handleMapClick === 'function') {
+            map.on('click', handleMapClick); 
+            console.log("Default map click listener RE-ENSURED by fullReset.");
+        }
     }
+    this.updateModalUIState('initial'); 
+    if (surveyGridAngleInputEl) surveyGridAngleInputEl.value = 0; // Resetta anche l'angolo nella UI
+}
     
     updateModalUIState(uiState) { 
         console.log(`[SurveyGridManager] Updating modal UI to state: ${uiState}`);
