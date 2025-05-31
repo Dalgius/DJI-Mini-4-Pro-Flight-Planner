@@ -229,25 +229,38 @@ class MapInteractionHandler {
 // ===========================
 // ... (GridGenerator class come l'hai definita, assicurati che usi SurveyUtils e SURVEY_CONFIG) ...
 // Incollo e adatto GridGenerator
-class GridGenerator {
-    constructor() { this.maxLines = SURVEY_CONFIG.MAX_LINES_GENERATED; }
-    generateGrid(params) {
+generateGrid(params) {
         console.log("[GridGenerator] Starting grid generation with params:", params);
-    try {
-        const { polygonPoints, altitude, sidelap, frontlap, gridAngle, flightSpeed } = params;
-        
-        console.log("[GridGenerator] Camera Params being used:", SURVEY_CONFIG.CAMERA_PARAMS); // DEBUG
-        const footprint = SurveyUtils.calculateFootprint(altitude, SURVEY_CONFIG.CAMERA_PARAMS); 
+        try {
+            const { polygonPoints, altitude, sidelap, frontlap, gridAngle, flightSpeed } = params;
+            
+            console.log("[GridGenerator] Camera Params being used:", SURVEY_CONFIG.CAMERA_PARAMS);
+            const footprint = SurveyUtils.calculateFootprint(altitude, SURVEY_CONFIG.CAMERA_PARAMS); 
 
-        // CONTROLLO ROBUSTO PER FOOTPRINT
-        if (!footprint || typeof footprint.width === 'undefined' || typeof footprint.height === 'undefined') {
-            console.error("[GridGenerator] calculateFootprint returned invalid object or undefined.");
-            throw new Error("Footprint calculation failed critically.");
-        }
-        if (footprint.width <= 0 || footprint.height <= 0) {
-            console.warn("[GridGenerator] Footprint width or height is zero or negative. Params:", altitude, SURVEY_CONFIG.CAMERA_PARAMS);
-            throw new Error("Invalid footprint (width/height is zero/negative). Check camera/altitude parameters.");
-        }
+            if (!footprint || typeof footprint.width === 'undefined' || typeof footprint.height === 'undefined') {
+                console.error("[GridGenerator] calculateFootprint returned invalid object.");
+                throw new Error("Footprint calculation failed critically.");
+            }
+            if (footprint.width <= 0 || footprint.height <= 0) {
+                console.warn("[GridGenerator] Footprint width or height is zero/negative.");
+                throw new Error("Invalid footprint (width/height is zero/negative).");
+            }
+            
+            // Calcola le spaziature effettive basate su overlap
+            const calculatedLineSpacing = this.calculateLineSpacing(footprint.width, sidelap); // Usa il metodo della classe
+            const calculatedPhotoInterval = this.calculatePhotoInterval(footprint.height, frontlap); // Usa il metodo della classe
+
+            console.log(`[GridGenerator] Calculated Line Spacing: ${calculatedLineSpacing.toFixed(1)}m`);
+            console.log(`[GridGenerator] Calculated Photo Interval (distance): ${calculatedPhotoInterval.toFixed(1)}m`);
+
+            if (flightSpeed && flightSpeed > 0) {
+                const requiredIntervalSeconds = calculatedPhotoInterval / flightSpeed;
+                console.log(`[GridGenerator] Req. photo interval: ${requiredIntervalSeconds.toFixed(1)}s for speed ${flightSpeed}m/s`);
+                if (requiredIntervalSeconds < SURVEY_CONFIG.MIN_PHOTO_INTERVAL_SECONDS) {
+                     if (typeof showCustomAlert === 'function') showCustomAlert(`Warning: Speed might be too high for camera (photo interval ${requiredIntervalSeconds.toFixed(1)}s).`, "Speed Warning");
+                }
+            }
+
             const rotationCenter = polygonPoints[0];
             const angleRad = SurveyUtils.toRad(gridAngle);
             const rotatedPoints = polygonPoints.map(point => SurveyUtils.rotateLatLng(point, rotationCenter, -angleRad));
@@ -258,14 +271,20 @@ class GridGenerator {
             if (rSW.lat >= rNE.lat - 1e-7 || rSW.lng >= rNE.lng - 1e-7) throw new Error("Rotated bounds invalid");
 
             const earthR = SURVEY_CONFIG.R_EARTH_METERS;
-            const lineSpacingRotLat = (lineSpacing / earthR) * (180 / Math.PI);
-            const photoSpacingRotLng = (photoInterval / (earthR * Math.cos(SurveyUtils.toRad(rotationCenter.lat)))) * (180 / Math.PI);
-            if (lineSpacingRotLat <= 1e-9 || photoSpacingRotLng <= 1e-9) throw new Error("Degree spacing calc error");
+            // USA I NOMI CORRETTI QUI: calculatedLineSpacing e calculatedPhotoInterval
+            const lineSpacingRotLat = (calculatedLineSpacing / earthR) * (180 / Math.PI);
+            const photoSpacingRotLng = (calculatedPhotoInterval / (earthR * Math.cos(SurveyUtils.toRad(rotationCenter.lat)))) * (180 / Math.PI);
+            
+            console.log(`[GridGenerator] lineSpacingRotLat: ${lineSpacingRotLat.toFixed(10)}, photoSpacingRotLng: ${photoSpacingRotLng.toFixed(10)}`); // DEBUG
 
-            const waypoints = []; let waypointIdCounter = 1; // ID temporaneo per l'esportazione
+            if (lineSpacingRotLat <= 1e-9 || photoSpacingRotLng <= 1e-9) throw new Error("Degree spacing calc error (too small or zero)");
+
+            const waypoints = []; let waypointIdCounter = 1; 
             let currentRotLat = rSW.lat; let scanDir = 1; let lines = 0;
 
             while (currentRotLat <= rNE.lat + lineSpacingRotLat * 0.5) {
+                // ... (resto della logica di generazione delle linee e dei waypoint come prima,
+                //      assicurandosi che usi lineSpacingRotLat e photoSpacingRotLng nei loop) ...
                 lines++;
                 const lineCandRot = [];
                 if (scanDir === 1) {
@@ -277,27 +296,38 @@ class GridGenerator {
                 }
                 let intendedLineBearing = gridAngle; if (scanDir === -1) intendedLineBearing = (gridAngle + 180);
                 intendedLineBearing = (intendedLineBearing % 360 + 360) % 360;
-                const wpOptions = { altitude: altitude, cameraAction: 'takePhoto', headingControl: 'fixed', fixedHeading: Math.round(intendedLineBearing) };
+                
+                // Usa flightAltitudeAGL passato nei params, non solo altitude che potrebbe essere ambiguo
+                const wpOptions = { altitude: params.altitude, cameraAction: 'takePhoto', headingControl: 'fixed', fixedHeading: Math.round(intendedLineBearing) };
                 
                 lineCandRot.forEach(rotPt => {
                     const actualGeoPt = SurveyUtils.rotateLatLng(rotPt, rotationCenter, angleRad);
                     if (SurveyUtils.isPointInPolygon(actualGeoPt, polygonPoints)) {
-                        waypoints.push({ latlng: actualGeoPt, options: wpOptions, id: waypointIdCounter++ }); // Aggiungi un ID temporaneo
+                        // Per l'esportazione, potremmo voler passare l'oggetto options completo
+                        // e lasciare che addWaypoint lo gestisca.
+                        // Per ora, il formato di GridGenerator.generateWaypointsForLine era {index, lat, lng, altitude, action}
+                        // Adattiamo per coerenza con l'attesa di SurveyGridManager.handleGridGenerationSuccess
+                        waypoints.push({ 
+                            latlng: actualGeoPt, 
+                            options: wpOptions, 
+                            // id: waypointIdCounter++ // L'ID vero viene assegnato da addWaypoint globale
+                        });
                     }
                 });
                 currentRotLat += lineSpacingRotLat; if (lines > this.maxLines) { console.error("Too many lines"); break; }
                 scanDir *= -1;
             }
-            // Rimuovi duplicati basati su latlng (già fatto da SurveyGridManager)
-            // Ma qui è utile per il conteggio corretto per estimatedTime
-            const uniqueWaypointsForCalc = []; const seenKeys = new Set();
-            for (const wp of waypoints) {
-                const key = `${wp.latlng.lat.toFixed(7)},${wp.latlng.lng.toFixed(7)}`;
-                if (!seenKeys.has(key)) { uniqueWaypointsForCalc.push(wp); seenKeys.add(key); }
-            }
+            
+            // Il filtro duplicati in SurveyGridManager.generateSurveyGridWaypoints è stato rimosso
+            // perché ora GridGenerator restituisce direttamente i waypoints con options.
+            // Se necessario, il filtro duplicati può essere applicato qui prima di restituire.
+            // Per ora, presumiamo che la spaziatura e il clipping producano un set ragionevole.
+            // Un filtro duplicati più robusto potrebbe essere utile qui se si vedono punti sovrapposti.
 
-            const estimatedTime = this.calculateEstimatedFlightTime(uniqueWaypointsForCalc, flightSpeed); // Passa flightSpeed
-            return { success: true, waypoints: waypoints, waypointCount: waypoints.length, lineCount: lines, estimatedTime, lineSpacing, photoInterval };
+            const estimatedTime = this.calculateEstimatedFlightTime(waypoints, flightSpeed);
+            console.log(`[GridGenerator] Generated ${waypoints.length} waypoints.`);
+            return { success: true, waypoints: waypoints, waypointCount: waypoints.length, lineCount: lines, estimatedTime, lineSpacing: calculatedLineSpacing, photoInterval: calculatedPhotoInterval }; // Restituisci i waypoint pronti per addWaypoint
+
         } catch (error) {
             console.error("[GridGenerator] Generation failed:", error);
             return { success: false, error: error.message };
