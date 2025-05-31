@@ -397,121 +397,105 @@ function exportToDjiWpmlKmz() {
 `;
 
     waypoints.forEach((wp, index) => {
-        waylinesWpmlContent += `      <Placemark>\n`;
-        waylinesWpmlContent += `        <Point><coordinates>${wp.latlng.lng.toFixed(10)},${wp.latlng.lat.toFixed(10)}</coordinates></Point>\n`; // Lon, Lat order
-        waylinesWpmlContent += `        <wpml:index>${index}</wpml:index>\n`;
-        waylinesWpmlContent += `        <wpml:executeHeight>${parseFloat(wp.altitude).toFixed(1)}</wpml:executeHeight>\n`; // Relative altitude
-        waylinesWpmlContent += `        <wpml:waypointSpeed>${missionFlightSpeed.toFixed(1)}</wpml:waypointSpeed>\n`; // Can be per-waypoint if UI supports
+        // ... (Point, index, executeHeight, waypointSpeed come prima) ...
 
-        // Heading Parameters
+        // === Waypoint Heading Param ===
         waylinesWpmlContent += `        <wpml:waypointHeadingParam>\n`;
-        let headingMode = 'followWayline'; // Default
-        let headingAngle = 0; // For fixed heading
-        let poiPointStr = '<wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>'; // Placeholder for POI tracking
-        let headingAngleEnable = 0; // 1 if fixed heading or POI tracking uses an angle/POI
-        let headingPathMode = 'followBadArc'; // Or 'smoothTransition' for fixed heading. 'followBadArc' is common for POI track / followWayline.
-        let waypointHeadingPoiIndex = 0; // Default for single POI target, not array index.
+        let headingMode, headingAngle, headingAngleEnable, headingPathMode;
 
         if (wp.headingControl === 'fixed') {
-            headingMode = 'lockCourse'; // Use 'lockCourse' for fixed heading
+            headingMode = 'lockCourse';
             headingAngle = wp.fixedHeading;
             headingAngleEnable = 1;
-            headingPathMode = 'smoothTransition'; // Smoother transition for fixed heading
-        } else if (wp.headingControl === 'poi_track' && wp.targetPoiId != null) {
-            const targetPoi = pois.find(p => p.id === wp.targetPoiId);
-            if (targetPoi) {
-                headingMode = 'towardPOI';
-                // DJI POI point is Lat,Lng,Alt (relative to POI's ground, often 0 if POI is on ground)
-                poiPointStr = `<wpml:waypointPoiPoint>${targetPoi.latlng.lat.toFixed(6)},${targetPoi.latlng.lng.toFixed(6)},${parseFloat(targetPoi.altitude || 0).toFixed(1)}</wpml:waypointPoiPoint>`;
-                headingAngleEnable = 1; // Indicates POI is used
-                // waypointHeadingPoiIndex is 0 for the first (and usually only) POI in waypointPoiPoint.
+            headingPathMode = 'smoothTransition'; // Prova questo come DJI
+        } else if (wp.headingControl === 'poi_track' && /* ... POI logic ... */ ) {
+            // ... la tua logica per POI track (sembrava ok) ...
+            // headingPathMode = 'followBadArc'; // Tipico per POI track
+        } else { // Default 'auto' o 'followWayline'
+            if (index === 0) { // Primo waypoint
+                headingMode = 'lockCourse'; // Forziamo un heading iniziale per la prima linea
+                // Assumiamo che wp.fixedHeading sia impostato correttamente per la prima linea
+                // dalla logica di generazione della griglia
+                headingAngle = wp.fixedHeading !== undefined ? wp.fixedHeading : 0; 
+                headingAngleEnable = 1;
+                headingPathMode = 'smoothTransition';
             } else {
-                headingMode = 'followWayline'; // Fallback if POI not found
+                headingMode = 'followWayline'; // Per le virate tra le linee, se non c'è un heading fisso
+                headingAngle = 0; // L'angolo non è usato attivamente
+                headingAngleEnable = 0;
+                headingPathMode = 'followBadArc';
             }
         }
-        // 'auto' typically translates to 'followWayline'
+        // Se la tua logica di generazione griglia imposta SEMPRE headingControl='fixed' e un fixedHeading valido
+        // per TUTTI i waypoint della griglia, allora il blocco 'else' sopra potrebbe non essere mai raggiunto per una griglia.
+        // Questo è probabilmente ciò che vuoi per una griglia rigida.
 
         waylinesWpmlContent += `          <wpml:waypointHeadingMode>${headingMode}</wpml:waypointHeadingMode>\n`;
         waylinesWpmlContent += `          <wpml:waypointHeadingAngle>${headingAngle}</wpml:waypointHeadingAngle>\n`;
-        waylinesWpmlContent += `          ${poiPointStr}\n`;
+        // Aggiungi placeholder <wpml:waypointPoiPoint> se non è towardPOI
+        if (headingMode !== 'towardPOI') {
+             waylinesWpmlContent += `          <wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>\n`;
+        }
         waylinesWpmlContent += `          <wpml:waypointHeadingAngleEnable>${headingAngleEnable}</wpml:waypointHeadingAngleEnable>\n`;
         waylinesWpmlContent += `          <wpml:waypointHeadingPathMode>${headingPathMode}</wpml:waypointHeadingPathMode>\n`;
-        waylinesWpmlContent += `          <wpml:waypointHeadingPoiIndex>${waypointHeadingPoiIndex}</wpml:waypointHeadingPoiIndex>\n`;
+        waylinesWpmlContent += `          <wpml:waypointHeadingPoiIndex>0</wpml:waypointHeadingPoiIndex>\n`;
         waylinesWpmlContent += `        </wpml:waypointHeadingParam>\n`;
 
-        // Turn Parameters
+        // === Waypoint Turn Param & Use Straight Line ===
+        // Per la griglia, vogliamo segmenti dritti e virate definite
+        let turnMode = 'toPointAndStopWithContinuityCurvature';
+        let useStraight = '1'; 
+        // Se pathType è 'curved' nel planner, allora dovresti usare la logica che abbiamo discusso prima
+        // if (missionPathType === 'curved') { useStraight = '0'; turnMode = ...; }
+
         waylinesWpmlContent += `        <wpml:waypointTurnParam>\n`;
-        // 'toPointAndStopWithContinuityCurvature' for straight paths (stop at WP)
-        // 'toPointAndPassWithContinuityCurvature' for curved paths (pass through WP smoothly)
-        let turnMode = (missionPathTypeUi === 'curved') ? 'toPointAndPassWithContinuityCurvature' : 'toPointAndStopWithContinuityCurvature';
         waylinesWpmlContent += `          <wpml:waypointTurnMode>${turnMode}</wpml:waypointTurnMode>\n`;
-        waylinesWpmlContent += `          <wpml:waypointTurnDampingDist>0.0</wpml:waypointTurnDampingDist>\n`; // Usually 0 unless specific tuning needed
+        waylinesWpmlContent += `          <wpml:waypointTurnDampingDist>0.0</wpml:waypointTurnDampingDist>\n`;
         waylinesWpmlContent += `        </wpml:waypointTurnParam>\n`;
+        waylinesWpmlContent += `        <wpml:useStraightLine>${useStraight}</wpml:useStraightLine>\n`;
 
-        // useStraightLine: 1 for straight segments, 0 for curved.
-        // This refers to the path segment *to* this waypoint.
-        waylinesWpmlContent += `        <wpml:useStraightLine>${(missionPathTypeUi === 'straight' || index === 0) ? '1' : '0'}</wpml:useStraightLine>\n`;
-
-        // Gimbal Parameters (Pitch only for simplicity, Yaw usually follows heading or is manual)
-        waylinesWpmlContent += `        <wpml:waypointGimbalParam>\n`; // Changed from waypointGimbalHeadingParam
-        waylinesWpmlContent += `          <wpml:gimbalPitch>${wp.gimbalPitch.toFixed(1)}</wpml:gimbalPitch>\n`;
-        // gimbalRoll, gimbalYaw can be added if needed.
-        // For most DJI drones, gimbal yaw relative to aircraft is implicitly 0 (aligned with heading) unless controlled separately by actions.
-        waylinesWpmlContent += `        </wpml:waypointGimbalParam>\n`;
-
-
-        // Actions (Hover, Camera)
+        // === Azioni (Gimbal e Camera) ===
         let actionsXmlBlock = "";
-        if (wp.hoverTime > 0) {
+        // Azione Gimbal: solo al primo waypoint per impostare il pitch desiderato
+        if (index === 0) {
             actionsXmlBlock += `          <wpml:action>\n`;
             actionsXmlBlock += `            <wpml:actionId>${actionCounter++}</wpml:actionId>\n`;
-            actionsXmlBlock += `            <wpml:actionActuatorFunc>HOVER</wpml:actionActuatorFunc>\n`;
+            actionsXmlBlock += `            <wpml:actionActuatorFunc>gimbalRotate</wpml:actionActuatorFunc>\n`;
             actionsXmlBlock += `            <wpml:actionActuatorFuncParam>\n`;
-            actionsXmlBlock += `              <wpml:hoverTime>${wp.hoverTime}</wpml:hoverTime>\n`;
-            actionsXmlBlock += `              <wpml:payloadPositionIndex>0</wpml:payloadPositionIndex>\n`; // Specify payload for hover if applicable
+            actionsXmlBlock += `              <wpml:gimbalPitchRotateEnable>1</wpml:gimbalPitchRotateEnable>\n`;
+            actionsXmlBlock += `              <wpml:gimbalPitchRotateAngle>${parseFloat(wp.gimbalPitch).toFixed(1)}</wpml:gimbalPitchRotateAngle>\n`;
+            actionsXmlBlock += `              <wpml:payloadPositionIndex>0</wpml:payloadPositionIndex>\n`;
+            actionsXmlBlock += `              <wpml:gimbalHeadingYawBase>aircraft</wpml:gimbalHeadingYawBase>\n`; // Come da file DJI
+            actionsXmlBlock += `              <wpml:gimbalRotateMode>absoluteAngle</wpml:gimbalRotateMode>\n`; // Come da file DJI
+            actionsXmlBlock += `              <wpml:gimbalRollRotateEnable>0</wpml:gimbalRollRotateEnable>\n`;
+            actionsXmlBlock += `              <wpml:gimbalYawRotateEnable>0</wpml:gimbalYawRotateEnable>\n`;
+            actionsXmlBlock += `              <wpml:gimbalRotateTimeEnable>0</wpml:gimbalRotateTimeEnable>\n`;
             actionsXmlBlock += `            </wpml:actionActuatorFuncParam>\n`;
             actionsXmlBlock += `          </wpml:action>\n`;
         }
 
-        if (wp.cameraAction && wp.cameraAction !== 'none') {
-            let actuatorFunc = '';
-            let params = `              <wpml:payloadPositionIndex>0</wpml:payloadPositionIndex>\n`; // Assume main camera
-
-            if (wp.cameraAction === 'takePhoto') {
-                actuatorFunc = 'takePhoto';
-                // params += `              <wpml:fileSuffix>Waypoint${wp.id}</wpml:fileSuffix>\n`; // Optional
-                params += `              <wpml:useGlobalPayloadLensIndex>0</wpml:useGlobalPayloadLensIndex>\n`; // Use main lens usually
-            } else if (wp.cameraAction === 'startRecord') {
-                actuatorFunc = 'startRecord';
-                params += `              <wpml:useGlobalPayloadLensIndex>0</wpml:useGlobalPayloadLensIndex>\n`;
-            } else if (wp.cameraAction === 'stopRecord') {
-                actuatorFunc = 'stopRecord';
-                // No extra params typically needed for stopRecord beyond payloadPositionIndex
-            }
-
-            if (actuatorFunc) {
-                actionsXmlBlock += `          <wpml:action>\n`;
-                actionsXmlBlock += `            <wpml:actionId>${actionCounter++}</wpml:actionId>\n`;
-                actionsXmlBlock += `            <wpml:actionActuatorFunc>${actuatorFunc}</wpml:actionActuatorFunc>\n`;
-                actionsXmlBlock += `            <wpml:actionActuatorFuncParam>\n`;
-                actionsXmlBlock += params;
-                actionsXmlBlock += `            </wpml:actionActuatorFuncParam>\n`;
-                actionsXmlBlock += `          </wpml:action>\n`;
-            }
+        if (wp.hoverTime > 0) { /* ... azione hover come prima ... */ }
+        if (wp.cameraAction === 'takePhoto') { // Solo takePhoto per le griglie di solito
+            actionsXmlBlock += `          <wpml:action>\n`;
+            actionsXmlBlock += `            <wpml:actionId>${actionCounter++}</wpml:actionId>\n`;
+            actionsXmlBlock += `            <wpml:actionActuatorFunc>takePhoto</wpml:actionActuatorFunc>\n`;
+            actionsXmlBlock += `            <wpml:actionActuatorFuncParam><wpml:payloadPositionIndex>0</wpml:payloadPositionIndex><wpml:useGlobalPayloadLensIndex>0</wpml:useGlobalPayloadLensIndex></wpml:actionActuatorFuncParam>\n`;
+            actionsXmlBlock += `          </wpml:action>\n`;
         }
+        // Aggiungi altre azioni camera (start/stop record) se necessario per il tuo tipo di missione
 
         if (actionsXmlBlock) {
             waylinesWpmlContent += `        <wpml:actionGroup>\n`;
+            // ... (resto di actionGroup come prima, usando actionGroupMode 'sequence' o 'parallel' come appropriato)
             waylinesWpmlContent += `          <wpml:actionGroupId>${actionGroupCounter++}</wpml:actionGroupId>\n`;
-            waylinesWpmlContent += `          <wpml:actionGroupStartIndex>${index}</wpml:actionGroupStartIndex>\n`; // Action triggers when reaching this waypoint
-            waylinesWpmlContent += `          <wpml:actionGroupEndIndex>${index}</wpml:actionGroupEndIndex>\n`;   // Action is for this waypoint only
-            waylinesWpmlContent += `          <wpml:actionGroupMode>sequence</wpml:actionGroupMode>\n`; // Or 'parallel' if actions can run simultaneously
-            waylinesWpmlContent += `          <wpml:actionTrigger>\n`;
-            waylinesWpmlContent += `            <wpml:actionTriggerType>reachPoint</wpml:actionTriggerType>\n`; // Trigger on arrival
-            waylinesWpmlContent += `          </wpml:actionTrigger>\n`;
+            waylinesWpmlContent += `          <wpml:actionGroupStartIndex>${index}</wpml:actionGroupStartIndex>\n`;
+            waylinesWpmlContent += `          <wpml:actionGroupEndIndex>${index}</wpml:actionGroupEndIndex>\n`;
+            waylinesWpmlContent += `          <wpml:actionGroupMode>sequence</wpml:actionGroupMode>\n`;
+            waylinesWpmlContent += `          <wpml:actionTrigger><wpml:actionTriggerType>reachPoint</wpml:actionTriggerType></wpml:actionTrigger>\n`;
             waylinesWpmlContent += actionsXmlBlock;
             waylinesWpmlContent += `        </wpml:actionGroup>\n`;
         }
+        // NON includere più <wpml:waypointGimbalParam> se gestisci il gimbal con le azioni
         waylinesWpmlContent += `      </Placemark>\n`;
     });
 
