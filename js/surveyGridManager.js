@@ -216,21 +216,21 @@ class GridGenerator {
     constructor() { this.maxLines = SURVEY_CONFIG.MAX_LINES_GENERATED; }
     generateGrid(params) {
         console.log("[GridGenerator] Starting grid generation with params:", params);
-        try {
-            const { polygonPoints, altitude, sidelap, frontlap, gridAngle, flightSpeed } = params; // Aggiunto flightSpeed
-            const footprint = SurveyUtils.calculateFootprint(altitude, SURVEY_CONFIG.CAMERA_PARAMS);
-            if (footprint.width === 0 || footprint.height === 0) throw new Error("Invalid footprint");
-            const lineSpacing = this.calculateLineSpacing(footprint.width, sidelap);
-            const photoInterval = this.calculatePhotoInterval(footprint.height, frontlap);
-            console.log(`[GridGenerator] Line spacing: ${lineSpacing.toFixed(1)}m, Photo interval: ${photoInterval.toFixed(1)}m`);
-            if (flightSpeed && flightSpeed > 0) {
-                const requiredIntervalSeconds = photoInterval / flightSpeed;
-                console.log(`[GridGenerator] Req. photo interval: ${requiredIntervalSeconds.toFixed(1)}s for speed ${flightSpeed}m/s`);
-                if (requiredIntervalSeconds < SURVEY_CONFIG.MIN_PHOTO_INTERVAL_SECONDS) {
-                     if (typeof showCustomAlert === 'function') showCustomAlert(`Warning: Speed might be too high for camera (photo interval ${requiredIntervalSeconds.toFixed(1)}s).`, "Speed Warning");
-                }
-            }
+    try {
+        const { polygonPoints, altitude, sidelap, frontlap, gridAngle, flightSpeed } = params;
+        
+        console.log("[GridGenerator] Camera Params being used:", SURVEY_CONFIG.CAMERA_PARAMS); // DEBUG
+        const footprint = SurveyUtils.calculateFootprint(altitude, SURVEY_CONFIG.CAMERA_PARAMS); 
 
+        // CONTROLLO ROBUSTO PER FOOTPRINT
+        if (!footprint || typeof footprint.width === 'undefined' || typeof footprint.height === 'undefined') {
+            console.error("[GridGenerator] calculateFootprint returned invalid object or undefined.");
+            throw new Error("Footprint calculation failed critically.");
+        }
+        if (footprint.width <= 0 || footprint.height <= 0) {
+            console.warn("[GridGenerator] Footprint width or height is zero or negative. Params:", altitude, SURVEY_CONFIG.CAMERA_PARAMS);
+            throw new Error("Invalid footprint (width/height is zero/negative). Check camera/altitude parameters.");
+        }
             const rotationCenter = polygonPoints[0];
             const angleRad = SurveyUtils.toRad(gridAngle);
             const rotatedPoints = polygonPoints.map(point => SurveyUtils.rotateLatLng(point, rotationCenter, -angleRad));
