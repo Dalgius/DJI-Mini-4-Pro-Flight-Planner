@@ -210,8 +210,7 @@ class MapInteractionHandler {
 // ===========================
 // GRID GENERATION LOGIC (GridGenerator class) - DEFINED ONCE
 // ===========================
-class GridGenerator { /* ... come l'ultima versione corretta ... */ }
-// Incollo GridGenerator
+
 class GridGenerator {
     constructor() {
         this.maxLines = SURVEY_CONFIG.MAX_LINES_GENERATED;
