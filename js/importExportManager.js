@@ -216,7 +216,12 @@ function exportToDjiWpmlKmz() {
     const createTimeMillis = now.getTime().toString();
     const waylineIdInt = Math.floor(now.getTime() / 1000); 
 
-    let kmlTotalDistance = 0; /* ... calcolo come prima ... */
+    let kmlTotalDistance = 0;
+    if (waypoints.length >= 2) {
+        for (let i = 0; i < waypoints.length - 1; i++) {
+            kmlTotalDistance += (typeof haversineDistance === 'function' ? haversineDistance(waypoints[i].latlng, waypoints[i+1].latlng) : 0);
+        }
+    }
     let kmlTotalHoverTime = waypoints.reduce((sum, wp) => sum + (wp.hoverTime || 0), 0);
     const kmlTotalDuration = (kmlTotalDistance / (missionFlightSpeed > 0 ? missionFlightSpeed : 1)) + kmlTotalHoverTime;
 
@@ -271,29 +276,26 @@ function exportToDjiWpmlKmz() {
         let poiPointXml = `          <wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>\n`;
 
         if (wp.headingControl === 'fixed' && typeof wp.fixedHeading === 'number') {
-            headingMode = 'lockCourse'; // USA LOCKCOURSE PER HEADING FISSO
+            headingMode = 'smoothTransition'; // DJI usa questo anche per "fixed heading" nell'esempio
             headingAngle = wp.fixedHeading;
-            if (headingAngle > 180) headingAngle -= 360; // Normalizza a -180 a 180 per DJI
-            headingAngleEnable = 1;
-            headingPathMode = 'smoothTransition'; // O 'followBadArc'
+            if (headingAngle > 180) headingAngle -= 360; // Normalizza a -180 a +180
+            headingAngleEnable = (index === 0 || index === waypoints.length - 1) ? 1 : 0; // Abilita solo agli estremi
+            headingPathMode = 'followBadArc'; // Come da file DJI
         } else if (wp.headingControl === 'poi_track' && wp.targetPoiId != null) {
             const targetPoi = pois.find(p => p.id === wp.targetPoiId);
             if (targetPoi) {
                 headingMode = 'towardPOI'; headingAngleEnable = 1; headingPathMode = 'followBadArc';
                 let poiAlt = targetPoi.altitude !== undefined ? parseFloat(targetPoi.altitude) : 0.0;
                 poiPointXml = `          <wpml:waypointPoiPoint>${targetPoi.latlng.lat.toFixed(6)},${targetPoi.latlng.lng.toFixed(6)},${poiAlt.toFixed(1)}</wpml:waypointPoiPoint>\n`;
-            } else { headingMode = 'followWayline'; headingPathMode = 'followBadArc'; }
-        } else { // 'auto', 'followWayline', o pathType 'curved' senza heading fisso esplicito
-            headingMode = 'smoothTransition'; // COME DA FILE DJI PERCORSO FISSO
-            headingPathMode = 'followBadArc'; // COME DA FILE DJI PERCORSO FISSO
-            // L'headingAngle per smoothTransition è l'angolo desiderato AL waypoint.
-            // Per le griglie (pathType 'straight'), wp.fixedHeading è già l'angolo della linea.
-            // Per i percorsi curvi, questo potrebbe essere l'angolo del segmento uscente.
-            headingAngle = wp.fixedHeading !== undefined ? wp.fixedHeading : 0;
-            if (headingAngle > 180) headingAngle -= 360; // Normalizza
-
-            // Abilita l'angolo solo per il primo e l'ultimo waypoint, come nel file DJI.
-            headingAngleEnable = (index === 0 || index === waypoints.length - 1) ? 1 : 0;
+            } else { headingMode = 'followWayline'; headingPathMode = 'followBadArc';} // Fallback
+        } else { // 'auto', 'followWayline', o pathType 'curved' senza fixedHeading esplicito
+            headingMode = 'smoothTransition'; 
+            headingPathMode = 'followBadArc';
+            if (index < waypoints.length - 1 && typeof calculateBearing === 'function') {
+                headingAngle = calculateBearing(wp.latlng, waypoints[index+1].latlng);
+            } else { headingAngle = 0; }
+            if (headingAngle > 180) headingAngle -= 360;
+            headingAngleEnable = (index === 0) ? 1 : 0; 
         }
 
         waylinesWpmlContent += `          <wpml:waypointHeadingMode>${headingMode}</wpml:waypointHeadingMode>\n`;
@@ -306,14 +308,16 @@ function exportToDjiWpmlKmz() {
 
         // === Waypoint Turn Param & Use Straight Line ===
         let turnMode, useStraight;
-        if (missionPathType === 'curved') {
-            useStraight = '0'; // Come da file DJI per percorsi "curvi"
+        // Se l'utente ha specificato heading fisso, è probabile che voglia segmenti dritti.
+        // Altrimenti, se pathType è 'curved', usiamo curve.
+        if (wp.headingControl === 'fixed' || missionPathType === 'straight') {
+            useStraight = '1';
+            turnMode = 'toPointAndStopWithDiscontinuityCurvature'; // Più adatto per griglie/segmenti dritti con heading fisso
+        } else { // missionPathType === 'curved' e heading non fisso
+            useStraight = '0';
             turnMode = (index === 0 || index === waypoints.length - 1) ? 
                        'toPointAndStopWithContinuityCurvature' : 
-                       'toPointAndPassWithContinuityCurvature'; // DJI usa toPointAndPass... per intermedi
-        } else { // "straight" (per griglie)
-            useStraight = '1';
-            turnMode = 'toPointAndStopWithDiscontinuityCurvature'; // Stop più netto per griglie
+                       'toPointAndPassWithContinuityCurvature';
         }
         waylinesWpmlContent += `        <wpml:waypointTurnParam>\n`;
         waylinesWpmlContent += `          <wpml:waypointTurnMode>${turnMode}</wpml:waypointTurnMode>\n`;
@@ -323,7 +327,8 @@ function exportToDjiWpmlKmz() {
 
         // === Azioni (Gimbal e Camera) ===
         let actionsXmlBlock = "";
-        if (index === 0) { // Azione Gimbal solo al primo waypoint
+        // Azione Gimbal: solo al primo waypoint
+        if (index === 0 && typeof wp.gimbalPitch === 'number') {
             actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId><wpml:actionActuatorFunc>gimbalRotate</wpml:actionActuatorFunc><wpml:actionActuatorFuncParam>`;
             actionsXmlBlock += `<wpml:gimbalPitchRotateEnable>1</wpml:gimbalPitchRotateEnable><wpml:gimbalPitchRotateAngle>${parseFloat(wp.gimbalPitch).toFixed(1)}</wpml:gimbalPitchRotateAngle>`;
             actionsXmlBlock += `<wpml:payloadPositionIndex>0</wpml:payloadPositionIndex><wpml:gimbalHeadingYawBase>aircraft</wpml:gimbalHeadingYawBase><wpml:gimbalRotateMode>absoluteAngle</wpml:gimbalRotateMode>`;
@@ -332,7 +337,7 @@ function exportToDjiWpmlKmz() {
             actionsXmlBlock += `</wpml:actionActuatorFuncParam></wpml:action>\n`;
         }
         if (wp.hoverTime > 0) { /* ... come prima ... */ }
-        if (wp.cameraAction === 'takePhoto') { /* ... come prima ... */ }
+        if (wp.cameraAction && wp.cameraAction !== 'none') { /* ... come prima, assicurati che la logica per actuatorFunc e params sia corretta ... */ }
         // (Incollo azioni per completezza)
         if (wp.hoverTime > 0) {
             actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId>`;
@@ -354,7 +359,7 @@ function exportToDjiWpmlKmz() {
         if (actionsXmlBlock) {
             waylinesWpmlContent += `        <wpml:actionGroup><wpml:actionGroupId>${actionGroupCounter++}</wpml:actionGroupId>`;
             waylinesWpmlContent += `<wpml:actionGroupStartIndex>${index}</wpml:actionGroupStartIndex><wpml:actionGroupEndIndex>${index}</wpml:actionGroupEndIndex>`;
-            waylinesWpmlContent += `<wpml:actionGroupMode>sequence</wpml:actionGroupMode>`; // DJI usava parallel per gimbal, sequence è più sicuro per più azioni
+            waylinesWpmlContent += `<wpml:actionGroupMode>sequence</wpml:actionGroupMode>`;
             waylinesWpmlContent += `<wpml:actionTrigger><wpml:actionTriggerType>reachPoint</wpml:actionTriggerType></wpml:actionTrigger>\n`;
             waylinesWpmlContent += actionsXmlBlock;
             waylinesWpmlContent += `        </wpml:actionGroup>\n`;
