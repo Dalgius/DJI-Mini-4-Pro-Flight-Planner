@@ -176,72 +176,98 @@ function createWaypointIcon(waypointObject, isSelectedSingle, isMultiSelected = 
 
     // --- Heading Indicator Logic ---
     let headingAngleDeg = 0;
-    let arrowColor = 'transparent'; // Default to no arrow
-    const arrowLength = 15; // Length of the heading indicator line
+    let arrowColor = 'transparent'; 
     const wpIndex = waypoints.findIndex(w => w.id === waypointObject.id);
 
     if (waypointObject.headingControl === 'auto') {
-        arrowColor = '#3498db'; // Blue for auto
-        if (wpIndex < waypoints.length - 1) { // Point to next waypoint
+        arrowColor = '#3498db'; 
+        if (wpIndex < waypoints.length - 1) { 
             headingAngleDeg = calculateBearing(waypointObject.latlng, waypoints[wpIndex + 1].latlng);
-        } else if (wpIndex > 0) { // Last waypoint, point from previous
+        } else if (wpIndex > 0) { 
             headingAngleDeg = calculateBearing(waypoints[wpIndex - 1].latlng, waypointObject.latlng);
         } else {
-            arrowColor = 'transparent'; // Single waypoint, no auto heading
+            arrowColor = 'transparent'; 
         }
     } else if (waypointObject.headingControl === 'fixed') {
         headingAngleDeg = waypointObject.fixedHeading;
-        arrowColor = '#6c757d'; // Gray for fixed heading
+        arrowColor = '#607d8b'; // A slightly muted, professional gray-blue for fixed heading
     } else if (waypointObject.headingControl === 'poi_track' && waypointObject.targetPoiId !== null) {
         const targetPoi = pois.find(p => p.id === waypointObject.targetPoiId);
         if (targetPoi) {
             headingAngleDeg = calculateBearing(waypointObject.latlng, targetPoi.latlng);
-            arrowColor = '#28a745'; // Green for POI tracking
+            arrowColor = '#4CAF50'; // A clear, vibrant green for POI tracking
         } else {
-            arrowColor = 'transparent'; // POI not found
+            arrowColor = 'transparent'; 
         }
     } else {
-        arrowColor = 'transparent'; // No specific heading control
+        arrowColor = 'transparent'; 
     }
     
-    // DJI Pilot app shows heading from center, so 0,0 in SVG is center of WP. Line goes "up" (negative Y) then rotates.
     let headingIndicatorSvg = '';
     if (arrowColor !== 'transparent') {
+        const circleRadius = currentSize / 2;
+        // Dimensions for the triangular indicator
+        const indicatorLength = 14; // How far the arrow tip extends beyond the circle's edge
+        const indicatorBaseWidth = 9; // Width of the arrow's base, where it "emerges" from the circle
+
+        // Points for the polygon (arrowhead shape)
+        // P1: Tip of the arrow
+        // P2 & P3: Base corners of the arrow, starting from the edge of the waypoint circle
+        const p1x = 0;
+        const p1y = -(circleRadius + indicatorLength);
+        const p2x = -indicatorBaseWidth / 2;
+        const p2y = -circleRadius;
+        const p3x = indicatorBaseWidth / 2;
+        const p3y = -circleRadius;
+        
+        const points = `${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y}`;
+
+        // The SVG container needs to be large enough to encompass the arrow when rotated.
+        // Max extent is roughly circleRadius + indicatorLength.
+        const svgContainerSize = (circleRadius + indicatorLength) * 2 + indicatorBaseWidth; // Ensure width is also covered
+
         headingIndicatorSvg = `
-            <svg width="${currentSize + arrowLength * 2}" height="${currentSize + arrowLength * 2}" 
-                 style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(${headingAngleDeg}deg); overflow: visible;">
-                <line x1="0" y1="0" x2="0" y2="-${arrowLength + currentSize/3}" stroke="${arrowColor}" stroke-width="2.5" stroke-linecap="round"/>
+            <svg width="${svgContainerSize}" height="${svgContainerSize}" 
+                 style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(${headingAngleDeg}deg); overflow: visible; z-index: 0;">
+                <polygon points="${points}" fill="${arrowColor}" />
             </svg>
         `;
-        // y2 adjusted to start line slightly outside the main circle for better visibility like DJI app
     }
 
     return L.divIcon({
-        className: `waypoint-marker ${classNameSuffix}`,
+        className: `waypoint-marker ${classNameSuffix}`, // This is the main div Leaflet positions
         html: `
             <div style="
-                position: relative; /* For positioning the SVG arrow */
-                background: ${bgColor};
-                color: white;
-                border-radius: 50%;
-                width: ${currentSize}px;
-                height: ${currentSize}px;
-                display: flex;
+                position: relative; /* Establishes positioning context for the SVG */
+                width: 100%; /* Fill the L.divIcon container */
+                height: 100%; /* Fill the L.divIcon container */
+                display: flex; /* For centering the main circle content if needed, though its own style handles it */
                 align-items: center;
                 justify-content: center;
-                font-size: ${currentFontSize}px;
-                font-weight: bold;
-                border: ${borderStyle};
-                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                transition: all 0.1s ease-out;
-                line-height: ${currentSize}px; /* Per centrare meglio l'emoji/testo verticalmente */
-                z-index: 1; /* Ensure main circle is above arrow if they overlap perfectly at center */
             ">
-                ${iconHtmlContent}
-            </div>
-            ${headingIndicatorSvg} 
-            `,
-        iconSize: [currentSize, currentSize], // Icon size remains for the circle
+                <div style=" 
+                    /* This is the visible waypoint circle */
+                    background: ${bgColor};
+                    color: white;
+                    border-radius: 50%;
+                    width: ${currentSize}px;
+                    height: ${currentSize}px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: ${currentFontSize}px;
+                    font-weight: bold;
+                    border: ${borderStyle};
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    line-height: ${currentSize}px; 
+                    z-index: 1; /* Ensure circle content (number/icon) is above the arrow SVG */
+                    position: relative; /* To ensure z-index stacking works against absolute SVG */
+                ">
+                    ${iconHtmlContent}
+                </div>
+                ${headingIndicatorSvg} 
+            </div>`,
+        iconSize: [currentSize, currentSize], 
         iconAnchor: [currentSize / 2, currentSize / 2],
         popupAnchor: [0, -currentSize / 2]
     });
