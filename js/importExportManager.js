@@ -199,6 +199,18 @@ function exportToGoogleEarthKml() {
  * Exports the flight plan to a DJI WPML KMZ file.
  */
 function exportToDjiWpmlKmz() {
+    console.log("[ExportKMZ] exportToDjiWpmlKmz function CALLED."); // PRIMO LOG
+    if (typeof JSZip === 'undefined') {
+        console.error("[ExportKMZ] JSZip library not loaded.");
+        if(typeof showCustomAlert === 'function') showCustomAlert("JSZip library not loaded.", "Error"); 
+        return;
+    }
+    if (!waypoints || waypoints.length === 0) {
+        console.log("[ExportKMZ] No waypoints to export.");
+        if(typeof showCustomAlert === 'function') showCustomAlert("No waypoints to export.", "Error"); 
+        return;
+    }
+    console.log(`[ExportKMZ] Exporting ${waypoints.length} waypoints.`);
     if (typeof JSZip === 'undefined') { /* ... errore ... */ return; }
     if (!waypoints || waypoints.length === 0) { /* ... errore ... */ return; }
 
