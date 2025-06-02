@@ -1,7 +1,7 @@
 // File: mapManager.js
 
-// Depends on: config.js (for map, defaultTileLayer, satelliteTileLayer, satelliteView, userLocationMarker, isDrawingSurveyArea, waypoints, selectedWaypoint, selectedForMultiEdit)
-// Depends on: utils.js (for showCustomAlert)
+// Depends on: config.js (for map, defaultTileLayer, satelliteTileLayer, satelliteView, userLocationMarker, isDrawingSurveyArea, waypoints, selectedWaypoint, selectedForMultiEdit, pois)
+// Depends on: utils.js (for showCustomAlert, calculateBearing - now in utils.js)
 // Depends on: waypointManager.js (for addWaypoint - gestito da handleMapClick) - indiretta
 // Depends on: poiManager.js (for addPOI - gestito da handleMapClick) - indiretta
 
@@ -32,29 +32,19 @@ function initializeMap() {
  * Handles click events on the map for general actions.
  */
 function handleMapClick(e) {
-    // The variable isSettingHomePointMode was checked here previously but is not defined/initialized
-    // in the provided codebase, indicating an incomplete or removed feature.
-    // The check has been removed. If a "set home point by map click" feature is desired,
-    // it would need proper implementation including variable definition and management.
-
     if (typeof isDrawingSurveyArea !== 'undefined' && isDrawingSurveyArea === true) {
         console.log("[MapManager] handleMapClick: In survey area drawing mode, ignoring default map click.");
         return; 
     }
 
     console.log("[MapManager] handleMapClick: Processing default map click (add waypoint/POI).");
-    // Leaflet's map click event usually only fires for clicks on the map itself,
-    // not on layers that have their own click handlers (which stop propagation).
-    // The e.originalEvent.target check can be an additional safeguard.
     if (e.originalEvent.target === map.getContainer() || e.originalEvent.target.classList.contains('leaflet-container')) {
         if (e.originalEvent.ctrlKey) {
-            addPOI(e.latlng); // from poiManager.js
+            addPOI(e.latlng); 
         } else {
-            addWaypoint(e.latlng); // from waypointManager.js
+            addWaypoint(e.latlng); 
         }
     } else {
-        // This branch would be hit if a click occurred on a map element without a dedicated click handler
-        // that stops propagation, and which isn't the main map container.
         console.log("[MapManager] Click was not directly on the map container or an unhandled layer element.");
     }
 }
@@ -66,10 +56,10 @@ function toggleSatelliteView() {
     if (!map || !defaultTileLayer || !satelliteTileLayer || !satelliteToggleBtn) return;
     if (satelliteView) {
         map.removeLayer(satelliteTileLayer); map.addLayer(defaultTileLayer);
-        satelliteToggleBtn.textContent = '📡 Satellite'; // Consider using data-i18n-target-text="true" and JS for this too
+        satelliteToggleBtn.textContent = '📡 Satellite'; 
     } else {
         map.removeLayer(defaultTileLayer); map.addLayer(satelliteTileLayer);
-        satelliteToggleBtn.textContent = '🗺️ Map'; // Consider using data-i18n-target-text="true" and JS for this too
+        satelliteToggleBtn.textContent = '🗺️ Map'; 
     }
     satelliteView = !satelliteView;
     console.log(`[MapManager] Satellite view toggled. Now: ${satelliteView ? 'Satellite' : 'Default'}`);
@@ -99,7 +89,7 @@ function fitMapToWaypoints() {
         map.fitBounds(boundsToFit.pad(0.1));
          console.log("[MapManager] Map fitted to bounds of waypoints and/or POIs.");
     } else {
-        map.setView([37.7749, -122.4194], 13); // Default view if nothing to fit
+        map.setView([37.7749, -122.4194], 13); 
         console.log("[MapManager] No items to fit, set to default view.");
     }
 }
@@ -143,16 +133,16 @@ function showCurrentLocation() {
 }
 
 /**
- * Creates a Leaflet DivIcon for a waypoint marker.
- * @param {number} id - The waypoint ID.
+ * Creates a Leaflet DivIcon for a waypoint marker, including a heading indicator.
+ * @param {object} waypointObject - The full waypoint object.
  * @param {boolean} isSelectedSingle - True if this waypoint is the currently active `selectedWaypoint`.
  * @param {boolean} [isMultiSelected=false] - True if this waypoint is part of `selectedForMultiEdit`.
  * @param {boolean} [isHomePoint=false] - True if this waypoint is the Home/Takeoff point.
  * @returns {L.DivIcon} The Leaflet DivIcon.
  */
-function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false, isHomePoint = false) {
+function createWaypointIcon(waypointObject, isSelectedSingle, isMultiSelected = false, isHomePoint = false) {
     let bgColor = '#3498db'; 
-    let iconHtmlContent = String(id); 
+    let iconHtmlContent = String(waypointObject.id); 
     let borderStyle = '2px solid white';
     let classNameSuffix = '';
     let currentSize = 24; 
@@ -170,7 +160,7 @@ function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false, isHom
         classNameSuffix = 'selected-single';
         currentSize = Math.round(24 * 1.2);
         currentFontSize = Math.round(12 * 1.2);
-        if (isMultiSelected) { // Can be single selected AND part of a multi-selection (though UI flow might prevent this state)
+        if (isMultiSelected) { 
             borderStyle = '3px solid #f39c12'; 
         }
     } else if (isMultiSelected) {
@@ -178,31 +168,80 @@ function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false, isHom
         classNameSuffix = 'selected-multi';
         currentSize = Math.round(24 * 1.1);
         currentFontSize = Math.round(12 * 1.1);
-        borderStyle = '2px solid #ffeb3b'; // Brighter border for multi-select
+        borderStyle = '2px solid #ffeb3b'; 
     }
     
     currentSize = Math.round(currentSize);
     currentFontSize = Math.round(currentFontSize);
 
+    // --- Heading Indicator Logic ---
+    let headingAngleDeg = 0;
+    let arrowColor = 'transparent'; // Default to no arrow
+    const arrowLength = 15; // Length of the heading indicator line
+    const wpIndex = waypoints.findIndex(w => w.id === waypointObject.id);
+
+    if (waypointObject.headingControl === 'auto') {
+        arrowColor = '#3498db'; // Blue for auto
+        if (wpIndex < waypoints.length - 1) { // Point to next waypoint
+            headingAngleDeg = calculateBearing(waypointObject.latlng, waypoints[wpIndex + 1].latlng);
+        } else if (wpIndex > 0) { // Last waypoint, point from previous
+            headingAngleDeg = calculateBearing(waypoints[wpIndex - 1].latlng, waypointObject.latlng);
+        } else {
+            arrowColor = 'transparent'; // Single waypoint, no auto heading
+        }
+    } else if (waypointObject.headingControl === 'fixed') {
+        headingAngleDeg = waypointObject.fixedHeading;
+        arrowColor = '#6c757d'; // Gray for fixed heading
+    } else if (waypointObject.headingControl === 'poi_track' && waypointObject.targetPoiId !== null) {
+        const targetPoi = pois.find(p => p.id === waypointObject.targetPoiId);
+        if (targetPoi) {
+            headingAngleDeg = calculateBearing(waypointObject.latlng, targetPoi.latlng);
+            arrowColor = '#28a745'; // Green for POI tracking
+        } else {
+            arrowColor = 'transparent'; // POI not found
+        }
+    } else {
+        arrowColor = 'transparent'; // No specific heading control
+    }
+    
+    // DJI Pilot app shows heading from center, so 0,0 in SVG is center of WP. Line goes "up" (negative Y) then rotates.
+    let headingIndicatorSvg = '';
+    if (arrowColor !== 'transparent') {
+        headingIndicatorSvg = `
+            <svg width="${currentSize + arrowLength * 2}" height="${currentSize + arrowLength * 2}" 
+                 style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(${headingAngleDeg}deg); overflow: visible;">
+                <line x1="0" y1="0" x2="0" y2="-${arrowLength + currentSize/3}" stroke="${arrowColor}" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+        `;
+        // y2 adjusted to start line slightly outside the main circle for better visibility like DJI app
+    }
+
     return L.divIcon({
         className: `waypoint-marker ${classNameSuffix}`,
-        html: `<div style="
-                    background: ${bgColor};
-                    color: white;
-                    border-radius: 50%;
-                    width: ${currentSize}px;
-                    height: ${currentSize}px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: ${currentFontSize}px;
-                    font-weight: bold;
-                    border: ${borderStyle};
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                    transition: all 0.1s ease-out;
-                    line-height: ${currentSize}px; 
-                }">${iconHtmlContent}</div>`,
-        iconSize: [currentSize, currentSize],
+        html: `
+            <div style="
+                position: relative; /* For positioning the SVG arrow */
+                background: ${bgColor};
+                color: white;
+                border-radius: 50%;
+                width: ${currentSize}px;
+                height: ${currentSize}px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: ${currentFontSize}px;
+                font-weight: bold;
+                border: ${borderStyle};
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                transition: all 0.1s ease-out;
+                line-height: ${currentSize}px; /* Per centrare meglio l'emoji/testo verticalmente */
+                z-index: 1; /* Ensure main circle is above arrow if they overlap perfectly at center */
+            ">
+                ${iconHtmlContent}
+            </div>
+            ${headingIndicatorSvg} 
+            `,
+        iconSize: [currentSize, currentSize], // Icon size remains for the circle
         iconAnchor: [currentSize / 2, currentSize / 2],
         popupAnchor: [0, -currentSize / 2]
     });
@@ -210,25 +249,24 @@ function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false, isHom
 
 /**
  * Updates the visual style (icon and z-index) of a waypoint marker.
- * @param {object} waypoint - The waypoint object.
+ * @param {object} waypointObject - The waypoint object.
  */
-function updateMarkerIconStyle(waypoint) {
-    if (waypoint && waypoint.marker) {
-        const isSelectedSingle = selectedWaypoint && selectedWaypoint.id === waypoint.id;
-        const isMultiSelected = selectedForMultiEdit.has(waypoint.id);
-        const isHome = waypoints.length > 0 && waypoints[0].id === waypoint.id;
+function updateMarkerIconStyle(waypointObject) {
+    if (waypointObject && waypointObject.marker) {
+        const isSelectedSingle = selectedWaypoint && selectedWaypoint.id === waypointObject.id;
+        const isMultiSelected = selectedForMultiEdit.has(waypointObject.id);
+        const isHome = waypoints.length > 0 && waypoints[0].id === waypointObject.id;
 
-        waypoint.marker.setIcon(createWaypointIcon(waypoint.id, isSelectedSingle, isMultiSelected, isHome));
+        waypointObject.marker.setIcon(createWaypointIcon(waypointObject, isSelectedSingle, isMultiSelected, isHome));
 
         let zOffset = 0;
         if (isHome) {
             zOffset = 1500; 
-        } else if (isSelectedSingle && !isMultiSelected) { // Prioritize multi-selection highlight slightly less than home, but more than normal multi
+        } else if (isSelectedSingle && !isMultiSelected) { 
             zOffset = 1000;
         } else if (isMultiSelected) {
             zOffset = 500;
         }
-        // Default zOffset is 0 for non-selected, non-multi-selected, non-home points.
-        waypoint.marker.setZIndexOffset(zOffset);
+        waypointObject.marker.setZIndexOffset(zOffset);
     }
 }
