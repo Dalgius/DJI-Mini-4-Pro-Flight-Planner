@@ -190,12 +190,12 @@ function createWaypointIcon(waypointObject, isSelectedSingle, isMultiSelected = 
         }
     } else if (waypointObject.headingControl === 'fixed') {
         headingAngleDeg = waypointObject.fixedHeading;
-        arrowColor = '#607d8b'; // A slightly muted, professional gray-blue for fixed heading
+        arrowColor = '#607d8b'; 
     } else if (waypointObject.headingControl === 'poi_track' && waypointObject.targetPoiId !== null) {
         const targetPoi = pois.find(p => p.id === waypointObject.targetPoiId);
         if (targetPoi) {
             headingAngleDeg = calculateBearing(waypointObject.latlng, targetPoi.latlng);
-            arrowColor = '#4CAF50'; // A clear, vibrant green for POI tracking
+            arrowColor = '#4CAF50'; 
         } else {
             arrowColor = 'transparent'; 
         }
@@ -206,47 +206,53 @@ function createWaypointIcon(waypointObject, isSelectedSingle, isMultiSelected = 
     let headingIndicatorSvg = '';
     if (arrowColor !== 'transparent') {
         const circleRadius = currentSize / 2;
-        // Dimensions for the triangular indicator
-        const indicatorLength = 14; // How far the arrow tip extends beyond the circle's edge
-        const indicatorBaseWidth = 9; // Width of the arrow's base, where it "emerges" from the circle
-
-        // Points for the polygon (arrowhead shape)
-        // P1: Tip of the arrow
-        // P2 & P3: Base corners of the arrow, starting from the edge of the waypoint circle
-        const p1x = 0;
-        const p1y = -(circleRadius + indicatorLength);
-        const p2x = -indicatorBaseWidth / 2;
-        const p2y = -circleRadius;
-        const p3x = indicatorBaseWidth / 2;
-        const p3y = -circleRadius;
         
-        const points = `${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y}`;
+        // Dimensions for the DJI-like arrow (stem + head)
+        const stemExtension = 8; // How far the stem extends beyond the circle's edge
+        const arrowheadLength = 7;
+        const arrowheadWidth = 7; // Base width of the arrowhead
+        const stemStrokeWidth = 2;
 
-        // The SVG container needs to be large enough to encompass the arrow when rotated.
-        // Max extent is roughly circleRadius + indicatorLength.
-        const svgContainerSize = (circleRadius + indicatorLength) * 2 + indicatorBaseWidth; // Ensure width is also covered
+        // Calculate coordinates for the arrow components (stem and head)
+        // Stem ends where the arrowhead base begins
+        const stemEndY = -(circleRadius + stemExtension);
+        
+        // Arrowhead points
+        const tipY = -(circleRadius + stemExtension + arrowheadLength);
+        const baseCornerOffsetX = arrowheadWidth / 2;
 
+        // SVG container needs to be large enough for the rotated arrow.
+        // Max extent is roughly circleRadius + stemExtension + arrowheadLength.
+        const maxArrowExtent = circleRadius + stemExtension + arrowheadLength;
+        const svgContainerSize = maxArrowExtent * 2 + arrowheadWidth; // Ensure full coverage
+
+        // Center of the SVG canvas
+        const svgCenterX = svgContainerSize / 2;
+        const svgCenterY = svgContainerSize / 2;
+        
         headingIndicatorSvg = `
             <svg width="${svgContainerSize}" height="${svgContainerSize}" 
-                 style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(${headingAngleDeg}deg); overflow: visible; z-index: 0;">
-                <polygon points="${points}" fill="${arrowColor}" />
+                 style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); overflow: visible; z-index: 5;">
+                <g transform="translate(${svgCenterX}, ${svgCenterY}) rotate(${headingAngleDeg})">
+                    <line x1="0" y1="0" x2="0" y2="${stemEndY}" stroke="${arrowColor}" stroke-width="${stemStrokeWidth}"/>
+                    <polygon points="0,${tipY} ${-baseCornerOffsetX},${stemEndY} ${baseCornerOffsetX},${stemEndY}" fill="${arrowColor}"/>
+                </g>
             </svg>
         `;
     }
 
     return L.divIcon({
-        className: `waypoint-marker ${classNameSuffix}`, // This is the main div Leaflet positions
+        className: `waypoint-marker ${classNameSuffix}`,
         html: `
             <div style="
-                position: relative; /* Establishes positioning context for the SVG */
-                width: 100%; /* Fill the L.divIcon container */
-                height: 100%; /* Fill the L.divIcon container */
-                display: flex; /* For centering the main circle content if needed, though its own style handles it */
+                position: relative; 
+                width: 100%; 
+                height: 100%; 
+                display: flex; 
                 align-items: center;
                 justify-content: center;
             ">
                 <div style=" 
-                    /* This is the visible waypoint circle */
                     background: ${bgColor};
                     color: white;
                     border-radius: 50%;
@@ -260,8 +266,8 @@ function createWaypointIcon(waypointObject, isSelectedSingle, isMultiSelected = 
                     border: ${borderStyle};
                     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
                     line-height: ${currentSize}px; 
-                    z-index: 1; /* Ensure circle content (number/icon) is above the arrow SVG */
-                    position: relative; /* To ensure z-index stacking works against absolute SVG */
+                    position: relative; /* Needed for z-index stacking if SVG was also position:relative */
+                    /* z-index: 1; // Let SVG be on top */
                 ">
                     ${iconHtmlContent}
                 </div>
