@@ -251,7 +251,8 @@ function applyMultiEdit() {
         showCustomAlert("Controlli per la modifica multipla non trovati.", "Errore Interno"); // Italian
         return;
     }
-
+    console.log("Stato prima della lettura - Gimbal Slider value:", multiGimbalPitchSlider.value, "disabled:", multiGimbalPitchSlider.disabled);
+    console.log("Stato prima della lettura - Hover Slider value:", multiHoverTimeSlider.value, "disabled:", multiHoverTimeSlider.disabled);
     const newHeadingControl = multiHeadingControlSelect.value;
     const newFixedHeading = parseInt(multiFixedHeadingSlider.value);
     const newCameraAction = multiCameraActionSelect.value;
@@ -261,6 +262,7 @@ function applyMultiEdit() {
     const newHoverTime = parseInt(multiHoverTimeSlider.value);
     const newTargetPoiId = (newHeadingControl === 'poi_track' && multiTargetPoiSelect.value) ? parseInt(multiTargetPoiSelect.value) : null;
 
+    console.log("--- applyMultiEdit INIZIO (dopo lettura valori) ---");
     // DEBUG logs (Italian)
     console.log("--- applyMultiEdit INIZIO ---");
     console.log("Checkbox Gimbal Selezionata:", changeGimbal);
