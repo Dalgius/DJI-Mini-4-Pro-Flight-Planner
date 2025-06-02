@@ -1,7 +1,7 @@
 // File: flightPathManager.js
 
-// Depends on: config.js, utils.js, uiUpdater.js (for updateFlightStatistics), waypointManager.js (for addWaypoint, selectWaypoint, waypoint specifics for altitude interpolation)
-// Depends on: mapManager.js (for createWaypointIcon)
+// Depends on: config.js, utils.js, uiUpdater.js (for updateFlightStatistics), waypointManager.js 
+// Depends on: mapManager.js (for createWaypointIcon, updateMarkerIconStyle)
 
 /**
  * Updates or redraws the flight path on the map based on current waypoints and path type.
@@ -9,15 +9,14 @@
 function updateFlightPath() {
     if (!map || !pathTypeSelect) return;
 
-    // Remove existing flight path if any
     if (flightPath) {
-        flightPath.off('click', handlePathClick); // Remove old listener
+        flightPath.off('click', handlePathClick); 
         map.removeLayer(flightPath);
         flightPath = null;
     }
 
     if (waypoints.length < 2) {
-        updateFlightStatistics(); // Still update stats (e.g., distance becomes 0)
+        updateFlightStatistics(); 
         return;
     }
 
@@ -25,23 +24,28 @@ function updateFlightPath() {
     const latlngsArrays = waypoints.map(wp => [wp.latlng.lat, wp.latlng.lng]);
 
     let displayPathCoords;
-    if (currentPathType === 'curved' && latlngsArrays.length >= 2) { // Need at least 2 for Catmull-Rom, though 3+ is ideal for curves
-        displayPathCoords = createSmoothPath(latlngsArrays); // createSmoothPath is from utils.js
+    if (currentPathType === 'curved' && latlngsArrays.length >= 2) { 
+        displayPathCoords = createSmoothPath(latlngsArrays); 
     } else {
-        displayPathCoords = latlngsArrays; // For straight path or less than 2 points for curve (effectively straight)
+        displayPathCoords = latlngsArrays; 
     }
 
     flightPath = L.polyline(displayPathCoords, {
         color: '#3498db',
-        weight: 5, // Increased weight for easier clicking
+        weight: 5, 
         opacity: 0.8,
-        dashArray: currentPathType === 'curved' ? null : '5, 5' // Dashed for straight, solid for curved
+        dashArray: currentPathType === 'curved' ? null : '5, 5' 
     }).addTo(map);
 
-    // Add click listener to the new path for inserting waypoints
     flightPath.on('click', handlePathClick);
 
     updateFlightStatistics();
+    // Path changes can affect 'auto' headings, so update all waypoint markers
+    // This is a broad update; more targeted updates are in waypointManager for specific actions.
+    // Consider if this is too frequent or if specific actions cover it well enough.
+    // For now, specific actions in waypointManager and eventListeners should cover most cases.
+    // If issues persist, uncommenting this is an option:
+    // waypoints.forEach(wp => updateMarkerIconStyle(wp)); 
 }
 
 /**
@@ -49,132 +53,120 @@ function updateFlightPath() {
  * @param {L.LeafletMouseEvent} e - The Leaflet mouse event from clicking the path.
  */
 function handlePathClick(e) {
-    L.DomEvent.stopPropagation(e); // Prevent map click event
+    L.DomEvent.stopPropagation(e); 
     const clickedLatLng = e.latlng;
 
-    if (waypoints.length < 2) return; // Need at least two waypoints to define a path segment
-
-    let closestSegmentIndex = -1;
-    let insertionPointLatLng = clickedLatLng; // Default to actual click if using simple logic
-    let minDistanceToProjectedPoint = Infinity;
-
-
-    // Find the segment and the closest point on that segment to the click
-    // This uses Leaflet.GeometryUtil if available, otherwise a simpler approach.
-    // For simplicity in this example, we'll find the segment whose line is closest to the click,
-    // and use the clicked point itself as the insertion point.
-    // A more robust solution would project the click onto the segment.
+    if (waypoints.length < 2) return; 
 
     let insertAfterWaypointIndex = -1;
+    let minDistanceToProjectedPoint = Infinity;
+    let insertionPointLatLng = clickedLatLng; // Default to actual click
 
-    // Iterate through segments defined by original waypoints
     for (let i = 0; i < waypoints.length - 1; i++) {
         const p1 = waypoints[i].latlng;
         const p2 = waypoints[i + 1].latlng;
-
-        // Using Leaflet.GeometryUtil.closestOnSegment if available
-        // For now, let's use a simpler distance to segment midpoint logic as a placeholder
-        // or assume the path itself is made of straight segments for click detection.
-        // For simplicity, find the segment where the click is "between" waypoints or closest to the segment line.
-        // A proper solution requires projecting the point onto each segment line.
-
-        // Let's find the closest *original* segment to the clicked point on the *rendered* path.
-        // The `e.latlng` is already the point on the rendered path.
-        // We need to find which original segment this point on the rendered path corresponds to.
-
-        // Simplified: find the original waypoint that is closest BEFORE the click along the path.
-        // This is tricky with curved paths. For now, let's use a simple distance to the original segment lines.
         let dist;
-        if (L.GeometryUtil && typeof L.GeometryUtil.distanceToSegment === 'function') {
-            dist = L.GeometryUtil.distanceToSegment(map, L.polyline([p1,p2]), clickedLatLng);
-        } else {
-            // Fallback: distance to midpoint of segment (very rough)
+        if (L.GeometryUtil && typeof L.GeometryUtil.closestOnSegment === 'function') {
+            const closestPointOnSegment = L.GeometryUtil.closestOnSegment(map, L.polyline([p1,p2]), clickedLatLng);
+            dist = clickedLatLng.distanceTo(closestPointOnSegment);
+            if (dist < minDistanceToProjectedPoint) {
+                 minDistanceToProjectedPoint = dist;
+                 insertAfterWaypointIndex = i;
+                 insertionPointLatLng = closestPointOnSegment; // Use the projected point
+            }
+        } else { // Fallback if GeometryUtil is not available or for simpler logic
             const midPoint = L.latLng((p1.lat + p2.lat) / 2, (p1.lng + p2.lng) / 2);
             dist = clickedLatLng.distanceTo(midPoint);
-        }
-
-
-        if (dist < minDistanceToProjectedPoint) {
-            minDistanceToProjectedPoint = dist;
-            insertAfterWaypointIndex = i;
-            // If using L.GeometryUtil.closestOnSegment, insertionPointLatLng would be the result of that.
-            // For now, we use e.latlng given by the click on the polyline.
-            insertionPointLatLng = e.latlng;
+             if (dist < minDistanceToProjectedPoint) {
+                minDistanceToProjectedPoint = dist;
+                insertAfterWaypointIndex = i;
+                insertionPointLatLng = clickedLatLng; // Use original click if no projection
+            }
         }
     }
 
-
     if (insertAfterWaypointIndex !== -1) {
-        // Interpolate altitude (simple linear interpolation based on distance)
         const wp1 = waypoints[insertAfterWaypointIndex];
         const wp2 = waypoints[insertAfterWaypointIndex + 1];
-        let newWpAltitude = wp1.altitude; // Default to first waypoint's altitude
+        let newWpAltitude = wp1.altitude; 
 
-        if (wp1 && wp2) { // Ensure both waypoints exist
+        if (wp1 && wp2) { 
             const distToWp1 = insertionPointLatLng.distanceTo(wp1.latlng);
             const segmentLength = wp1.latlng.distanceTo(wp2.latlng);
-
             if (segmentLength > 0) {
-                const ratio = Math.min(1, Math.max(0, distToWp1 / segmentLength)); // Clamp ratio between 0 and 1
+                const ratio = Math.min(1, Math.max(0, distToWp1 / segmentLength)); 
                 newWpAltitude = wp1.altitude + (wp2.altitude - wp1.altitude) * ratio;
             }
         }
-        newWpAltitude = Math.round(Math.max(5, newWpAltitude)); // Ensure min altitude and round
+        newWpAltitude = Math.round(Math.max(5, newWpAltitude)); 
 
-        // Create the new waypoint object
-        const newWaypointData = {
-            latlng: insertionPointLatLng,
+        // Create the new waypoint object (will be fully setup by addWaypoint logic)
+        const newWaypointOptions = {
             altitude: newWpAltitude,
-            // Other properties will be set by addWaypoint function (hoverTime, gimbalPitch, etc.)
+            // gimbalPitch, hoverTime etc. will use defaults from addWaypoint
         };
-
-        // Insert the new waypoint into the waypoints array
-        // addWaypoint will create the marker and push to array, so we need to manage insertion.
-        // Let's modify addWaypoint slightly or create a new function insertWaypointAt.
-        // For now, let's adapt by creating the waypoint object and then splicing it in.
-
-        const newWpId = waypointCounter++; // Get next ID from global counter
+        
+        // We need to manually create the waypoint object and marker here
+        // because addWaypoint pushes to the end.
+        const newWpId = waypointCounter++;
         const newWaypoint = {
             id: newWpId,
             latlng: insertionPointLatLng,
             altitude: newWpAltitude,
-            hoverTime: 0, // Default, or from defaultHoverTimeSlider if exists
-            gimbalPitch: parseInt(gimbalPitchSlider ? gimbalPitchSlider.value : 0), // Default, or from defaultGimbalPitchSlider
+            hoverTime: 0, 
+            gimbalPitch: parseInt(gimbalPitchSlider ? gimbalPitchSlider.value : 0), 
             headingControl: 'auto',
             fixedHeading: 0,
             cameraAction: 'none',
             targetPoiId: null,
-            marker: null // Will be created
+            marker: null
         };
 
-        // Add marker for the new waypoint
+        waypoints.splice(insertAfterWaypointIndex + 1, 0, newWaypoint);
+
+        // Create marker after inserting into array so 'auto' heading can find neighbors
+        const isHome = waypoints.length > 0 && newWaypoint.id === waypoints[0].id; // Check if it became the home point
         const marker = L.marker(newWaypoint.latlng, {
             draggable: true,
-            icon: createWaypointIcon(newWaypoint.id, false) // createWaypointIcon from mapManager.js
+            icon: createWaypointIcon(newWaypoint, false, false, isHome)
         }).addTo(map);
-
+        
         marker.on('click', (ev) => { L.DomEvent.stopPropagation(ev); selectWaypoint(newWaypoint); });
         marker.on('dragend', () => {
             newWaypoint.latlng = marker.getLatLng();
             updateFlightPath();
             updateFlightStatistics();
             updateWaypointList();
+            updateMarkerIconStyle(newWaypoint); // Update self
+            const currentIndex = waypoints.findIndex(wp => wp.id === newWaypoint.id);
+            if (currentIndex > 0 && waypoints[currentIndex-1].headingControl === 'auto') {
+                updateMarkerIconStyle(waypoints[currentIndex-1]); // Update previous
+            }
+            if (currentIndex < waypoints.length - 1 && waypoints[currentIndex+1].headingControl === 'auto') {
+                // Next waypoint's auto heading doesn't change based on *this* one moving, but its *own* next.
+                // However, if this current one is the one *before* the next, this marker update is sufficient.
+            }
         });
         marker.on('drag', () => {
             newWaypoint.latlng = marker.getLatLng();
-            updateFlightPath(); // Live update path while dragging
+            updateFlightPath(); 
         });
         newWaypoint.marker = marker;
 
-        waypoints.splice(insertAfterWaypointIndex + 1, 0, newWaypoint);
+        // Update heading of the waypoint BEFORE the newly inserted one if it's 'auto'
+        if (insertAfterWaypointIndex >= 0 && waypoints[insertAfterWaypointIndex].headingControl === 'auto') {
+            updateMarkerIconStyle(waypoints[insertAfterWaypointIndex]);
+        }
+        // The new waypoint itself will be updated by selectWaypoint call.
+        // The waypoint AFTER the newly inserted one (if 'auto') does not need its heading updated
+        // as its "next" waypoint hasn't changed relative to itself.
 
-        // Update UI
         updateWaypointList();
-        updateFlightPath(); // Redraw path with new waypoint
+        updateFlightPath(); 
         updateFlightStatistics();
-        selectWaypoint(newWaypoint); // Select the newly added waypoint
+        selectWaypoint(newWaypoint); 
 
-        showCustomAlert(`Waypoint ${newWaypoint.id} inserted into flight path.`, "Info");
+        showCustomAlert(`Waypoint ${newWaypoint.id} inserted.`, "Info");
     } else {
         showCustomAlert("Could not determine insertion point on the path.", "Error");
     }
