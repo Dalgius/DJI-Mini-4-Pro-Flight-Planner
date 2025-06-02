@@ -207,26 +207,24 @@ function createWaypointIcon(waypointObject, isSelectedSingle, isMultiSelected = 
     if (arrowColor !== 'transparent') {
         const circleRadius = currentSize / 2;
         
-        // Dimensions for the DJI-like arrow (stem + head)
-        const stemExtension = 8; // How far the stem extends beyond the circle's edge
-        const arrowheadLength = 7;
-        const arrowheadWidth = 7; // Base width of the arrowhead
-        const stemStrokeWidth = 2;
+        // Dimensions for the arrowhead (no stem)
+        const arrowheadLength = 10; // Total length of the arrowhead from its base to its tip
+        const arrowheadWidth = 9;  // Base width of the arrowhead
+        const gapFromCircle = 1; // Small gap between circle edge and arrow base
 
-        // Calculate coordinates for the arrow components (stem and head)
-        // Stem ends where the arrowhead base begins
-        const stemEndY = -(circleRadius + stemExtension);
-        
-        // Arrowhead points
-        const tipY = -(circleRadius + stemExtension + arrowheadLength);
+        // Calculate coordinates for the arrowhead polygon
+        // The base of the arrow starts just outside the circle
+        const arrowBaseY = -(circleRadius + gapFromCircle);
+        const arrowTipY = -(circleRadius + gapFromCircle + arrowheadLength);
         const baseCornerOffsetX = arrowheadWidth / 2;
+        
+        const polygonPoints = `${baseCornerOffsetX},${arrowBaseY} ${-baseCornerOffsetX},${arrowBaseY} 0,${arrowTipY}`;
+
 
         // SVG container needs to be large enough for the rotated arrow.
-        // Max extent is roughly circleRadius + stemExtension + arrowheadLength.
-        const maxArrowExtent = circleRadius + stemExtension + arrowheadLength;
-        const svgContainerSize = maxArrowExtent * 2 + arrowheadWidth; // Ensure full coverage
+        const maxArrowExtent = circleRadius + gapFromCircle + arrowheadLength;
+        const svgContainerSize = maxArrowExtent * 2 + arrowheadWidth; 
 
-        // Center of the SVG canvas
         const svgCenterX = svgContainerSize / 2;
         const svgCenterY = svgContainerSize / 2;
         
@@ -234,8 +232,7 @@ function createWaypointIcon(waypointObject, isSelectedSingle, isMultiSelected = 
             <svg width="${svgContainerSize}" height="${svgContainerSize}" 
                  style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); overflow: visible; z-index: 5;">
                 <g transform="translate(${svgCenterX}, ${svgCenterY}) rotate(${headingAngleDeg})">
-                    <line x1="0" y1="0" x2="0" y2="${stemEndY}" stroke="${arrowColor}" stroke-width="${stemStrokeWidth}"/>
-                    <polygon points="0,${tipY} ${-baseCornerOffsetX},${stemEndY} ${baseCornerOffsetX},${stemEndY}" fill="${arrowColor}"/>
+                    <polygon points="${polygonPoints}" fill="${arrowColor}"/>
                 </g>
             </svg>
         `;
@@ -266,8 +263,7 @@ function createWaypointIcon(waypointObject, isSelectedSingle, isMultiSelected = 
                     border: ${borderStyle};
                     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
                     line-height: ${currentSize}px; 
-                    position: relative; /* Needed for z-index stacking if SVG was also position:relative */
-                    /* z-index: 1; // Let SVG be on top */
+                    position: relative; 
                 ">
                     ${iconHtmlContent}
                 </div>
