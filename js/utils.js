@@ -29,15 +29,16 @@ function toRad(degrees) {
 
 /**
  * Calculates the Haversine distance between two geographic coordinates.
- * @param {{lat: number, lng: number} | [number, number]} coords1 - First coordinate (lat, lng).
- * @param {{lat: number, lng: number} | [number, number]} coords2 - Second coordinate (lat, lng).
+ * @param {{lat: number, lng: number} | [number, number] | L.LatLng} coords1 - First coordinate.
+ * @param {{lat: number, lng: number} | [number, number] | L.LatLng} coords2 - Second coordinate.
  * @returns {number} Distance in meters.
  */
 function haversineDistance(coords1, coords2) {
-    const lat1 = coords1.lat || coords1[0];
-    const lon1 = coords1.lng || coords1[1];
-    const lat2 = coords2.lat || coords2[0];
-    const lon2 = coords2.lng || coords2[1];
+    // Ensure we handle L.LatLng objects from Leaflet directly
+    const lat1 = (typeof coords1.lat === 'function') ? coords1.lat() : (coords1.lat || coords1[0]);
+    const lon1 = (typeof coords1.lng === 'function') ? coords1.lng() : (coords1.lng || coords1[1]);
+    const lat2 = (typeof coords2.lat === 'function') ? coords2.lat() : (coords2.lat || coords2[0]);
+    const lon2 = (typeof coords2.lng === 'function') ? coords2.lng() : (coords2.lng || coords2[1]);
 
     const R = R_EARTH; // Radius of Earth in meters from config.js
     const φ1 = toRad(lat1);
@@ -66,9 +67,6 @@ function getCatmullRomPoint(t, p0, p1, p2, p3) {
     const t2 = t * t;
     const t3 = t2 * t;
 
-    // Catmull-Rom tension parameter (typically 0.5 for centripetal Catmull-Rom)
-    // For standard Catmull-Rom, alpha = 0.5.
-    // Coefficients for P0, P1, P2, P3
     const f1 = -0.5 * t3 + t2 - 0.5 * t;
     const f2 = 1.5 * t3 - 2.5 * t2 + 1;
     const f3 = -1.5 * t3 + 2.0 * t2 + 0.5 * t;
@@ -87,34 +85,24 @@ function getCatmullRomPoint(t, p0, p1, p2, p3) {
  */
 function createSmoothPath(points) {
     if (points.length < 2) return points;
-    if (points.length === 2) return [points[0], points[1]]; // Straight line for 2 points
+    if (points.length === 2) return [points[0], points[1]];
 
     const smoothed = [];
-    const numSegmentsBetweenPoints = 15; // Number of interpolated points between original waypoints
+    const numSegmentsBetweenPoints = 15; 
 
-    // Add the first point
     smoothed.push(points[0]);
 
     for (let i = 0; i < points.length - 1; i++) {
-        // Determine control points p0, p1, p2, p3
-        const p0 = (i === 0) ? points[0] : points[i - 1];         // Previous point or first point itself
-        const p1 = points[i];                                     // Current point (start of segment)
-        const p2 = points[i + 1];                                 // Next point (end of segment)
-        const p3 = (i === points.length - 2) ? points[points.length - 1] : points[i + 2]; // Point after next or last point itself
+        const p0 = (i === 0) ? points[0] : points[i - 1];         
+        const p1 = points[i];                                     
+        const p2 = points[i + 1];                                 
+        const p3 = (i === points.length - 2) ? points[points.length - 1] : points[i + 2]; 
 
         for (let j = 1; j <= numSegmentsBetweenPoints; j++) {
             const t = j / numSegmentsBetweenPoints;
             smoothed.push(getCatmullRomPoint(t, p0, p1, p2, p3));
         }
     }
-    // The loop structure ensures the last point (points[points.length-1]) is effectively p2 when i = points.length-2,
-    // and getCatmullRomPoint(1, ..., p2, p3) should yield p2.
-    // To be absolutely sure the last original point is included if it's not perfectly hit by t=1:
-    // if (smoothed.length === 0 || smoothed[smoothed.length - 1][0] !== points[points.length - 1][0] || smoothed[smoothed.length - 1][1] !== points[points.length - 1][1]) {
-    //     smoothed.push(points[points.length-1]);
-    // }
-    // However, the standard way this interpolation is done, the last point of the segment (p2) is reached when t=1 for that segment.
-
     return smoothed;
 }
 
@@ -128,6 +116,54 @@ function getCameraActionText(action) {
         case 'takePhoto': return 'Photo';
         case 'startRecord': return 'Rec Start';
         case 'stopRecord': return 'Rec Stop';
-        default: return ''; // Or 'None' if preferred
+        default: return ''; 
     }
+}
+
+
+/**
+ * Calculates the bearing from point 1 to point 2.
+ * @param {L.LatLng} point1LatLng - The starting L.LatLng point.
+ * @param {L.LatLng} point2LatLng - The ending L.LatLng point.
+ * @returns {number} Bearing in degrees from North (0-360).
+ */
+function calculateBearing(point1LatLng, point2LatLng) {
+    const lat1 = toRad(point1LatLng.lat);
+    const lon1 = toRad(point1LatLng.lng);
+    const lat2 = toRad(point2LatLng.lat);
+    const lon2 = toRad(point2LatLng.lng);
+    const dLon = lon2 - lon1;
+
+    const y = Math.sin(dLon) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+    let brng = Math.atan2(y, x) * 180 / Math.PI;
+
+    return (brng + 360) % 360; // Normalize to 0-360
+}
+
+/**
+ * Calculates a destination point given a starting point, bearing, and distance.
+ * @param {L.LatLng} startLatLng - The starting L.LatLng point.
+ * @param {number} bearingDeg - Bearing in degrees from North.
+ * @param {number} distanceMeters - Distance in meters.
+ * @returns {L.LatLng} The destination L.LatLng point.
+ */
+function destinationPoint(startLatLng, bearingDeg, distanceMeters) {
+    const R = R_EARTH; // Earth's radius in meters from config.js
+    const angularDistance = distanceMeters / R; // Angular distance in radians
+    const bearingRad = toRad(bearingDeg);
+
+    const lat1 = toRad(startLatLng.lat);
+    const lon1 = toRad(startLatLng.lng);
+
+    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(angularDistance) +
+                           Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearingRad));
+
+    let lon2 = lon1 + Math.atan2(Math.sin(bearingRad) * Math.sin(angularDistance) * Math.cos(lat1),
+                                 Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2));
+
+    // Normalize lon2 to -180 to +180 degrees
+    lon2 = (lon2 * 180 / Math.PI + 540) % 360 - 180;
+
+    return L.latLng(lat2 * 180 / Math.PI, lon2);
 }
