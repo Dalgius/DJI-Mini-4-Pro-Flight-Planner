@@ -32,26 +32,30 @@ function initializeMap() {
  * Handles click events on the map for general actions.
  */
 function handleMapClick(e) {
-    console.log(`[MapManager] handleMapClick: isDrawingSurveyArea = ${isDrawingSurveyArea}, isSettingHomePointMode = ${typeof isSettingHomePointMode !== 'undefined' ? isSettingHomePointMode : 'undefined'}`);
+    // The variable isSettingHomePointMode was checked here previously but is not defined/initialized
+    // in the provided codebase, indicating an incomplete or removed feature.
+    // The check has been removed. If a "set home point by map click" feature is desired,
+    // it would need proper implementation including variable definition and management.
 
-    if (typeof isSettingHomePointMode !== 'undefined' && isSettingHomePointMode === true) {
-        console.log("[MapManager] handleMapClick: In Set Home Point mode, ignoring default map click.");
-        return; 
-    }
     if (typeof isDrawingSurveyArea !== 'undefined' && isDrawingSurveyArea === true) {
         console.log("[MapManager] handleMapClick: In survey area drawing mode, ignoring default map click.");
         return; 
     }
 
     console.log("[MapManager] handleMapClick: Processing default map click (add waypoint/POI).");
-    if (e.originalEvent.target === map.getContainer()) {
+    // Leaflet's map click event usually only fires for clicks on the map itself,
+    // not on layers that have their own click handlers (which stop propagation).
+    // The e.originalEvent.target check can be an additional safeguard.
+    if (e.originalEvent.target === map.getContainer() || e.originalEvent.target.classList.contains('leaflet-container')) {
         if (e.originalEvent.ctrlKey) {
-            addPOI(e.latlng);
+            addPOI(e.latlng); // from poiManager.js
         } else {
-            addWaypoint(e.latlng);
+            addWaypoint(e.latlng); // from waypointManager.js
         }
     } else {
-        console.log("[MapManager] Click was NOT directly on map container.");
+        // This branch would be hit if a click occurred on a map element without a dedicated click handler
+        // that stops propagation, and which isn't the main map container.
+        console.log("[MapManager] Click was not directly on the map container or an unhandled layer element.");
     }
 }
 
@@ -62,10 +66,10 @@ function toggleSatelliteView() {
     if (!map || !defaultTileLayer || !satelliteTileLayer || !satelliteToggleBtn) return;
     if (satelliteView) {
         map.removeLayer(satelliteTileLayer); map.addLayer(defaultTileLayer);
-        satelliteToggleBtn.textContent = '📡 Satellite';
+        satelliteToggleBtn.textContent = '📡 Satellite'; // Consider using data-i18n-target-text="true" and JS for this too
     } else {
         map.removeLayer(defaultTileLayer); map.addLayer(satelliteTileLayer);
-        satelliteToggleBtn.textContent = '🗺️ Map';
+        satelliteToggleBtn.textContent = '🗺️ Map'; // Consider using data-i18n-target-text="true" and JS for this too
     }
     satelliteView = !satelliteView;
     console.log(`[MapManager] Satellite view toggled. Now: ${satelliteView ? 'Satellite' : 'Default'}`);
@@ -76,14 +80,28 @@ function toggleSatelliteView() {
  */
 function fitMapToWaypoints() {
     if (!map) return;
+    let boundsToFit = null;
+
     if (waypoints.length > 0) {
-        map.fitBounds(L.latLngBounds(waypoints.map(wp => wp.latlng)).pad(0.1));
-    } else if (pois.length > 0) {
-        map.fitBounds(L.latLngBounds(pois.map(p => p.latlng)).pad(0.1));
-    } else {
-        map.setView([37.7749, -122.4194], 13);
+        boundsToFit = L.latLngBounds(waypoints.map(wp => wp.latlng));
     }
-    console.log("[MapManager] Map fitted to bounds.");
+    
+    if (pois.length > 0) {
+        const poiBounds = L.latLngBounds(pois.map(p => p.latlng));
+        if (boundsToFit) {
+            boundsToFit.extend(poiBounds);
+        } else {
+            boundsToFit = poiBounds;
+        }
+    }
+
+    if (boundsToFit && boundsToFit.isValid()) {
+        map.fitBounds(boundsToFit.pad(0.1));
+         console.log("[MapManager] Map fitted to bounds of waypoints and/or POIs.");
+    } else {
+        map.setView([37.7749, -122.4194], 13); // Default view if nothing to fit
+        console.log("[MapManager] No items to fit, set to default view.");
+    }
 }
 
 /**
@@ -92,7 +110,7 @@ function fitMapToWaypoints() {
 function showCurrentLocation() {
     if (!map) return;
     if (!navigator.geolocation) {
-        showCustomAlert('Geolocation is not supported.', "Error"); return;
+        showCustomAlert('Geolocation is not supported by your browser.', "Error"); return;
     }
     navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -110,7 +128,17 @@ function showCurrentLocation() {
             }
             map.setView(latlng, 15);
         },
-        () => { showCustomAlert('Unable to retrieve your location.', "Error"); }
+        (error) => { 
+            let message = 'Unable to retrieve your location.';
+            if (error.code === error.PERMISSION_DENIED) {
+                message = 'Location access denied. Please enable location services for this site.';
+            } else if (error.code === error.POSITION_UNAVAILABLE) {
+                message = 'Location information is unavailable.';
+            } else if (error.code === error.TIMEOUT) {
+                message = 'The request to get user location timed out.';
+            }
+            showCustomAlert(message, "Location Error"); 
+        }
     );
 }
 
@@ -124,35 +152,35 @@ function showCurrentLocation() {
  */
 function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false, isHomePoint = false) {
     let bgColor = '#3498db'; 
-    let iconHtmlContent = String(id); // Convert id to string in case it's used directly
+    let iconHtmlContent = String(id); 
     let borderStyle = '2px solid white';
     let classNameSuffix = '';
-    let currentSize = 24; // Default size
-    let currentFontSize = 12; // Default font size
+    let currentSize = 24; 
+    let currentFontSize = 12; 
 
     if (isHomePoint) {
-        bgColor = '#27ae60'; // Green for Home Point (più scuro di #2ecc71)
+        bgColor = '#27ae60'; 
         iconHtmlContent = '🏠'; 
         borderStyle = '2px solid #ffffff';
-        classNameSuffix = 'home-point-wp'; // Classe specifica se serve
-        currentSize = 28; // Leggermente più grande
-        currentFontSize = 16; // Font più grande per l'emoji
+        classNameSuffix = 'home-point-wp'; 
+        currentSize = 28; 
+        currentFontSize = 16; 
     } else if (isSelectedSingle) {
         bgColor = '#e74c3c'; 
         classNameSuffix = 'selected-single';
-        currentSize = 24 * 1.2;
-        currentFontSize = 12 * 1.2;
-        if (isMultiSelected) { 
+        currentSize = Math.round(24 * 1.2);
+        currentFontSize = Math.round(12 * 1.2);
+        if (isMultiSelected) { // Can be single selected AND part of a multi-selection (though UI flow might prevent this state)
             borderStyle = '3px solid #f39c12'; 
         }
     } else if (isMultiSelected) {
         bgColor = '#f39c12'; 
         classNameSuffix = 'selected-multi';
-        currentSize = 24 * 1.1;
-        currentFontSize = 12 * 1.1;
-        borderStyle = '2px solid #ffeb3b';
+        currentSize = Math.round(24 * 1.1);
+        currentFontSize = Math.round(12 * 1.1);
+        borderStyle = '2px solid #ffeb3b'; // Brighter border for multi-select
     }
-    // Arrotonda le dimensioni per evitare problemi di rendering sub-pixel
+    
     currentSize = Math.round(currentSize);
     currentFontSize = Math.round(currentFontSize);
 
@@ -172,7 +200,7 @@ function createWaypointIcon(id, isSelectedSingle, isMultiSelected = false, isHom
                     border: ${borderStyle};
                     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
                     transition: all 0.1s ease-out;
-                    line-height: ${currentSize}px; /* Per centrare meglio l'emoji/testo verticalmente */
+                    line-height: ${currentSize}px; 
                 }">${iconHtmlContent}</div>`,
         iconSize: [currentSize, currentSize],
         iconAnchor: [currentSize / 2, currentSize / 2],
@@ -188,19 +216,19 @@ function updateMarkerIconStyle(waypoint) {
     if (waypoint && waypoint.marker) {
         const isSelectedSingle = selectedWaypoint && selectedWaypoint.id === waypoint.id;
         const isMultiSelected = selectedForMultiEdit.has(waypoint.id);
-        // Determina se è l'Home Point (il primo waypoint nell'array waypoints)
         const isHome = waypoints.length > 0 && waypoints[0].id === waypoint.id;
 
         waypoint.marker.setIcon(createWaypointIcon(waypoint.id, isSelectedSingle, isMultiSelected, isHome));
 
         let zOffset = 0;
         if (isHome) {
-            zOffset = 1500; // Home point sempre molto in alto per visibilità
-        } else if (isSelectedSingle) {
+            zOffset = 1500; 
+        } else if (isSelectedSingle && !isMultiSelected) { // Prioritize multi-selection highlight slightly less than home, but more than normal multi
             zOffset = 1000;
         } else if (isMultiSelected) {
             zOffset = 500;
         }
+        // Default zOffset is 0 for non-selected, non-multi-selected, non-home points.
         waypoint.marker.setZIndexOffset(zOffset);
     }
 }
