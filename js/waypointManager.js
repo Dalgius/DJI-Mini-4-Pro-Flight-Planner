@@ -22,9 +22,6 @@ function addWaypoint(latlng, options = {}) {
         targetPoiId: options.targetPoiId || null,
         marker: null 
     };
-
-    // Marker creation will be handled by updateMarkerIconStyle after pushing to waypoints array
-    // This ensures that 'auto' heading calculations have access to the full waypoints array.
     
     waypoints.push(newWaypoint);
 
@@ -40,7 +37,7 @@ function addWaypoint(latlng, options = {}) {
     });
     marker.on('dragend', () => {
         newWaypoint.latlng = marker.getLatLng();
-        updateFlightPath(); // This will update distances and potentially auto headings visually later
+        updateFlightPath(); 
         updateFlightStatistics();
         updateWaypointList(); 
         // Update current marker and potentially adjacent for auto-heading changes
@@ -49,27 +46,20 @@ function addWaypoint(latlng, options = {}) {
         if (wpIndex > 0 && waypoints[wpIndex-1].headingControl === 'auto') {
             updateMarkerIconStyle(waypoints[wpIndex-1]);
         }
-        if (wpIndex < waypoints.length - 1 && waypoints[wpIndex+1].headingControl === 'auto') {
-             // This waypoint itself might be the one "before" the next one, its heading needs recalc
-             // updateMarkerIconStyle(newWaypoint) already covers this.
-        }
+        // If it's not the last waypoint and its heading is auto, its own indicator gets updated by updateMarkerIconStyle(newWaypoint)
+        // If it is the last waypoint and its heading is auto, it points from the previous, also covered.
     });
     marker.on('drag', () => { 
         newWaypoint.latlng = marker.getLatLng();
         updateFlightPath(); // Live update path
-        // For live heading update while dragging (more intensive):
-        // updateMarkerIconStyle(newWaypoint);
-        // const wpIndex = waypoints.findIndex(wp => wp.id === newWaypoint.id);
-        // if (wpIndex > 0 && waypoints[wpIndex-1].headingControl === 'auto') updateMarkerIconStyle(waypoints[wpIndex-1]);
-        // if (wpIndex < waypoints.length - 1 && waypoints[wpIndex+1].headingControl === 'auto') updateMarkerIconStyle(waypoints[wpIndex+1]);
     });
     newWaypoint.marker = marker;
 
-
-    // Update icon of the previous waypoint if its heading was 'auto'
+    // Update icon of the previous waypoint if its heading was 'auto' and it's not the new waypoint itself
     if (waypoints.length > 1) {
-        const prevWp = waypoints[waypoints.length - 2];
-        if (prevWp.headingControl === 'auto') {
+        const prevWpIndex = waypoints.length - 2;
+        const prevWp = waypoints[prevWpIndex];
+        if (prevWp && prevWp.id !== newWaypoint.id && prevWp.headingControl === 'auto') {
             updateMarkerIconStyle(prevWp);
         }
     }
@@ -104,8 +94,6 @@ function selectWaypoint(waypoint) {
 
     waypoints.forEach(wp => {
         if (wp.id !== selectedWaypoint.id) {
-            // Ensure non-selected waypoints don't carry stale single-selection styles
-            // but respect their multi-select or home status.
             updateMarkerIconStyle(wp); 
         }
     });
@@ -124,7 +112,7 @@ function selectWaypoint(waypoint) {
  */
 function deleteSelectedWaypoint() {
     if (!selectedWaypoint) {
-        showCustomAlert("No waypoint selected to delete.", "Info");
+        showCustomAlert("Nessun waypoint selezionato da eliminare.", "Info"); // Italian
         return;
     }
 
@@ -143,19 +131,7 @@ function deleteSelectedWaypoint() {
 
     selectedWaypoint = null;
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
-
-    // After removing the waypoint, update the headings of potentially affected adjacent waypoints
-    // (the one before the deleted, and the new "first" if the old first was deleted)
-    if (deletedWaypointIndex > 0 && deletedWaypointIndex -1 < waypoints.length) { // Check if there was a waypoint before the deleted one
-        const prevWp = waypoints[deletedWaypointIndex - 1];
-        if (prevWp && prevWp.headingControl === 'auto') {
-            updateMarkerIconStyle(prevWp);
-        }
-    }
-    // If the first waypoint was deleted, the new first waypoint (if any) might need its home icon.
-    // And its 'auto' heading (if it's the only one left) should be cleared.
-    // This is more broadly handled by refreshing all icons.
-
+    
     updateWaypointList(); 
     updateFlightPath();
     updateFlightStatistics();
@@ -164,7 +140,7 @@ function deleteSelectedWaypoint() {
     // Refresh all remaining waypoint icons to correctly update home point and auto headings
     waypoints.forEach(wp => updateMarkerIconStyle(wp)); 
 
-    showCustomAlert("Waypoint deleted.", "Success"); 
+    // showCustomAlert("Waypoint eliminato.", "Success"); // Italian
 }
 
 /**
@@ -265,13 +241,13 @@ function clearMultiSelection() {
  */
 function applyMultiEdit() {
     if (selectedForMultiEdit.size === 0) {
-        showCustomAlert("No waypoints selected for multi-edit.", "Warning");
+        showCustomAlert("Nessun waypoint selezionato per la modifica multipla.", "Attenzione"); // Italian
         return;
     }
     if (!multiHeadingControlSelect || !multiFixedHeadingSlider || !multiCameraActionSelect ||
         !multiChangeGimbalPitchCheckbox || !multiGimbalPitchSlider ||
         !multiChangeHoverTimeCheckbox || !multiHoverTimeSlider || !multiTargetPoiSelect) {
-        showCustomAlert("Multi-edit controls not found.", "Internal Error");
+        showCustomAlert("Controlli per la modifica multipla non trovati.", "Errore Interno"); // Italian
         return;
     }
 
@@ -284,6 +260,14 @@ function applyMultiEdit() {
     const newHoverTime = parseInt(multiHoverTimeSlider.value);
     const newTargetPoiId = (newHeadingControl === 'poi_track' && multiTargetPoiSelect.value) ? parseInt(multiTargetPoiSelect.value) : null;
 
+    // DEBUG logs (Italian)
+    console.log("--- applyMultiEdit INIZIO ---");
+    console.log("Checkbox Gimbal Selezionata:", changeGimbal);
+    console.log("Nuovo Gimbal Pitch (da slider):", multiGimbalPitchSlider.value, "Parsato:", newGimbalPitch);
+    console.log("Checkbox Hover Selezionata:", changeHover);
+    console.log("Nuovo Hover Time (da slider):", multiHoverTimeSlider.value, "Parsato:", newHoverTime);
+    console.log("Numero Waypoint Selezionati:", selectedForMultiEdit.size);
+    
     let changesMadeToAtLeastOneWp = false;
 
     waypoints.forEach(wp => {
@@ -300,32 +284,39 @@ function applyMultiEdit() {
                     wp.targetPoiId = null;
                 }
                 wpChangedThisIteration = true;
+                console.log(`WP ${wp.id}: Heading control impostato a ${newHeadingControl}`);
             }
             if (newCameraAction) { 
                 wp.cameraAction = newCameraAction;
                 wpChangedThisIteration = true;
+                console.log(`WP ${wp.id}: Camera action impostata a ${newCameraAction}`);
             }
             if (changeGimbal) {
                 wp.gimbalPitch = newGimbalPitch;
                 wpChangedThisIteration = true;
+                console.log(`WP ${wp.id}: Gimbal Pitch impostato a ${newGimbalPitch}`);
             }
             if (changeHover) {
                 wp.hoverTime = newHoverTime;
                 wpChangedThisIteration = true;
+                console.log(`WP ${wp.id}: Hover Time impostato a ${newHoverTime}`);
             }
+
             if (wpChangedThisIteration) {
                 changesMadeToAtLeastOneWp = true;
-                updateMarkerIconStyle(wp); // Update marker for this waypoint
+                updateMarkerIconStyle(wp); 
             }
         }
     });
+    console.log("--- applyMultiEdit FINE CICLO WAYPOINTS ---");
+
 
     if (changesMadeToAtLeastOneWp) {
         updateWaypointList();
         updateFlightStatistics(); 
-        showCustomAlert(`${selectedForMultiEdit.size} waypoints were updated.`, "Success");
+        showCustomAlert(`${selectedForMultiEdit.size} waypoint sono stati aggiornati.`, "Successo"); // Italian
     } else {
-        showCustomAlert("No changes specified or no valid values for changes. Waypoints not modified.", "Info");
+        showCustomAlert("Nessuna modifica specificata o nessun valore valido per le modifiche. Waypoint non modificati.", "Info"); // Italian
     }
 
     multiHeadingControlSelect.value = ""; 
