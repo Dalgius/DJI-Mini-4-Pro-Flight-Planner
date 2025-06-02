@@ -196,9 +196,18 @@ function setupEventListeners() {
     if (exportJsonBtn) {
         exportJsonBtn.addEventListener('click', exportFlightPlanToJson);
     }
-    if (exportKmzBtn) {
-        exportKmzBtn.addEventListener('click', exportToDjiWpmlKmz);
-    }
+    if (exportKmzBtn) { // Assicurati che exportKmzBtn sia cachato correttamente
+    console.log("[EventListeners] Adding click listener to exportKmzBtn");
+    exportKmzBtn.addEventListener('click', () => { 
+        console.log("[EventListeners] exportKmzBtn CLICKED, attempting to call exportToDjiWpmlKmz"); // LOG DEL CLICK
+        if (typeof exportToDjiWpmlKmz === 'function') {
+            exportToDjiWpmlKmz();
+        } else {
+            console.error("[EventListeners] exportToDjiWpmlKmz function IS NOT DEFINED or not accessible.");
+            if(typeof showCustomAlert === 'function') showCustomAlert("Export function not available.", "Error");
+        }
+        });
+}
     if (exportGoogleEarthBtn) {
         exportGoogleEarthBtn.addEventListener('click', exportToGoogleEarthKml);
     }
