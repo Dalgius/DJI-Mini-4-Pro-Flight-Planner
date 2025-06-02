@@ -58,6 +58,7 @@ function cacheDOMElements() {
     multiHoverTimeSlider = document.getElementById('multiHoverTime');
     multiHoverTimeValueEl = document.getElementById('multiHoverTimeValue');
     applyMultiEditBtn = document.getElementById('applyMultiEditBtn');
+    console.log("applyMultiEditBtn trovato in cacheDOMElements:", applyMultiEditBtn);
     clearMultiSelectionBtn = document.getElementById('clearMultiSelectionBtn');
 
     // Sidebar Controls - Terrain & Orbit Tools
