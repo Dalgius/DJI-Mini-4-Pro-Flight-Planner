@@ -66,6 +66,7 @@ let applyMultiEditBtn, clearMultiSelectionBtn;
 // ... (altre dichiarazioni) ...
 let createSurveyGridBtn, surveyGridModalOverlayEl, surveyGridModalTitleEl, surveyGridInstructionsEl;
 let surveyGridAltitudeInputEl, surveySidelapInputEl, surveyFrontlapInputEl, surveyGridAngleInputEl;
+// surveyGridOvershootInputEl removed as it's not in HTML or surveyGridManager logic
 let surveyAreaStatusEl, startDrawingSurveyAreaBtnEl, finalizeSurveyAreaBtnEl, confirmSurveyGridBtnEl, cancelSurveyGridBtnEl;
 
 // Terrain & Orbit Tools
