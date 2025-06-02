@@ -240,6 +240,7 @@ function clearMultiSelection() {
  * Applies bulk edits to all waypoints currently in the multi-selection set.
  */
 function applyMultiEdit() {
+    alert("applyMultiEdit è stata chiamata!");
     if (selectedForMultiEdit.size === 0) {
         showCustomAlert("Nessun waypoint selezionato per la modifica multipla.", "Attenzione"); // Italian
         return;
