@@ -6,7 +6,6 @@
  * Adds a new waypoint to the map and list.
  * @param {L.LatLng} latlng - The latitude and longitude for the new waypoint.
  * @param {object} [options={}] - Optional parameters to override defaults for the new waypoint.
- *                                e.g., { altitude, hoverTime, gimbalPitch, etc. }
  */
 function addWaypoint(latlng, options = {}) {
     if (!map || !defaultAltitudeSlider || !gimbalPitchSlider) return;
@@ -16,41 +15,69 @@ function addWaypoint(latlng, options = {}) {
         latlng: L.latLng(latlng.lat, latlng.lng),
         altitude: options.altitude !== undefined ? options.altitude : parseInt(defaultAltitudeSlider.value),
         hoverTime: options.hoverTime !== undefined ? options.hoverTime : 0,
-        gimbalPitch: options.gimbalPitch !== undefined ? options.gimbalPitch : parseInt(gimbalPitchSlider.value), // Default from current general gimbal pitch
+        gimbalPitch: options.gimbalPitch !== undefined ? options.gimbalPitch : parseInt(gimbalPitchSlider.value),
         headingControl: options.headingControl || 'auto',
         fixedHeading: options.fixedHeading || 0,
         cameraAction: options.cameraAction || 'none',
         targetPoiId: options.targetPoiId || null,
-        marker: null // Marker will be created below
+        marker: null 
     };
 
+    // Marker creation will be handled by updateMarkerIconStyle after pushing to waypoints array
+    // This ensures that 'auto' heading calculations have access to the full waypoints array.
+    
+    waypoints.push(newWaypoint);
+
+    const isHome = waypoints.length === 1 && newWaypoint.id === waypoints[0].id;
     const marker = L.marker(newWaypoint.latlng, {
         draggable: true,
-        icon: createWaypointIcon(newWaypoint.id, false, false) // from mapManager.js
+        icon: createWaypointIcon(newWaypoint, false, false, isHome) // Initial icon
     }).addTo(map);
 
     marker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e); // Prevent map click
+        L.DomEvent.stopPropagation(e); 
         selectWaypoint(newWaypoint);
     });
     marker.on('dragend', () => {
         newWaypoint.latlng = marker.getLatLng();
-        updateFlightPath();
+        updateFlightPath(); // This will update distances and potentially auto headings visually later
         updateFlightStatistics();
-        updateWaypointList(); // Update coordinates in the list
+        updateWaypointList(); 
+        // Update current marker and potentially adjacent for auto-heading changes
+        updateMarkerIconStyle(newWaypoint);
+        const wpIndex = waypoints.findIndex(wp => wp.id === newWaypoint.id);
+        if (wpIndex > 0 && waypoints[wpIndex-1].headingControl === 'auto') {
+            updateMarkerIconStyle(waypoints[wpIndex-1]);
+        }
+        if (wpIndex < waypoints.length - 1 && waypoints[wpIndex+1].headingControl === 'auto') {
+             // This waypoint itself might be the one "before" the next one, its heading needs recalc
+             // updateMarkerIconStyle(newWaypoint) already covers this.
+        }
     });
-    marker.on('drag', () => { // Live update during drag
+    marker.on('drag', () => { 
         newWaypoint.latlng = marker.getLatLng();
-        updateFlightPath();
+        updateFlightPath(); // Live update path
+        // For live heading update while dragging (more intensive):
+        // updateMarkerIconStyle(newWaypoint);
+        // const wpIndex = waypoints.findIndex(wp => wp.id === newWaypoint.id);
+        // if (wpIndex > 0 && waypoints[wpIndex-1].headingControl === 'auto') updateMarkerIconStyle(waypoints[wpIndex-1]);
+        // if (wpIndex < waypoints.length - 1 && waypoints[wpIndex+1].headingControl === 'auto') updateMarkerIconStyle(waypoints[wpIndex+1]);
     });
     newWaypoint.marker = marker;
 
-    waypoints.push(newWaypoint);
 
+    // Update icon of the previous waypoint if its heading was 'auto'
+    if (waypoints.length > 1) {
+        const prevWp = waypoints[waypoints.length - 2];
+        if (prevWp.headingControl === 'auto') {
+            updateMarkerIconStyle(prevWp);
+        }
+    }
+    
     updateWaypointList();
     updateFlightPath();
     updateFlightStatistics();
-    selectWaypoint(newWaypoint); // Select the newly added waypoint
+    selectWaypoint(newWaypoint); 
 }
 
 /**
@@ -62,37 +89,34 @@ function selectWaypoint(waypoint) {
 
     const previouslySelectedSingleId = selectedWaypoint ? selectedWaypoint.id : null;
 
-    // If multi-selection is active, clicking a waypoint should ideally clear multi-select
-    // and then select the single waypoint.
     if (selectedForMultiEdit.size > 0) {
-        clearMultiSelection(); // This will update markers and list
+        clearMultiSelection(); 
     }
 
     selectedWaypoint = waypoint;
 
-    // Update icon for the previously selected waypoint (if different from current)
     if (previouslySelectedSingleId && previouslySelectedSingleId !== waypoint.id) {
         const prevWp = waypoints.find(wp => wp.id === previouslySelectedSingleId);
         if (prevWp) updateMarkerIconStyle(prevWp);
     }
 
-    // Update icon for the newly selected waypoint
     updateMarkerIconStyle(selectedWaypoint);
 
-    // Update all other waypoint markers to ensure they are not styled as 'single selected'
     waypoints.forEach(wp => {
         if (wp.id !== selectedWaypoint.id) {
-            updateMarkerIconStyle(wp);
+            // Ensure non-selected waypoints don't carry stale single-selection styles
+            // but respect their multi-select or home status.
+            updateMarkerIconStyle(wp); 
         }
     });
 
-    updateSingleWaypointEditControls(); // from uiUpdater.js
-    updateWaypointList(); // Refreshes list, highlighting the selected item
+    updateSingleWaypointEditControls(); 
+    updateWaypointList(); 
 
     if (selectedWaypoint.marker) {
-        map.panTo(selectedWaypoint.latlng); // Pan map to the selected waypoint
+        map.panTo(selectedWaypoint.latlng); 
     }
-    updateMultiEditPanelVisibility(); // Ensure multi-edit panel is hidden
+    updateMultiEditPanelVisibility(); 
 }
 
 /**
@@ -104,8 +128,8 @@ function deleteSelectedWaypoint() {
         return;
     }
 
-    const wasHomePoint = (waypoints.length > 0 && waypoints[0].id === selectedWaypoint.id); // Verifica se era l'Home Point
     const deletedWaypointId = selectedWaypoint.id;
+    const deletedWaypointIndex = waypoints.findIndex(wp => wp.id === deletedWaypointId);
 
     if (selectedWaypoint.marker) {
         map.removeLayer(selectedWaypoint.marker);
@@ -120,21 +144,27 @@ function deleteSelectedWaypoint() {
     selectedWaypoint = null;
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
 
-    updateWaypointList(); // Aggiorna la lista HTML
+    // After removing the waypoint, update the headings of potentially affected adjacent waypoints
+    // (the one before the deleted, and the new "first" if the old first was deleted)
+    if (deletedWaypointIndex > 0 && deletedWaypointIndex -1 < waypoints.length) { // Check if there was a waypoint before the deleted one
+        const prevWp = waypoints[deletedWaypointIndex - 1];
+        if (prevWp && prevWp.headingControl === 'auto') {
+            updateMarkerIconStyle(prevWp);
+        }
+    }
+    // If the first waypoint was deleted, the new first waypoint (if any) might need its home icon.
+    // And its 'auto' heading (if it's the only one left) should be cleared.
+    // This is more broadly handled by refreshing all icons.
+
+    updateWaypointList(); 
     updateFlightPath();
     updateFlightStatistics();
     updateMultiEditPanelVisibility(); 
-    // updateHomeWaypointInfoDisplay(); // Se hai questa funzione per l'ID nella UI
-
-    // !!! NUOVA LOGICA: Aggiorna le icone di tutti i marker rimanenti !!!
-    // Questo assicura che se l'Home Point è cambiato, l'icona venga aggiornata.
+    
+    // Refresh all remaining waypoint icons to correctly update home point and auto headings
     waypoints.forEach(wp => updateMarkerIconStyle(wp)); 
-    // Se non ci sono più waypoint, questo loop non farà nulla, il che è corretto.
-    // Se c'è un nuovo waypoints[0], la sua icona diventerà 'home'.
-    // Se il vecchio Home Point non era selezionato, e viene cancellato un altro WP,
-    // l'icona dell'Home Point (waypoints[0]) viene comunque ricalcolata correttamente.
 
-    showCustomAlert("Waypoint deleted.", "Success"); // Questa può essere rimossa se dà fastidio
+    showCustomAlert("Waypoint deleted.", "Success"); 
 }
 
 /**
@@ -146,17 +176,16 @@ function clearWaypoints() {
     });
     waypoints = [];
     selectedWaypoint = null;
-    waypointCounter = 1; // Reset counter
-    actionGroupCounter = 1; // Reset for DJI export
-    actionCounter = 1;    // Reset for DJI export
+    waypointCounter = 1; 
+    actionGroupCounter = 1; 
+    actionCounter = 1;    
 
-    clearMultiSelection(); // Clears multi-select set and updates UI
+    clearMultiSelection(); 
 
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
     updateWaypointList();
     updateFlightPath();
     updateFlightStatistics();
-    // updateMultiEditPanelVisibility() is called by clearMultiSelection
 }
 
 /**
@@ -170,28 +199,25 @@ function toggleMultiSelectWaypoint(waypointId, isChecked) {
 
     if (isChecked) {
         selectedForMultiEdit.add(waypointId);
-        // If a single waypoint was selected, and now user starts multi-selecting,
-        // deselect the single waypoint to avoid confusion and show multi-edit panel.
         if (selectedWaypoint) {
             const oldSelected = selectedWaypoint;
             selectedWaypoint = null;
-            updateMarkerIconStyle(oldSelected); // Revert style of previously single-selected
+            updateMarkerIconStyle(oldSelected); 
             if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
         }
     } else {
         selectedForMultiEdit.delete(waypointId);
     }
 
-    updateMarkerIconStyle(waypoint); // Update the toggled waypoint's marker
+    updateMarkerIconStyle(waypoint); 
 
-    // Update "Select All" checkbox state
     if (selectAllWaypointsCheckboxEl) {
         const allWaypointsSelected = waypoints.length > 0 && waypoints.every(wp => selectedForMultiEdit.has(wp.id));
         selectAllWaypointsCheckboxEl.checked = allWaypointsSelected;
     }
 
-    updateWaypointList(); // Refresh list item styles
-    updateMultiEditPanelVisibility(); // Show/hide multi-edit panel
+    updateWaypointList(); 
+    updateMultiEditPanelVisibility(); 
 }
 
 /**
@@ -199,23 +225,21 @@ function toggleMultiSelectWaypoint(waypointId, isChecked) {
  * @param {boolean} isChecked - True to select all, false to deselect all.
  */
 function toggleSelectAllWaypoints(isChecked) {
-    selectedForMultiEdit.clear(); // Clear previous selections first
+    selectedForMultiEdit.clear(); 
     if (isChecked) {
         waypoints.forEach(wp => selectedForMultiEdit.add(wp.id));
     }
 
-    // If a single waypoint was selected, deselect it as we are moving to multi-edit mode
     if (selectedWaypoint) {
         const oldSelected = selectedWaypoint;
         selectedWaypoint = null;
         if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
-        updateMarkerIconStyle(oldSelected); // Ensure its icon is updated if it wasn't part of the new multi-select
+        updateMarkerIconStyle(oldSelected); 
     }
 
-
-    waypoints.forEach(wp => updateMarkerIconStyle(wp)); // Update all marker icons
-    updateWaypointList(); // Refresh list item styles
-    updateMultiEditPanelVisibility(); // Show/hide multi-edit panel
+    waypoints.forEach(wp => updateMarkerIconStyle(wp)); 
+    updateWaypointList(); 
+    updateMultiEditPanelVisibility(); 
 }
 
 /**
@@ -229,11 +253,11 @@ function clearMultiSelection() {
 
     previouslyMultiSelectedIds.forEach(id => {
         const waypoint = waypoints.find(wp => wp.id === id);
-        if (waypoint) updateMarkerIconStyle(waypoint); // Update markers that were deselected
+        if (waypoint) updateMarkerIconStyle(waypoint); 
     });
 
-    updateWaypointList(); // Refresh list item styles
-    updateMultiEditPanelVisibility(); // Hide multi-edit panel, potentially show single if one was selected
+    updateWaypointList(); 
+    updateMultiEditPanelVisibility(); 
 }
 
 /**
@@ -265,19 +289,19 @@ function applyMultiEdit() {
     waypoints.forEach(wp => {
         if (selectedForMultiEdit.has(wp.id)) {
             let wpChangedThisIteration = false;
-            if (newHeadingControl) { // Apply if a heading control option was chosen (not the default blank)
+            if (newHeadingControl) { 
                 wp.headingControl = newHeadingControl;
                 if (newHeadingControl === 'fixed') {
                     wp.fixedHeading = newFixedHeading;
-                    wp.targetPoiId = null; // Clear POI target if setting to fixed
+                    wp.targetPoiId = null; 
                 } else if (newHeadingControl === 'poi_track') {
                     wp.targetPoiId = newTargetPoiId;
-                } else { // For 'auto' or other non-POI/fixed modes
+                } else { 
                     wp.targetPoiId = null;
                 }
                 wpChangedThisIteration = true;
             }
-            if (newCameraAction) { // Apply if a camera action was chosen
+            if (newCameraAction) { 
                 wp.cameraAction = newCameraAction;
                 wpChangedThisIteration = true;
             }
@@ -289,26 +313,28 @@ function applyMultiEdit() {
                 wp.hoverTime = newHoverTime;
                 wpChangedThisIteration = true;
             }
-            if (wpChangedThisIteration) changesMadeToAtLeastOneWp = true;
+            if (wpChangedThisIteration) {
+                changesMadeToAtLeastOneWp = true;
+                updateMarkerIconStyle(wp); // Update marker for this waypoint
+            }
         }
     });
 
     if (changesMadeToAtLeastOneWp) {
         updateWaypointList();
-        updateFlightStatistics(); // Hover time might have changed
+        updateFlightStatistics(); 
         showCustomAlert(`${selectedForMultiEdit.size} waypoints were updated.`, "Success");
     } else {
         showCustomAlert("No changes specified or no valid values for changes. Waypoints not modified.", "Info");
     }
 
-    // Reset multi-edit form fields to default/empty states
-    multiHeadingControlSelect.value = ""; // Assuming "" is the placeholder/default
+    multiHeadingControlSelect.value = ""; 
     if (multiFixedHeadingGroupDiv) multiFixedHeadingGroupDiv.style.display = 'none';
     if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'none';
     multiFixedHeadingSlider.value = 0;
     if (multiFixedHeadingValueEl) multiFixedHeadingValueEl.textContent = "0°";
 
-    multiCameraActionSelect.value = ""; // Assuming "" is placeholder
+    multiCameraActionSelect.value = ""; 
 
     multiChangeGimbalPitchCheckbox.checked = false;
     multiGimbalPitchSlider.disabled = true;
@@ -322,6 +348,5 @@ function applyMultiEdit() {
 
     if(multiTargetPoiSelect) multiTargetPoiSelect.value = "";
 
-
-    clearMultiSelection(); // Clear the selection set and update UI
+    clearMultiSelection(); 
 }
