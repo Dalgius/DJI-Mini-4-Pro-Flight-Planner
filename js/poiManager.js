@@ -1,6 +1,7 @@
 // File: poiManager.js
 
 // Depends on: config.js, uiUpdater.js (updatePOIList, updateFlightStatistics, populatePoiSelectDropdown, updateWaypointList), utils.js (showCustomAlert)
+// Depends on: mapManager.js (for updateMarkerIconStyle)
 
 /**
  * Adds a new Point of Interest (POI) to the map and list.
@@ -9,24 +10,16 @@
 function addPOI(latlng) {
     if (!map || !poiNameInput || !targetPoiSelect || !multiTargetPoiSelect) return;
 
-    // Se l'array pois è vuoto e poiCounter è > 1 (ad es. dopo aver cancellato tutti i POI),
-    // resettalo a 1 per ricominciare la numerazione.
-    // Questo è un controllo aggiuntivo, il reset principale dopo cancellazione avviene in deletePOI.
     if (pois.length === 0 && poiCounter > 1) {
-        // Questa condizione ora è meno probabile che si verifichi qui se deletePOI resetta correttamente,
-        // ma la lasciamo come ulteriore sicurezza o per casi di inizializzazione particolari.
-        // La logica principale di reset dopo cancellazione è in deletePOI.
+        // This reset is more robustly handled in deletePOI if all are cleared.
     }
-    // Se pois è vuoto, assicurati che il PRIMO POI aggiunto usi l'ID corretto partendo da poiCounter (che dovrebbe essere 1).
-    // Il poiCounter globale viene incrementato. Se viene resettato (es. clearWaypoints), va bene.
-    // Questa logica è più per quando si aggiunge il primo POI in assoluto o dopo un reset.
 
     const name = poiNameInput.value.trim() || `POI ${poiCounter}`;
     const newPoi = {
-        id: poiCounter++, // Usa poiCounter globale e poi incrementa
+        id: poiCounter++, 
         name: name,
         latlng: L.latLng(latlng.lat, latlng.lng),
-        altitude: 0,
+        altitude: 0, // Default POI altitude, can be made configurable if needed
         marker: null
     };
 
@@ -41,6 +34,12 @@ function addPOI(latlng) {
     marker.bindPopup(`<strong>${newPoi.name}</strong> (ID: ${newPoi.id})`);
     marker.on('dragend', () => {
         newPoi.latlng = marker.getLatLng();
+        // When POI moves, update heading indicators of waypoints targeting it
+        waypoints.forEach(wp => {
+            if (wp.headingControl === 'poi_track' && wp.targetPoiId === newPoi.id) {
+                updateMarkerIconStyle(wp); // from mapManager.js
+            }
+        });
     });
     newPoi.marker = marker;
 
@@ -49,6 +48,7 @@ function addPOI(latlng) {
     updatePOIList();
     updateFlightStatistics();
 
+    // Refresh POI selection dropdowns
     if (selectedWaypoint && headingControlSelect && headingControlSelect.value === 'poi_track') {
         populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Select POI for Heading --");
     }
@@ -76,32 +76,34 @@ function deletePOI(poiId) {
         }
         pois.splice(poiIndex, 1);
 
-        // !!! NUOVA LOGICA PER RESETTARE poiCounter !!!
         if (pois.length === 0) {
-            poiCounter = 1; // Resetta il contatore se non ci sono più POI
+            poiCounter = 1; 
             console.log("All POIs deleted. poiCounter reset to 1.");
         }
-        // !!! FINE NUOVA LOGICA !!!
 
         updatePOIList();
         updateFlightStatistics();
 
-        let waypointsUpdated = false;
+        let waypointsUpdatedForDisplay = false;
         waypoints.forEach(wp => {
             if (wp.targetPoiId === poiId) {
-                wp.targetPoiId = null;
+                wp.targetPoiId = null; // Clear target
+                // If this waypoint is currently selected, update its UI controls
                 if (selectedWaypoint && selectedWaypoint.id === wp.id) {
-                    if (targetPoiForHeadingGroupDiv) targetPoiForHeadingGroupDiv.style.display = 'none';
+                    if(headingControlSelect) headingControlSelect.value = 'auto'; // Default back or to 'fixed'
+                    if(targetPoiForHeadingGroupDiv) targetPoiForHeadingGroupDiv.style.display = 'none';
                     populatePoiSelectDropdown(targetPoiSelect, null, true, "-- Select POI for Heading --");
                 }
-                waypointsUpdated = true;
+                updateMarkerIconStyle(wp); // Update its heading indicator
+                waypointsUpdatedForDisplay = true;
             }
         });
 
-        if (waypointsUpdated) {
-            updateWaypointList();
+        if (waypointsUpdatedForDisplay) {
+            updateWaypointList(); // Refresh list if any waypoint text changed (e.g. target POI name)
         }
 
+        // Refresh POI selection dropdowns as the deleted POI is no longer an option
         if (selectedWaypoint && headingControlSelect && headingControlSelect.value === 'poi_track') {
             populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Select POI for Heading --");
         }
@@ -111,12 +113,7 @@ function deletePOI(poiId) {
         }
         if (orbitModalOverlayEl && orbitModalOverlayEl.style.display === 'flex') {
             populatePoiSelectDropdown(orbitPoiSelectEl, orbitPoiSelectEl.value || null, false);
-            if (orbitPoiSelectEl.options.length === 0 || (orbitPoiSelectEl.options.length === 1 && orbitPoiSelectEl.options[0].value === "")) {
-                // Potrebbe essere utile un feedback all'utente qui
-            }
         }
-
-        // showCustomAlert(`POI "${deletedPoi.name}" deleted.`, "Info");
     } else {
         showCustomAlert(`POI with ID ${poiId} not found.`, "Error");
     }
