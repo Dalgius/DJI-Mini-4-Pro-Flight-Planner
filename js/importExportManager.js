@@ -286,7 +286,7 @@ function exportToDjiWpmlKmz() {
         if (wp.headingControl === 'fixed' && typeof wp.fixedHeading === 'number') {
             headingMode = 'lockCourse'; headingAngle = wp.fixedHeading;
             if (headingAngle > 180) headingAngle -= 360; 
-            headingAngleEnable = 1; headingPathMode = 'smoothTransition';
+            headingAngleEnable = 1; headingPathMode = 'followBadArc';
         } else if (wp.headingControl === 'poi_track' && wp.targetPoiId != null) {
             const targetPoi = pois.find(p => p.id === wp.targetPoiId);
             if (targetPoi) {
