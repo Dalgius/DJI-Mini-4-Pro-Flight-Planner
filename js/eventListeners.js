@@ -135,7 +135,11 @@ function setupEventListeners() {
     if (multiChangeHoverTimeCheckbox) { /* ... no changes needed for heading ... */ }
     if (multiHoverTimeSlider) { /* ... no changes needed for heading ... */ }
     if (applyMultiEditBtn) {
-        applyMultiEditBtn.addEventListener('click', applyMultiEdit); // applyMultiEdit now handles marker updates
+        applyMultiEditBtn.addEventListener('click', function() { // Modifica qui per aggiungere un log/alert
+            alert("Pulsante 'Apply to Selected' CLICCATO!"); // <<< AGGIUNGI QUESTO ALERT
+            console.log("Pulsante 'Apply to Selected' CLICCATO! Chiamata a applyMultiEdit in corso..."); // <<< O QUESTO CONSOLE.LOG
+            applyMultiEdit(); // Chiama la funzione originale
+        });
     }
     if (clearMultiSelectionBtn) {
         clearMultiSelectionBtn.addEventListener('click', clearMultiSelection);
