@@ -40,22 +40,18 @@ function addWaypoint(latlng, options = {}) {
         updateFlightPath(); 
         updateFlightStatistics();
         updateWaypointList(); 
-        // Update current marker and potentially adjacent for auto-heading changes
         updateMarkerIconStyle(newWaypoint);
         const wpIndex = waypoints.findIndex(wp => wp.id === newWaypoint.id);
         if (wpIndex > 0 && waypoints[wpIndex-1].headingControl === 'auto') {
             updateMarkerIconStyle(waypoints[wpIndex-1]);
         }
-        // If it's not the last waypoint and its heading is auto, its own indicator gets updated by updateMarkerIconStyle(newWaypoint)
-        // If it is the last waypoint and its heading is auto, it points from the previous, also covered.
     });
     marker.on('drag', () => { 
         newWaypoint.latlng = marker.getLatLng();
-        updateFlightPath(); // Live update path
+        updateFlightPath(); 
     });
     newWaypoint.marker = marker;
 
-    // Update icon of the previous waypoint if its heading was 'auto' and it's not the new waypoint itself
     if (waypoints.length > 1) {
         const prevWpIndex = waypoints.length - 2;
         const prevWp = waypoints[prevWpIndex];
@@ -112,12 +108,12 @@ function selectWaypoint(waypoint) {
  */
 function deleteSelectedWaypoint() {
     if (!selectedWaypoint) {
-        showCustomAlert("Nessun waypoint selezionato da eliminare.", "Info"); // Italian
+        showCustomAlert("Nessun waypoint selezionato da eliminare.", "Info"); 
         return;
     }
 
     const deletedWaypointId = selectedWaypoint.id;
-    const deletedWaypointIndex = waypoints.findIndex(wp => wp.id === deletedWaypointId);
+    // const deletedWaypointIndex = waypoints.findIndex(wp => wp.id === deletedWaypointId); // Non usato direttamente qui, ma utile per logica complessa
 
     if (selectedWaypoint.marker) {
         map.removeLayer(selectedWaypoint.marker);
@@ -137,10 +133,7 @@ function deleteSelectedWaypoint() {
     updateFlightStatistics();
     updateMultiEditPanelVisibility(); 
     
-    // Refresh all remaining waypoint icons to correctly update home point and auto headings
     waypoints.forEach(wp => updateMarkerIconStyle(wp)); 
-
-    // showCustomAlert("Waypoint eliminato.", "Success"); // Italian
 }
 
 /**
@@ -251,32 +244,42 @@ function applyMultiEdit() {
         return;
     }
 
-    // Log iniziali come prima
-    console.log("Stato prima della lettura - Checkbox Gimbal:", multiChangeGimbalPitchCheckbox.checked, "Slider value:", multiGimbalPitchSlider.value, "disabled:", multiGimbalPitchSlider.disabled);
-    console.log("Stato prima della lettura - Checkbox Hover:", multiChangeHoverTimeCheckbox.checked, "Slider value:", multiHoverTimeSlider.value, "disabled:", multiHoverTimeSlider.disabled);
+    const changeGimbalCheckboxState = multiChangeGimbalPitchCheckbox.checked; // Stato checkbox prima di ogni altra cosa
+    const changeHoverCheckboxState = multiChangeHoverTimeCheckbox.checked;   // Stato checkbox prima di ogni altra cosa
+
+    // Tentativo di riabilitazione FORZATA basato sullo stato della checkbox
+    if (changeGimbalCheckboxState) {
+        multiGimbalPitchSlider.disabled = false;
+        console.log("Tentativo di abilitare Gimbal slider. Stato attuale .disabled:", multiGimbalPitchSlider.disabled);
+    } else { // Se la checkbox non è spuntata, assicurati che lo slider sia disabilitato
+        multiGimbalPitchSlider.disabled = true;
+    }
+    if (changeHoverCheckboxState) {
+        multiHoverTimeSlider.disabled = false;
+        console.log("Tentativo di abilitare Hover slider. Stato attuale .disabled:", multiHoverTimeSlider.disabled);
+    } else { // Se la checkbox non è spuntata, assicurati che lo slider sia disabilitato
+        multiHoverTimeSlider.disabled = true;
+    }
+
+    // alert("DEBUG PAUSA: Controlla gli slider nel DOM ora!"); 
+    debugger; // Usa questo per mettere in pausa se hai gli strumenti per sviluppatori aperti
+
+    console.log("Stato DOPO tentativo riabilitazione E PAUSA - Checkbox Gimbal:", changeGimbalCheckboxState, "Slider value:", multiGimbalPitchSlider.value, "disabled:", multiGimbalPitchSlider.disabled);
+    console.log("Stato DOPO tentativo riabilitazione E PAUSA - Checkbox Hover:", changeHoverCheckboxState, "Slider value:", multiHoverTimeSlider.value, "disabled:", multiHoverTimeSlider.disabled);
 
     const newHeadingControl = multiHeadingControlSelect.value;
     const newFixedHeading = parseInt(multiFixedHeadingSlider.value);
     const newCameraAction = multiCameraActionSelect.value;
 
-    const changeGimbal = multiChangeGimbalPitchCheckbox.checked;
-    // Leggi il valore dello slider *solo se la checkbox è spuntata*.
-    // Se la checkbox è spuntata, assumiamo che l'utente abbia potuto impostare il valore desiderato.
-    const newGimbalPitch = changeGimbal ? parseInt(multiGimbalPitchSlider.value) : null;
-
-    const changeHover = multiChangeHoverTimeCheckbox.checked;
-    // Leggi il valore dello slider *solo se la checkbox è spuntata*.
-    const newHoverTime = changeHover ? parseInt(multiHoverTimeSlider.value) : null;
-
-    const newTargetPoiId = (newHeadingControl === 'poi_track' && multiTargetPoiSelect.value) ? parseInt(multiTargetPoiSelect.value) : null;
+    // Leggi i valori solo se le checkbox sono spuntate (gli slider dovrebbero essere abilitati)
+    const newGimbalPitch = changeGimbalCheckboxState ? parseInt(multiGimbalPitchSlider.value) : null;
+    const newHoverTime = changeHoverCheckboxState ? parseInt(multiHoverTimeSlider.value) : null;
 
     console.log("--- applyMultiEdit INIZIO (dopo lettura valori) ---");
-    // DEBUG logs (Italian)
-    console.log("--- applyMultiEdit INIZIO ---"); // Rimuovi questo duplicato se presente
-    console.log("Checkbox Gimbal Selezionata:", changeGimbal);
-    console.log("Nuovo Gimbal Pitch (letto):", newGimbalPitch, "(Valore grezzo slider:", multiGimbalPitchSlider.value, ")");
-    console.log("Checkbox Hover Selezionata:", changeHover);
-    console.log("Nuovo Hover Time (letto):", newHoverTime, "(Valore grezzo slider:", multiHoverTimeSlider.value, ")");
+    console.log("Checkbox Gimbal Selezionata (letta per modifica):", changeGimbalCheckboxState);
+    console.log("Nuovo Gimbal Pitch (letto per modifica):", newGimbalPitch, "(Valore grezzo slider:", changeGimbalCheckboxState ? multiGimbalPitchSlider.value : 'N/A', ")");
+    console.log("Checkbox Hover Selezionata (letta per modifica):", changeHoverCheckboxState);
+    console.log("Nuovo Hover Time (letto per modifica):", newHoverTime, "(Valore grezzo slider:", changeHoverCheckboxState ? multiHoverTimeSlider.value : 'N/A', ")");
     console.log("Numero Waypoint Selezionati:", selectedForMultiEdit.size);
     
     let changesMadeToAtLeastOneWp = false;
@@ -290,30 +293,24 @@ function applyMultiEdit() {
                     wp.fixedHeading = newFixedHeading;
                     wp.targetPoiId = null; 
                 } else if (newHeadingControl === 'poi_track') {
-                    wp.targetPoiId = newTargetPoiId;
+                    wp.targetPoiId = (multiTargetPoiSelect.value) ? parseInt(multiTargetPoiSelect.value) : null; // Assicurati di leggere il target POI qui
                 } else { 
                     wp.targetPoiId = null;
                 }
                 wpChangedThisIteration = true;
-                console.log(`WP ${wp.id}: Heading control impostato a ${newHeadingControl}`);
             }
             if (newCameraAction) { 
                 wp.cameraAction = newCameraAction;
                 wpChangedThisIteration = true;
-                console.log(`WP ${wp.id}: Camera action impostata a ${newCameraAction}`);
             }
 
-            // Applica solo se changeGimbal è true e newGimbalPitch non è null (significa che è stato letto)
-            if (changeGimbal && newGimbalPitch !== null) {
+            if (changeGimbalCheckboxState && newGimbalPitch !== null) {
                 wp.gimbalPitch = newGimbalPitch;
                 wpChangedThisIteration = true;
-                console.log(`WP ${wp.id}: Gimbal Pitch impostato a ${newGimbalPitch}`);
             }
-            // Applica solo se changeHover è true e newHoverTime non è null
-            if (changeHover && newHoverTime !== null) {
+            if (changeHoverCheckboxState && newHoverTime !== null) {
                 wp.hoverTime = newHoverTime;
                 wpChangedThisIteration = true;
-                console.log(`WP ${wp.id}: Hover Time impostato a ${newHoverTime}`);
             }
 
             if (wpChangedThisIteration) {
@@ -332,7 +329,7 @@ function applyMultiEdit() {
         showCustomAlert("Nessuna modifica specificata o nessun valore valido per le modifiche. Waypoint non modificati.", "Info"); 
     }
 
-    // Reset multi-edit form fields to default/empty states
+    // Reset multi-edit form fields
     multiHeadingControlSelect.value = ""; 
     if (multiFixedHeadingGroupDiv) multiFixedHeadingGroupDiv.style.display = 'none';
     if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'none';
@@ -342,12 +339,12 @@ function applyMultiEdit() {
     multiCameraActionSelect.value = ""; 
 
     multiChangeGimbalPitchCheckbox.checked = false;
-    multiGimbalPitchSlider.disabled = true; // Ri-disabilita dopo l'uso
+    multiGimbalPitchSlider.disabled = true; 
     multiGimbalPitchSlider.value = 0;
     if (multiGimbalPitchValueEl) multiGimbalPitchValueEl.textContent = "0°";
 
     multiChangeHoverTimeCheckbox.checked = false;
-    multiHoverTimeSlider.disabled = true; // Ri-disabilita dopo l'uso
+    multiHoverTimeSlider.disabled = true; 
     multiHoverTimeSlider.value = 0;
     if (multiHoverTimeValueEl) multiHoverTimeValueEl.textContent = "0s";
 
