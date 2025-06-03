@@ -28,7 +28,7 @@ function addWaypoint(latlng, options = {}) {
     const isHome = waypoints.length === 1 && newWaypoint.id === waypoints[0].id;
     const marker = L.marker(newWaypoint.latlng, {
         draggable: true,
-        icon: createWaypointIcon(newWaypoint, false, false, isHome) // Initial icon
+        icon: createWaypointIcon(newWaypoint, false, false, isHome) 
     }).addTo(map);
 
     marker.on('click', (e) => {
@@ -243,12 +243,9 @@ function applyMultiEdit() {
         return;
     }
 
-    // Leggi lo stato delle checkbox *prima* di entrare nel setTimeout
     const changeGimbalCheckboxState = multiChangeGimbalPitchCheckbox.checked;
     const changeHoverCheckboxState = multiChangeHoverTimeCheckbox.checked;
 
-    // Abilita/Disabilita gli slider in base allo stato attuale delle checkbox
-    // Questa operazione sul DOM dovrebbe essere elaborata prima che il setTimeout venga eseguito.
     if (changeGimbalCheckboxState) {
         multiGimbalPitchSlider.disabled = false;
     } else {
@@ -260,27 +257,13 @@ function applyMultiEdit() {
         multiHoverTimeSlider.disabled = true;
     }
     
-    console.log("Stato PRIMA di setTimeout - Checkbox Gimbal:", changeGimbalCheckboxState, "Slider disabled:", multiGimbalPitchSlider.disabled);
-    console.log("Stato PRIMA di setTimeout - Checkbox Hover:", changeHoverCheckboxState, "Slider disabled:", multiHoverTimeSlider.disabled);
-    
-    // Sposta il resto della logica dentro setTimeout per permettere al DOM di aggiornarsi
     setTimeout(() => {
-        console.log("Dentro setTimeout - Stato slider attuale - Gimbal Slider value:", multiGimbalPitchSlider.value, "disabled:", multiGimbalPitchSlider.disabled);
-        console.log("Dentro setTimeout - Stato slider attuale - Hover Slider value:", multiHoverTimeSlider.value, "disabled:", multiHoverTimeSlider.disabled);
-
         const newHeadingControl = multiHeadingControlSelect.value;
         const newFixedHeading = parseInt(multiFixedHeadingSlider.value);
         const newCameraAction = multiCameraActionSelect.value;
 
         const newGimbalPitch = changeGimbalCheckboxState ? parseInt(multiGimbalPitchSlider.value) : null;
         const newHoverTime = changeHoverCheckboxState ? parseInt(multiHoverTimeSlider.value) : null;
-
-        console.log("--- applyMultiEdit INIZIO (dopo lettura valori da setTimeout) ---");
-        console.log("Checkbox Gimbal Selezionata (letta per modifica):", changeGimbalCheckboxState);
-        console.log("Nuovo Gimbal Pitch (letto per modifica):", newGimbalPitch, "(Valore grezzo slider:", changeGimbalCheckboxState ? multiGimbalPitchSlider.value : 'N/A', ")");
-        console.log("Checkbox Hover Selezionata (letta per modifica):", changeHoverCheckboxState);
-        console.log("Nuovo Hover Time (letto per modifica):", newHoverTime, "(Valore grezzo slider:", changeHoverCheckboxState ? multiHoverTimeSlider.value : 'N/A', ")");
-        console.log("Numero Waypoint Selezionati:", selectedForMultiEdit.size);
         
         let changesMadeToAtLeastOneWp = false;
 
@@ -319,7 +302,6 @@ function applyMultiEdit() {
                 }
             }
         });
-        console.log("--- applyMultiEdit FINE CICLO WAYPOINTS (da setTimeout) ---");
 
         if (changesMadeToAtLeastOneWp) {
             updateWaypointList();
@@ -352,5 +334,5 @@ function applyMultiEdit() {
 
         clearMultiSelection(); 
 
-    }, 0); // Il ritardo di 0ms sposta l'esecuzione alla fine della coda degli eventi
+    }, 0);
 }
