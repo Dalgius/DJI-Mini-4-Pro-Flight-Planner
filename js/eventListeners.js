@@ -124,13 +124,10 @@ function setupEventListeners() {
     
     if (multiChangeGimbalPitchCheckbox) {
         multiChangeGimbalPitchCheckbox.addEventListener('change', function() {
-            console.log("Checkbox Gimbal 'Change' cliccata. Checked:", this.checked); // DEBUG LOG
             if (!multiGimbalPitchSlider || !multiGimbalPitchValueEl) {
-                console.error("Elementi slider Gimbal o valore non trovati in event listener checkbox!");
                 return;
             }
             multiGimbalPitchSlider.disabled = !this.checked;
-            console.log("Slider Gimbal 'disabled' impostato a:", multiGimbalPitchSlider.disabled); // DEBUG LOG
         });
     }
     if (multiGimbalPitchSlider) {
@@ -138,19 +135,15 @@ function setupEventListeners() {
             if (multiGimbalPitchValueEl) {
                 multiGimbalPitchValueEl.textContent = this.value + '°';
             }
-            console.log("Gimbal Slider INPUT event. Nuovo valore letto:", this.value); // DEBUG LOG
         });
     }
 
     if (multiChangeHoverTimeCheckbox) {
         multiChangeHoverTimeCheckbox.addEventListener('change', function() {
-            console.log("Checkbox Hover 'Change' cliccata. Checked:", this.checked); // DEBUG LOG
             if (!multiHoverTimeSlider || !multiHoverTimeValueEl) {
-                console.error("Elementi slider Hover o valore non trovati in event listener checkbox!");
                 return;
             }
             multiHoverTimeSlider.disabled = !this.checked;
-            console.log("Slider Hover 'disabled' impostato a:", multiHoverTimeSlider.disabled); // DEBUG LOG
         });
     }
     if (multiHoverTimeSlider) {
@@ -158,14 +151,11 @@ function setupEventListeners() {
             if (multiHoverTimeValueEl) {
                 multiHoverTimeValueEl.textContent = this.value + 's';
             }
-            console.log("Hover Slider INPUT event. Nuovo valore letto:", this.value); // DEBUG LOG
         });
     }
 
     if (applyMultiEditBtn) {
         applyMultiEditBtn.addEventListener('click', function() {
-            // alert("Pulsante 'Apply to Selected' CLICCATO!"); // Alert di debug precedente, puoi rimuoverlo se vuoi
-            console.log("Pulsante 'Apply to Selected' CLICCATO! Chiamata a applyMultiEdit in corso...");
             applyMultiEdit();
         });
     }
