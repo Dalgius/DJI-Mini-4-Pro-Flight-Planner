@@ -12,7 +12,6 @@ function updateFlightStatistics() {
     const speed = parseFloat(flightSpeedSlider.value) || 1;
 
     if (waypoints.length >= 2) {
-        // Use actual flightPath for distance if curved and available, otherwise straight lines between waypoints
         const pathLatLngs = (pathTypeSelect.value === 'curved' && flightPath && flightPath.getLatLngs) ?
                             flightPath.getLatLngs() :
                             waypoints.map(wp => wp.latlng);
@@ -42,7 +41,7 @@ function updateFlightStatistics() {
  */
 function populatePoiSelectDropdown(selectElement, selectedPoiId = null, addDefaultOption = true, defaultOptionText = "-- Select POI --") {
     if (!selectElement) return;
-    selectElement.innerHTML = ''; // Clear existing options
+    selectElement.innerHTML = ''; 
 
     if (addDefaultOption) {
         const defaultOpt = document.createElement('option');
@@ -54,13 +53,13 @@ function populatePoiSelectDropdown(selectElement, selectedPoiId = null, addDefau
     if (pois.length === 0) {
         selectElement.disabled = true;
         if (addDefaultOption && selectElement.options[0]) {
-            selectElement.options[0].textContent = "No POIs available";
+            selectElement.options[0].textContent = "Nessun POI disponibile"; // Italian
         }
         return;
     }
 
     selectElement.disabled = false;
-    if (addDefaultOption && selectElement.options[0] && selectElement.options[0].textContent === "No POIs available") {
+    if (addDefaultOption && selectElement.options[0] && selectElement.options[0].textContent === "Nessun POI disponibile") { // Italian
         selectElement.options[0].textContent = defaultOptionText;
     }
 
@@ -83,14 +82,19 @@ function updateWaypointList() {
     if (!waypointListEl || !selectAllWaypointsCheckboxEl) return;
 
     if (waypoints.length === 0) {
-        waypointListEl.innerHTML = '<div style="text-align: center; color: #95a5a6; font-size: 12px; padding: 20px;">Click on map to add waypoints</div>';
+        waypointListEl.innerHTML = '<div style="text-align: center; color: #95a5a6; font-size: 12px; padding: 20px;">Clicca sulla mappa per aggiungere waypoint</div>';
         selectAllWaypointsCheckboxEl.checked = false;
         selectAllWaypointsCheckboxEl.disabled = true;
-        // Ensure multi-edit panel is hidden if no waypoints
         if (selectedForMultiEdit.size === 0) updateMultiEditPanelVisibility();
         return;
     }
     selectAllWaypointsCheckboxEl.disabled = false;
+
+    let homeElevation = 0;
+    if (homeElevationMslInput && homeElevationMslInput.value !== "") {
+        homeElevation = parseFloat(homeElevationMslInput.value);
+        if (isNaN(homeElevation)) homeElevation = 0; 
+    }
 
     waypointListEl.innerHTML = waypoints.map(wp => {
         let actionText = getCameraActionText(wp.cameraAction);
@@ -100,12 +104,11 @@ function updateWaypointList() {
             const target = pois.find(p => p.id === wp.targetPoiId);
             poiTargetText = target ? ` | Target: ${target.name}` : ` | Target: POI ID ${wp.targetPoiId} (not found)`;
         }
-        let actionInfo = actionText ? `<div class="waypoint-action-info">Action: ${actionText}${poiTargetText}</div>` : (poiTargetText ? `<div class="waypoint-action-info">${poiTargetText.substring(3)}</div>` : '');
+        let actionInfo = actionText ? `<div class="waypoint-action-info" style="margin-top:3px;">Azione: ${actionText}${poiTargetText}</div>` : (poiTargetText ? `<div class="waypoint-action-info" style="margin-top:3px;">${poiTargetText.substring(3)}</div>` : '');
 
         const isSelectedForMulti = selectedForMultiEdit.has(wp.id);
         let itemClasses = "waypoint-item";
 
-        // A waypoint list item is 'selected' if it's the `selectedWaypoint` AND single edit panel is active AND it's NOT also in multi-edit mode (multi-edit takes precedence for styling if active)
         if (selectedWaypoint && wp.id === selectedWaypoint.id && waypointControlsDiv && waypointControlsDiv.style.display === 'block' && !multiWaypointEditControlsDivIsVisible()) {
              itemClasses += " selected";
         }
@@ -113,25 +116,43 @@ function updateWaypointList() {
             itemClasses += " multi-selected-item";
         }
 
+        const altitudeRelToHome = wp.altitude; 
+        const terrainElevText = wp.terrainElevationMSL !== null ? `${wp.terrainElevationMSL.toFixed(1)} m` : "N/A";
+        let amslText = "N/A";
+        let aglText = "N/A";
+
+        if (typeof homeElevation === 'number') {
+            amslText = `${(homeElevation + altitudeRelToHome).toFixed(1)} m`;
+        }
+
+        if (wp.terrainElevationMSL !== null && typeof homeElevation === 'number') {
+            const amslWaypoint = homeElevation + altitudeRelToHome;
+            aglText = `${(amslWaypoint - wp.terrainElevationMSL).toFixed(1)} m`;
+        }
 
         return `
         <div class="${itemClasses}" onclick="handleWaypointListItemClick(${wp.id})">
-            <div style="display: flex; align-items: center;">
+            <div style="display: flex; align-items: flex-start;"> {/* Changed to flex-start for better checkbox alignment with multi-line text */}
                 <input type="checkbox" class="waypoint-multi-select-cb" data-id="${wp.id}"
                        onchange="handleWaypointListCheckboxChange(${wp.id}, this.checked)"
                        ${isSelectedForMulti ? 'checked' : ''}
-                       style="margin-right: 10px; transform: scale(1.2);"
-                       onclick="event.stopPropagation();"> <!-- Prevent click from bubbling to item's selectWaypoint -->
-                <div>
-                    <div class="waypoint-header"><span class="waypoint-name">Waypoint ${wp.id}</span></div>
-                    <div class="waypoint-coords">Lat: ${wp.latlng.lat.toFixed(4)}, Lng: ${wp.latlng.lng.toFixed(4)}<br>Alt: ${wp.altitude}m${hoverText}</div>
+                       style="margin-right: 10px; transform: scale(1.2); margin-top: 3px;" {/* Added margin-top */}
+                       onclick="event.stopPropagation();">
+                <div style="font-size: 11px; line-height: 1.35;"> {/* Adjusted font and line-height */}
+                    <div class="waypoint-header" style="margin-bottom: 2px;"><span class="waypoint-name">Waypoint ${wp.id}</span></div>
+                    <div class="waypoint-coords" style="margin-bottom: 4px; font-size: 0.95em; color: #b0bec5;">Lat: ${wp.latlng.lat.toFixed(4)}, Lng: ${wp.latlng.lng.toFixed(4)}</div>
+                    <div class="waypoint-altitudes" style="margin-bottom: 3px; color: #dfe6e9;">
+                        Alt. Volo (Rel): <strong>${altitudeRelToHome}m</strong>${hoverText}<br>
+                        Alt. AMSL: ${amslText}<br>
+                        Alt. AGL: ${aglText}<br>
+                        Elev. Terreno: ${terrainElevText}
+                    </div>
                     ${actionInfo}
                 </div>
             </div>
         </div>`;
     }).join('');
 
-    // Ensure multi-edit panel visibility is correct after list update
     if (waypoints.length === 0 && selectedForMultiEdit.size === 0) {
         updateMultiEditPanelVisibility();
     }
@@ -145,7 +166,6 @@ function multiWaypointEditControlsDivIsVisible() {
     return multiWaypointEditControlsDiv && multiWaypointEditControlsDiv.style.display === 'block';
 }
 
-
 /**
  * Handles click on a waypoint item in the list.
  * This should call the main selectWaypoint function.
@@ -154,7 +174,7 @@ function multiWaypointEditControlsDivIsVisible() {
 function handleWaypointListItemClick(wpId) {
     const wp = waypoints.find(w => w.id === wpId);
     if (wp) {
-        selectWaypoint(wp); // Assumes selectWaypoint is globally available or imported
+        selectWaypoint(wp); 
     }
 }
 
@@ -165,7 +185,7 @@ function handleWaypointListItemClick(wpId) {
  * @param {boolean} isChecked - The new checked state of the checkbox.
  */
 function handleWaypointListCheckboxChange(waypointId, isChecked) {
-    toggleMultiSelectWaypoint(waypointId, isChecked); // Assumes toggleMultiSelectWaypoint is globally available or imported
+    toggleMultiSelectWaypoint(waypointId, isChecked); 
 }
 
 
@@ -174,11 +194,10 @@ function handleWaypointListCheckboxChange(waypointId, isChecked) {
  */
 function updatePOIList() {
     if (!poiListEl) return;
-    const noPoiAvailableText = "No POIs available";
+    const noPoiAvailableText = "Nessun POI disponibile"; // Italian
 
     if (pois.length === 0) {
-        poiListEl.innerHTML = '<div style="text-align: center; color: #95a5a6; font-size: 12px; padding: 10px;">No POIs added</div>';
-        // Disable POI select dropdowns if they exist
+        poiListEl.innerHTML = '<div style="text-align: center; color: #95a5a6; font-size: 12px; padding: 10px;">Nessun POI aggiunto</div>'; // Italian
         if (targetPoiSelect) {
             targetPoiSelect.disabled = true;
             targetPoiSelect.innerHTML = `<option value="">${noPoiAvailableText}</option>`;
@@ -187,24 +206,21 @@ function updatePOIList() {
             multiTargetPoiSelect.disabled = true;
             multiTargetPoiSelect.innerHTML = `<option value="">${noPoiAvailableText}</option>`;
         }
-        if (orbitPoiSelectEl) { // Also for the orbit modal
+        if (orbitPoiSelectEl) { 
             orbitPoiSelectEl.disabled = true;
             orbitPoiSelectEl.innerHTML = `<option value="">${noPoiAvailableText}</option>`;
         }
         return;
     }
 
-    // Enable POI select dropdowns if they were disabled
     if (targetPoiSelect) targetPoiSelect.disabled = false;
     if (multiTargetPoiSelect) multiTargetPoiSelect.disabled = false;
     if (orbitPoiSelectEl) orbitPoiSelectEl.disabled = false;
-    // Note: populatePoiSelectDropdown will handle repopulating them if needed elsewhere.
-    // This function just ensures they are enabled/disabled.
 
     poiListEl.innerHTML = pois.map(poi => `
         <div class="poi-item">
             <span class="poi-name">${poi.name} (ID: ${poi.id})</span>
-            <button class="poi-delete" onclick="deletePOI(${poi.id})" title="Delete POI ${poi.name}">✕</button> <!-- Assumes deletePOI is global or imported -->
+            <button class="poi-delete" onclick="deletePOI(${poi.id})" title="Elimina POI ${poi.name}">✕</button>
         </div>`).join('');
 }
 
@@ -218,18 +234,16 @@ function updateMultiEditPanelVisibility() {
     if (count > 0) {
         multiWaypointEditControlsDiv.style.display = 'block';
         selectedWaypointsCountEl.textContent = count;
-        waypointControlsDiv.style.display = 'none'; // Hide single edit panel
+        waypointControlsDiv.style.display = 'none'; 
 
-        // Populate POI dropdown for multi-edit if heading control is POI track
         if (multiHeadingControlSelect && multiHeadingControlSelect.value === 'poi_track') {
-            populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Select POI for all --");
+            populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Seleziona POI per tutti --"); // Italian
             if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'block';
         } else {
             if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'none';
         }
     } else {
         multiWaypointEditControlsDiv.style.display = 'none';
-        // Show single edit panel if a waypoint is selected, otherwise hide it too
         if (selectedWaypoint) {
             waypointControlsDiv.style.display = 'block';
         } else {
@@ -262,25 +276,16 @@ function updateSingleWaypointEditControls() {
 
     cameraActionSelect.value = selectedWaypoint.cameraAction || 'none';
 
-    // Show/hide specific controls based on heading control type
     if (fixedHeadingGroupDiv) fixedHeadingGroupDiv.style.display = selectedWaypoint.headingControl === 'fixed' ? 'block' : 'none';
     const showPoiSelect = selectedWaypoint.headingControl === 'poi_track';
     if (targetPoiForHeadingGroupDiv) targetPoiForHeadingGroupDiv.style.display = showPoiSelect ? 'block' : 'none';
 
     if (showPoiSelect) {
-        populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Select POI for Heading --");
+        populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Seleziona POI per Heading --"); // Italian
     }
 
     waypointControlsDiv.style.display = 'block';
 }
 
-function updateHomeWaypointInfoDisplay() {
-    const homeIdEl = document.getElementById('homeWaypointIdInfo');
-    if (homeIdEl) {
-        if (waypoints.length > 0) {
-            homeIdEl.textContent = waypoints[0].id;
-        } else {
-            homeIdEl.textContent = "Not Set";
-        }
-    }
-}
+// Non esiste una funzione updateHomeWaypointInfoDisplay nel codice fornito,
+// quindi non è stata inclusa. Se esisteva, andrebbe qui.
