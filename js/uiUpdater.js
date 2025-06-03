@@ -53,20 +53,20 @@ function populatePoiSelectDropdown(selectElement, selectedPoiId = null, addDefau
     if (pois.length === 0) {
         selectElement.disabled = true;
         if (addDefaultOption && selectElement.options[0]) {
-            selectElement.options[0].textContent = "Nessun POI disponibile"; // Italian
+            selectElement.options[0].textContent = "Nessun POI disponibile"; 
         }
         return;
     }
 
     selectElement.disabled = false;
-    if (addDefaultOption && selectElement.options[0] && selectElement.options[0].textContent === "Nessun POI disponibile") { // Italian
+    if (addDefaultOption && selectElement.options[0] && selectElement.options[0].textContent === "Nessun POI disponibile") { 
         selectElement.options[0].textContent = defaultOptionText;
     }
 
     pois.forEach(poi => {
         const option = document.createElement('option');
         option.value = poi.id;
-        option.textContent = `${poi.name} (ID: ${poi.id})`;
+        option.textContent = `${poi.name} (ID: ${poi.id}, Alt: ${poi.altitude}m MSL)`; // Show POI altitude in dropdown
         if (selectedPoiId !== null && poi.id === parseInt(selectedPoiId)) {
             option.selected = true;
         }
@@ -130,7 +130,6 @@ function updateWaypointList() {
             aglText = `${(amslWaypoint - wp.terrainElevationMSL).toFixed(1)} m`;
         }
 
-        // I commenti sono stati rimossi dagli stili inline qui sotto
         return `
         <div class="${itemClasses}" onclick="handleWaypointListItemClick(${wp.id})">
             <div style="display: flex; align-items: flex-start;"> 
@@ -169,8 +168,6 @@ function multiWaypointEditControlsDivIsVisible() {
 
 /**
  * Handles click on a waypoint item in the list.
- * This should call the main selectWaypoint function.
- * @param {number} wpId - The ID of the waypoint clicked.
  */
 function handleWaypointListItemClick(wpId) {
     const wp = waypoints.find(w => w.id === wpId);
@@ -181,9 +178,6 @@ function handleWaypointListItemClick(wpId) {
 
 /**
  * Handles checkbox change for multi-selecting a waypoint from the list.
- * This should call the main toggleMultiSelectWaypoint function.
- * @param {number} waypointId - The ID of the waypoint.
- * @param {boolean} isChecked - The new checked state of the checkbox.
  */
 function handleWaypointListCheckboxChange(waypointId, isChecked) {
     toggleMultiSelectWaypoint(waypointId, isChecked); 
@@ -195,10 +189,10 @@ function handleWaypointListCheckboxChange(waypointId, isChecked) {
  */
 function updatePOIList() {
     if (!poiListEl) return;
-    const noPoiAvailableText = "Nessun POI disponibile"; // Italian
+    const noPoiAvailableText = "Nessun POI disponibile"; 
 
     if (pois.length === 0) {
-        poiListEl.innerHTML = '<div style="text-align: center; color: #95a5a6; font-size: 12px; padding: 10px;">Nessun POI aggiunto</div>'; // Italian
+        poiListEl.innerHTML = '<div style="text-align: center; color: #95a5a6; font-size: 12px; padding: 10px;">Nessun POI aggiunto</div>'; 
         if (targetPoiSelect) {
             targetPoiSelect.disabled = true;
             targetPoiSelect.innerHTML = `<option value="">${noPoiAvailableText}</option>`;
@@ -219,11 +213,73 @@ function updatePOIList() {
     if (orbitPoiSelectEl) orbitPoiSelectEl.disabled = false;
 
     poiListEl.innerHTML = pois.map(poi => `
-        <div class="poi-item">
-            <span class="poi-name">${poi.name} (ID: ${poi.id})</span>
-            <button class="poi-delete" onclick="deletePOI(${poi.id})" title="Elimina POI ${poi.name}">✕</button>
+        <div class="poi-item" style="align-items: center;">
+            <div style="flex-grow: 1;">
+                <span class="poi-name" style="font-size:12px;">${poi.name} (ID: ${poi.id})</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <label for="poi_alt_${poi.id}" class="control-label" style="margin-bottom:0; font-size:10px; color: #bdc3c7;">Alt(MSL):</label>
+                <input type="number" id="poi_alt_${poi.id}" class="control-input-small" 
+                       value="${poi.altitude}" step="1" style="width: 50px; padding: 3px 5px; font-size:11px; margin-left:0;"
+                       onchange="handlePoiAltitudeChange(${poi.id}, this.value)"
+                       oninput="this.style.borderColor=''; this.title='';" 
+                       title="POI Altitude (MSL)">
+                <button class="poi-delete" onclick="deletePOI(${poi.id})" title="Elimina POI ${poi.name}">✕</button>
+            </div>
         </div>`).join('');
 }
+
+/**
+ * Handles changes to a POI's altitude from the input field in the list.
+ * @param {number} poiId - The ID of the POI.
+ * @param {string} newAltitudeStr - The new altitude as a string from the input.
+ */
+function handlePoiAltitudeChange(poiId, newAltitudeStr) {
+    const poi = pois.find(p => p.id === poiId);
+    const inputElement = document.getElementById(`poi_alt_${poiId}`);
+
+    if (poi && inputElement) {
+        const altValue = parseFloat(newAltitudeStr); // Usa parseFloat per consentire decimali se necessario, ma step è 1
+        if (!isNaN(altValue)) {
+            poi.altitude = altValue;
+            console.log(`POI ${poi.id} ('${poi.name}') altitude changed to: ${poi.altitude} m MSL`);
+            
+            // Aggiorna l'icona del marker del POI per riflettere la nuova altitudine
+            if (poi.marker && poi.updatePopup) {
+                poi.updatePopup(); // Questa funzione ora aggiorna anche l'icona
+            }
+
+            // Aggiorna i waypoint che tracciano questo POI
+            waypoints.forEach(wp => {
+                if (wp.headingControl === 'poi_track' && wp.targetPoiId === poi.id) {
+                    updateMarkerIconStyle(wp); // L'orientamento potrebbe cambiare
+                }
+            });
+            // Aggiorna i dropdown dei POI se sono visibili e l'altitudine è mostrata lì
+            if (selectedWaypoint && headingControlSelect && headingControlSelect.value === 'poi_track') {
+                populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Select POI for Heading --");
+            }
+            if (multiWaypointEditControlsDiv && multiWaypointEditControlsDiv.style.display === 'block' &&
+                multiHeadingControlSelect && multiHeadingControlSelect.value === 'poi_track') {
+                populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Select POI for all --");
+            }
+            if (orbitModalOverlayEl && orbitModalOverlayEl.style.display === 'flex') {
+                 populatePoiSelectDropdown(orbitPoiSelectEl, orbitPoiSelectEl.value || null, false);
+            }
+
+
+            inputElement.style.borderColor = ''; // Resetta bordo
+            inputElement.title = 'POI Altitude (MSL)';
+        } else {
+            // Valore non valido, ripristina o segnala errore
+            inputElement.value = poi.altitude; // Ripristina il valore precedente
+            inputElement.style.borderColor = 'red';
+            inputElement.title = 'Valore altitudine non valido';
+            showCustomAlert("L'altitudine del POI inserita non è un numero valido.", "Errore Input");
+        }
+    }
+}
+
 
 /**
  * Updates the visibility and content of the multi-waypoint edit panel.
@@ -238,7 +294,7 @@ function updateMultiEditPanelVisibility() {
         waypointControlsDiv.style.display = 'none'; 
 
         if (multiHeadingControlSelect && multiHeadingControlSelect.value === 'poi_track') {
-            populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Seleziona POI per tutti --"); // Italian
+            populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Seleziona POI per tutti --"); 
             if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'block';
         } else {
             if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'none';
@@ -282,11 +338,8 @@ function updateSingleWaypointEditControls() {
     if (targetPoiForHeadingGroupDiv) targetPoiForHeadingGroupDiv.style.display = showPoiSelect ? 'block' : 'none';
 
     if (showPoiSelect) {
-        populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Seleziona POI per Heading --"); // Italian
+        populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Seleziona POI per Heading --"); 
     }
 
     waypointControlsDiv.style.display = 'block';
 }
-
-// Non esiste una funzione updateHomeWaypointInfoDisplay nel codice fornito,
-// quindi non è stata inclusa. Se esisteva, andrebbe qui.
