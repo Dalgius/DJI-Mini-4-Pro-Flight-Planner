@@ -13,20 +13,18 @@ async function getElevationsBatch(locationsArray) {
         console.warn("Loading overlay not available for elevation fetching status.");
     }
 
-    const batchSize = 100; // OpenTopoData typically handles up to 100 locations per request
-    let allElevationsData = []; // To store {originalIndex, elevation}
+    const batchSize = 100; 
+    let allElevationsData = []; 
 
     for (let i = 0; i < locationsArray.length; i += batchSize) {
         const batch = locationsArray.slice(i, i + batchSize);
-        const currentBatchIndices = []; // To map batch results back to original indices
+        const currentBatchIndices = []; 
         const locationsString = batch.map((loc, indexInBatch) => {
-            currentBatchIndices.push(i + indexInBatch); // Store original index
+            currentBatchIndices.push(i + indexInBatch); 
             return `${loc.lat.toFixed(6)},${loc.lng.toFixed(6)}`;
         }).join('|');
 
-        // Construct the API URL for OpenTopoData
         const openTopoTargetUrl = `${OPENTOPODATA_API_BASE}?locations=${locationsString}&interpolation=cubic`;
-        // Use the proxy URL from config.js
         const proxyApiUrl = `${ELEVATION_API_PROXY_URL}?url=${encodeURIComponent(openTopoTargetUrl)}`;
 
         if (loadingOverlayEl) loadingOverlayEl.textContent = `Fetching terrain (batch ${Math.floor(i/batchSize) + 1})...`;
@@ -34,14 +32,13 @@ async function getElevationsBatch(locationsArray) {
 
         try {
             const response = await fetch(proxyApiUrl, { method: 'GET' });
-            const responseText = await response.text(); // Get raw text first for better error diagnosis
+            const responseText = await response.text(); 
 
             if (!response.ok) {
                 console.error(`Elevation API Error (via proxy): Status ${response.status}. Response: ${responseText.substring(0, 300)}...`);
                 showCustomAlert(`Elevation API Error (Batch ${Math.floor(i/batchSize) + 1}): ${response.status}. Check console.`, "API Error");
-                // For failed batch, push nulls for all items in this batch
                 currentBatchIndices.forEach(originalIdx => allElevationsData.push({ originalIndex: originalIdx, elevation: null }));
-                continue; // Move to the next batch if any
+                continue; 
             }
 
             const data = JSON.parse(responseText);
@@ -64,13 +61,11 @@ async function getElevationsBatch(locationsArray) {
             currentBatchIndices.forEach(originalIdx => allElevationsData.push({ originalIndex: originalIdx, elevation: null }));
         }
 
-        // Add a small delay between batch requests to be polite to the API
         if (i + batchSize < locationsArray.length) {
-            await new Promise(resolve => setTimeout(resolve, 1100)); // ~1 second delay
+            await new Promise(resolve => setTimeout(resolve, 1100)); 
         }
     }
 
-    // Sort results by original index to ensure correct order
     allElevationsData.sort((a, b) => a.originalIndex - b.originalIndex);
     return allElevationsData.map(item => item.elevation);
 }
@@ -80,13 +75,13 @@ async function getElevationsBatch(locationsArray) {
  */
 async function getHomeElevationFromFirstWaypoint() {
     if (waypoints.length === 0) {
-        showCustomAlert("Add at least one waypoint to estimate takeoff point elevation.", "Info");
+        showCustomAlert("Aggiungi almeno un waypoint per stimare l'elevazione del punto di decollo.", "Info"); // Italian
         return;
     }
     if (!loadingOverlayEl || !homeElevationMslInput || !adaptToAGLBtnEl || !getHomeElevationBtn) return;
 
     loadingOverlayEl.style.display = 'flex';
-    loadingOverlayEl.textContent = "Fetching WP1 Elevation...";
+    loadingOverlayEl.textContent = "Recupero elevazione WP1..."; // Italian
     adaptToAGLBtnEl.disabled = true;
     getHomeElevationBtn.disabled = true;
 
@@ -99,9 +94,10 @@ async function getHomeElevationFromFirstWaypoint() {
 
     if (elevations && elevations.length > 0 && elevations[0] !== null) {
         homeElevationMslInput.value = Math.round(elevations[0]);
-        showCustomAlert(`Waypoint 1 ground elevation (${Math.round(elevations[0])}m MSL) set as takeoff elevation.`, "Success");
+        showCustomAlert(`Elevazione del terreno di Waypoint 1 (${Math.round(elevations[0])}m MSL) impostata come elevazione di decollo.`, "Successo"); // Italian
+        updateWaypointList(); // Aggiorna la lista per mostrare le nuove altezze AMSL/AGL
     } else {
-        showCustomAlert("Could not retrieve ground elevation for Waypoint 1.", "Error");
+        showCustomAlert("Impossibile recuperare l'elevazione del terreno per Waypoint 1.", "Errore"); // Italian
     }
 }
 
@@ -115,21 +111,21 @@ async function adaptAltitudesToAGL() {
     const aglDesired = parseInt(desiredAGLInput.value);
     let homeElevationMSL = parseFloat(homeElevationMslInput.value);
 
-    if (isNaN(aglDesired) || aglDesired < 1) { // Min AGL typically > 0, e.g. 1m or 5m
-        showCustomAlert("Invalid desired AGL. Must be a positive number (e.g., min 5m).", "Input Error");
+    if (isNaN(aglDesired) || aglDesired < 1) { 
+        showCustomAlert("AGL desiderato non valido. Deve essere un numero positivo (es. min 5m).", "Errore Input"); // Italian
         return;
     }
     if (isNaN(homeElevationMSL)) {
-        showCustomAlert("Invalid Takeoff Point Elevation (MSL). Use 'Use WP1 Elev.' or enter manually.", "Input Error");
+        showCustomAlert("Elevazione del punto di decollo (MSL) non valida. Usa 'Usa Elev. WP1' o inserisci manualmente.", "Errore Input"); // Italian
         return;
     }
     if (waypoints.length === 0) {
-        showCustomAlert("No waypoints to adapt altitudes for.", "Info");
+        showCustomAlert("Nessun waypoint per cui adattare le altitudini.", "Info"); // Italian
         return;
     }
 
     loadingOverlayEl.style.display = 'flex';
-    loadingOverlayEl.textContent = "Requesting terrain elevations for all waypoints...";
+    loadingOverlayEl.textContent = "Richiesta elevazioni terreno per tutti i waypoint..."; // Italian
     adaptToAGLBtnEl.disabled = true;
     getHomeElevationBtn.disabled = true;
 
@@ -140,17 +136,18 @@ async function adaptAltitudesToAGL() {
     if (groundElevations && groundElevations.length === waypoints.length) {
         waypoints.forEach((wp, index) => {
             const groundElevationAtWaypoint = groundElevations[index];
-            if (loadingOverlayEl) loadingOverlayEl.textContent = `Adapting AGL Altitudes... (WP ${wp.id} - ${index + 1}/${waypoints.length})`;
+            if (loadingOverlayEl) loadingOverlayEl.textContent = `Adattamento altitudini AGL... (WP ${wp.id} - ${index + 1}/${waypoints.length})`;
 
             if (groundElevationAtWaypoint !== null) {
-                // Target MSL altitude for this waypoint = its ground MSL + desired AGL
+                wp.terrainElevationMSL = parseFloat(groundElevationAtWaypoint.toFixed(1)); // SALVA L'ELEVAZIONE DEL TERRENO
+
                 const targetMSLForWaypoint = groundElevationAtWaypoint + aglDesired;
-                // Drone's altitude setting (relative to takeoff) = Target MSL - Takeoff MSL
                 const newRelativeAltitude = targetMSLForWaypoint - homeElevationMSL;
 
-                wp.altitude = Math.max(1, Math.round(newRelativeAltitude)); // Ensure min altitude (e.g. 1m or 5m)
+                wp.altitude = Math.max(1, Math.round(newRelativeAltitude)); 
                 successCount++;
             } else {
+                wp.terrainElevationMSL = null; // IMPOSTA A NULL SE NON TROVATA
                 console.warn(`Could not get ground elevation for waypoint ${wp.id}. Its altitude was not changed.`);
             }
         });
@@ -158,33 +155,27 @@ async function adaptAltitudesToAGL() {
         console.error("Error fetching ground elevations in batch or length mismatch. No altitudes adapted.");
     }
 
-    // Update UI elements
     updateWaypointList();
     if (selectedWaypoint) {
-        // Re-select to refresh its controls if it was among the updated waypoints
         const currentSelectedWp = waypoints.find(wp => wp.id === selectedWaypoint.id);
-        if (currentSelectedWp) selectWaypoint(currentSelectedWp); // This calls updateSingleWaypointEditControls
-        else if (waypoints.length > 0) selectWaypoint(waypoints[0]); // Select first if current was deleted (not applicable here)
+        if (currentSelectedWp) selectWaypoint(currentSelectedWp); 
+        else if (waypoints.length > 0) selectWaypoint(waypoints[0]); 
         else if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
     } else if (waypoints.length > 0 && waypointControlsDiv) {
-        // If nothing was selected, but now we have waypoints, maybe select the first one.
-        // Or simply ensure the single edit panel is hidden if no selection.
         waypointControlsDiv.style.display = 'none';
     }
 
-
-    updateFlightStatistics(); // If altitudes changed in a way that affects stats (not directly here)
+    updateFlightStatistics(); 
 
     loadingOverlayEl.style.display = 'none';
     adaptToAGLBtnEl.disabled = false;
     getHomeElevationBtn.disabled = false;
 
     if (successCount === waypoints.length && waypoints.length > 0) {
-        showCustomAlert("AGL altitude adaptation completed for all waypoints!", "Success");
+        showCustomAlert("Adattamento altitudine AGL completato per tutti i waypoint!", "Successo"); // Italian
     } else if (successCount > 0) {
-        showCustomAlert(`AGL altitude adaptation completed for ${successCount} out of ${waypoints.length} waypoints. Some waypoints may not have been updated due to missing terrain data. Check console.`, "Partial Success");
+        showCustomAlert(`Adattamento altitudine AGL completato per ${successCount} su ${waypoints.length} waypoint. Alcuni waypoint potrebbero non essere stati aggiornati a causa di dati del terreno mancanti. Controlla la console.`, "Successo Parziale"); // Italian
     } else if (waypoints.length > 0) {
-        showCustomAlert("AGL altitude adaptation failed for all waypoints. Could not retrieve terrain data. Check console for details.", "Error");
+        showCustomAlert("Adattamento altitudine AGL fallito per tutti i waypoint. Impossibile recuperare i dati del terreno. Controlla la console per i dettagli.", "Errore"); // Italian
     }
-    // If waypoints.length is 0, no message was shown by the logic above, which is fine.
 }
