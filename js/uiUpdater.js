@@ -130,15 +130,16 @@ function updateWaypointList() {
             aglText = `${(amslWaypoint - wp.terrainElevationMSL).toFixed(1)} m`;
         }
 
+        // I commenti sono stati rimossi dagli stili inline qui sotto
         return `
         <div class="${itemClasses}" onclick="handleWaypointListItemClick(${wp.id})">
-            <div style="display: flex; align-items: flex-start;"> {/* Changed to flex-start for better checkbox alignment with multi-line text */}
+            <div style="display: flex; align-items: flex-start;"> 
                 <input type="checkbox" class="waypoint-multi-select-cb" data-id="${wp.id}"
                        onchange="handleWaypointListCheckboxChange(${wp.id}, this.checked)"
                        ${isSelectedForMulti ? 'checked' : ''}
-                       style="margin-right: 10px; transform: scale(1.2); margin-top: 3px;" {/* Added margin-top */}
+                       style="margin-right: 10px; transform: scale(1.2); margin-top: 3px;" 
                        onclick="event.stopPropagation();">
-                <div style="font-size: 11px; line-height: 1.35;"> {/* Adjusted font and line-height */}
+                <div style="font-size: 11px; line-height: 1.35;"> 
                     <div class="waypoint-header" style="margin-bottom: 2px;"><span class="waypoint-name">Waypoint ${wp.id}</span></div>
                     <div class="waypoint-coords" style="margin-bottom: 4px; font-size: 0.95em; color: #b0bec5;">Lat: ${wp.latlng.lat.toFixed(4)}, Lng: ${wp.latlng.lng.toFixed(4)}</div>
                     <div class="waypoint-altitudes" style="margin-bottom: 3px; color: #dfe6e9;">
