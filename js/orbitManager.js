@@ -9,30 +9,26 @@
 function showOrbitDialog() {
     if (!orbitModalOverlayEl || !orbitPoiSelectEl || !orbitRadiusInputEl || !orbitPointsInputEl) {
         console.error("Orbit modal elements not found in DOM cache!");
-        showCustomAlert("Orbit dialog cannot be displayed due to missing elements.", "Internal Error");
+        showCustomAlert("La finestra di dialogo Orbita non può essere visualizzata a causa di elementi mancanti.", "Errore Interno"); // Italian
         return;
     }
 
     if (pois.length === 0) {
-        showCustomAlert("Add at least one POI before creating an orbit.", "Orbit Error");
+        showCustomAlert("Aggiungi almeno un POI prima di creare un'orbita.", "Errore Orbita"); // Italian
         return;
     }
 
-    populatePoiSelectDropdown(orbitPoiSelectEl, null, false); // Populate without a default "-- Select --"
+    populatePoiSelectDropdown(orbitPoiSelectEl, null, false); 
 
-    // Pre-select the first POI if available
     if (pois.length > 0 && orbitPoiSelectEl.options.length > 0) {
         orbitPoiSelectEl.value = pois[0].id;
     } else {
-        // This case should ideally be caught by the pois.length === 0 check above,
-        // but as a fallback:
-        showCustomAlert("No POIs available to select for orbit.", "Orbit Error");
-        return; // Don't show dialog if no POIs to select
+        showCustomAlert("Nessun POI disponibile da selezionare per l'orbita.", "Errore Orbita"); // Italian
+        return; 
     }
 
-    // Set default values for radius and points
-    orbitRadiusInputEl.value = "30"; // Default radius in meters
-    orbitPointsInputEl.value = "8";  // Default number of orbit waypoints
+    orbitRadiusInputEl.value = "30"; 
+    orbitPointsInputEl.value = "8";  
 
     orbitModalOverlayEl.style.display = 'flex';
 }
@@ -41,81 +37,84 @@ function showOrbitDialog() {
  * Handles the confirmation of orbit creation from the dialog.
  */
 function handleConfirmOrbit() {
-    if (!orbitPoiSelectEl || !orbitRadiusInputEl || !orbitPointsInputEl || !defaultAltitudeSlider) {
-        showCustomAlert("Orbit creation failed: essential control elements are missing.", "Internal Error");
+    if (!orbitPoiSelectEl || !orbitRadiusInputEl || !orbitPointsInputEl || !defaultAltitudeSlider || !homeElevationMslInput) { // Added homeElevationMslInput
+        showCustomAlert("Creazione orbita fallita: elementi di controllo essenziali mancanti.", "Errore Interno"); // Italian
         return;
     }
 
     const targetPoiId = parseInt(orbitPoiSelectEl.value);
     const radius = parseFloat(orbitRadiusInputEl.value);
     const numPoints = parseInt(orbitPointsInputEl.value);
-    const altitudeForOrbitWps = parseInt(defaultAltitudeSlider.value); // Use default mission altitude for orbit WPs
+    const altitudeForOrbitWpsRel = parseInt(defaultAltitudeSlider.value); 
 
     const targetPoi = pois.find(p => p.id === targetPoiId);
 
     if (!targetPoi) {
-        showCustomAlert("Invalid POI selected for orbit. Please select a valid POI.", "Orbit Error");
+        showCustomAlert("POI non valido selezionato per l'orbita. Seleziona un POI valido.", "Errore Orbita"); // Italian
         return;
     }
     if (isNaN(radius) || radius <= 0) {
-        showCustomAlert("Invalid radius. Must be a positive number.", "Orbit Error");
+        showCustomAlert("Raggio non valido. Deve essere un numero positivo.", "Errore Orbita"); // Italian
         return;
     }
-    if (isNaN(numPoints) || numPoints < 3) { // Minimum 3 points for a somewhat meaningful orbit
-        showCustomAlert("Invalid number of points. Minimum 3 required for orbit.", "Orbit Error");
+    if (isNaN(numPoints) || numPoints < 3) { 
+        showCustomAlert("Numero di punti non valido. Minimo 3 richiesti per l'orbita.", "Errore Orbita"); // Italian
         return;
     }
 
-    generateOrbitWaypoints(targetPoi, radius, numPoints, altitudeForOrbitWps);
+    generateOrbitWaypoints(targetPoi, radius, numPoints, altitudeForOrbitWpsRel);
 
-    if (orbitModalOverlayEl) orbitModalOverlayEl.style.display = 'none'; // Hide the modal
+    if (orbitModalOverlayEl) orbitModalOverlayEl.style.display = 'none'; 
 }
 
 /**
  * Generates and adds waypoints for an orbit around a central POI.
- * @param {object} centerPoi - The POI object to orbit around.
+ * @param {object} centerPoi - The POI object to orbit around (contains .altitude as MSL).
  * @param {number} radius - The radius of the orbit in meters.
  * @param {number} numPoints - The number of waypoints to generate for the orbit.
- * @param {number} altitude - The altitude (relative to takeoff) for the orbit waypoints.
+ * @param {number} altitudeRelToHome - The altitude (relative to takeoff) for the orbit waypoints.
  */
-function generateOrbitWaypoints(centerPoi, radius, numPoints, altitude) {
-    // R_EARTH is defined in config.js
+function generateOrbitWaypoints(centerPoi, radius, numPoints, altitudeRelToHome) {
+    const homeElevation = parseFloat(homeElevationMslInput.value) || 0; // MSL of takeoff
+    const orbitWpAMSL = homeElevation + altitudeRelToHome; // MSL altitude of the orbit waypoints
+    const poiAMSL = centerPoi.altitude; // MSL altitude of the POI
+
+    let calculatedGimbalPitch = 0; // Default gimbal pitch
+
+    if (radius > 0) {
+        const deltaAltitude = orbitWpAMSL - poiAMSL; // Drone height relative to POI target height
+        calculatedGimbalPitch = Math.atan(deltaAltitude / radius) * (180 / Math.PI);
+        calculatedGimbalPitch = Math.max(-90, Math.min(60, calculatedGimbalPitch)); // Clamp
+        calculatedGimbalPitch = -calculatedGimbalPitch; // Negative for looking down
+    }
+
 
     for (let i = 0; i < numPoints; i++) {
-        const angle = (i / numPoints) * 2 * Math.PI; // Angle in radians for the current point
+        const angle = (i / numPoints) * 2 * Math.PI; 
 
-        const latRad = toRad(centerPoi.latlng.lat); // Convert center POI lat to radians
-        const lngRad = toRad(centerPoi.latlng.lng); // Convert center POI lng to radians
-
-        // Calculate destination point given distance and bearing from start point
-        // Formula for destination point given distance and bearing from start point:
-        // lat2 = asin(sin(lat1)*cos(d/R) + cos(lat1)*sin(d/R)*cos(brng))
-        // lon2 = lon1 + atan2(sin(brng)*sin(d/R)*cos(lat1), cos(d/R)-sin(lat1)*sin(lat2))
-        // where d is distance, R is Earth's radius, brng is the bearing (angle)
+        const latRad = toRad(centerPoi.latlng.lat); 
+        const lngRad = toRad(centerPoi.latlng.lng); 
 
         const pointLatRad = Math.asin(Math.sin(latRad) * Math.cos(radius / R_EARTH) +
                                     Math.cos(latRad) * Math.sin(radius / R_EARTH) * Math.cos(angle));
         const pointLngRad = lngRad + Math.atan2(Math.sin(angle) * Math.sin(radius / R_EARTH) * Math.cos(latRad),
                                              Math.cos(radius / R_EARTH) - Math.sin(latRad) * Math.sin(pointLatRad));
 
-        const pointLat = pointLatRad * 180 / Math.PI; // Convert back to degrees
-        const pointLng = pointLngRad * 180 / Math.PI; // Convert back to degrees
+        const pointLat = pointLatRad * 180 / Math.PI; 
+        const pointLng = pointLngRad * 180 / Math.PI; 
 
         const wpLatlng = L.latLng(pointLat, pointLng);
 
-        // Define options for the new waypoint
         const waypointOptions = {
-            altitude: altitude,
-            headingControl: 'poi_track', // Orbit waypoints should track the center POI
+            altitude: altitudeRelToHome, // Altitude relative to home
+            headingControl: 'poi_track', 
             targetPoiId: centerPoi.id,
-            gimbalPitch: parseInt(gimbalPitchSlider ? gimbalPitchSlider.value : 0) // Use current default gimbal pitch
-            // hoverTime, cameraAction can be defaults or set if needed
+            gimbalPitch: Math.round(calculatedGimbalPitch) 
         };
 
-        // Add the waypoint using the waypointManager's addWaypoint function
         addWaypoint(wpLatlng, waypointOptions);
     }
 
-    fitMapToWaypoints(); // Adjust map view to include the new orbit waypoints
-    showCustomAlert(`${numPoints} orbit waypoints created around ${centerPoi.name}.`, "Orbit Created");
+    fitMapToWaypoints(); 
+    showCustomAlert(`${numPoints} waypoint dell'orbita creati attorno a ${centerPoi.name}.`, "Orbita Creata"); // Italian
 }
