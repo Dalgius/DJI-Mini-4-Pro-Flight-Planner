@@ -11,7 +11,7 @@ function addWaypoint(latlng, options = {}) {
     if (!map || !defaultAltitudeSlider || !gimbalPitchSlider) return;
 
     const newWaypoint = {
-        id: waypointCounter++,
+        id: options.id !== undefined ? options.id : waypointCounter++, // Usa l'ID fornito se presente (per import)
         latlng: L.latLng(latlng.lat, latlng.lng),
         altitude: options.altitude !== undefined ? options.altitude : parseInt(defaultAltitudeSlider.value),
         hoverTime: options.hoverTime !== undefined ? options.hoverTime : 0,
@@ -20,12 +20,17 @@ function addWaypoint(latlng, options = {}) {
         fixedHeading: options.fixedHeading || 0,
         cameraAction: options.cameraAction || 'none',
         targetPoiId: options.targetPoiId || null,
+        terrainElevationMSL: options.terrainElevationMSL !== undefined ? options.terrainElevationMSL : null, // Inizializza la nuova proprietà
         marker: null 
     };
+    // Assicurati che waypointCounter sia sempre maggiore dell'ID massimo usato
+    if (options.id !== undefined && options.id >= waypointCounter) {
+        waypointCounter = options.id + 1;
+    }
     
     waypoints.push(newWaypoint);
 
-    const isHome = waypoints.length === 1 && newWaypoint.id === waypoints[0].id;
+    const isHome = waypoints.length > 0 && newWaypoint.id === waypoints[0].id;
     const marker = L.marker(newWaypoint.latlng, {
         draggable: true,
         icon: createWaypointIcon(newWaypoint, false, false, isHome) 
@@ -50,6 +55,47 @@ function addWaypoint(latlng, options = {}) {
         newWaypoint.latlng = marker.getLatLng();
         updateFlightPath(); 
     });
+
+    marker.on('mouseover', function (e) {
+        let homeElevation = 0;
+        if (homeElevationMslInput && homeElevationMslInput.value !== "") {
+            homeElevation = parseFloat(homeElevationMslInput.value);
+            if (isNaN(homeElevation)) homeElevation = 0;
+        }
+
+        const altitudeRelToHome = newWaypoint.altitude;
+        const terrainElevText = newWaypoint.terrainElevationMSL !== null ? `${newWaypoint.terrainElevationMSL.toFixed(1)} m` : "N/A";
+        let amslText = "N/A";
+        let aglText = "N/A";
+
+        if (typeof homeElevation === 'number') {
+            amslText = `${(homeElevation + altitudeRelToHome).toFixed(1)} m`;
+        }
+        if (newWaypoint.terrainElevationMSL !== null && typeof homeElevation === 'number') {
+            const amslWaypoint = homeElevation + altitudeRelToHome;
+            aglText = `${(amslWaypoint - newWaypoint.terrainElevationMSL).toFixed(1)} m`;
+        }
+
+        const popupContent = `
+            <strong>Waypoint ${newWaypoint.id}</strong><br>
+            <div style="font-size:0.9em; line-height:1.3;">
+            Lat: ${newWaypoint.latlng.lat.toFixed(5)}, Lng: ${newWaypoint.latlng.lng.toFixed(5)}<br>
+            Alt. Volo (Rel): ${altitudeRelToHome} m<br>
+            Alt. AMSL: ${amslText}<br>
+            Alt. AGL: ${aglText}<br>
+            Elev. Terreno: ${terrainElevText}<br>
+            Gimbal: ${newWaypoint.gimbalPitch}° | Hover: ${newWaypoint.hoverTime}s
+            </div>
+        `;
+        if (!this.getPopup()) {
+            this.bindPopup(popupContent).openPopup();
+        } else {
+            this.setPopupContent(popupContent).openPopup();
+        }
+    });
+    // Potresti aggiungere un handler per mouseout se vuoi che il popup si chiuda automaticamente
+    // marker.on('mouseout', function(e) { this.closePopup(); });
+
     newWaypoint.marker = marker;
 
     if (waypoints.length > 1) {
@@ -257,13 +303,26 @@ function applyMultiEdit() {
         multiHoverTimeSlider.disabled = true;
     }
     
+    // console.log("Stato PRIMA di setTimeout - Checkbox Gimbal:", changeGimbalCheckboxState, "Slider disabled:", multiGimbalPitchSlider.disabled);
+    // console.log("Stato PRIMA di setTimeout - Checkbox Hover:", changeHoverCheckboxState, "Slider disabled:", multiHoverTimeSlider.disabled);
+    
     setTimeout(() => {
+        // console.log("Dentro setTimeout - Stato slider attuale - Gimbal Slider value:", multiGimbalPitchSlider.value, "disabled:", multiGimbalPitchSlider.disabled);
+        // console.log("Dentro setTimeout - Stato slider attuale - Hover Slider value:", multiHoverTimeSlider.value, "disabled:", multiHoverTimeSlider.disabled);
+
         const newHeadingControl = multiHeadingControlSelect.value;
         const newFixedHeading = parseInt(multiFixedHeadingSlider.value);
         const newCameraAction = multiCameraActionSelect.value;
 
         const newGimbalPitch = changeGimbalCheckboxState ? parseInt(multiGimbalPitchSlider.value) : null;
         const newHoverTime = changeHoverCheckboxState ? parseInt(multiHoverTimeSlider.value) : null;
+
+        // console.log("--- applyMultiEdit INIZIO (dopo lettura valori da setTimeout) ---");
+        // console.log("Checkbox Gimbal Selezionata (letta per modifica):", changeGimbalCheckboxState);
+        // console.log("Nuovo Gimbal Pitch (letto per modifica):", newGimbalPitch, "(Valore grezzo slider:", changeGimbalCheckboxState ? multiGimbalPitchSlider.value : 'N/A', ")");
+        // console.log("Checkbox Hover Selezionata (letta per modifica):", changeHoverCheckboxState);
+        // console.log("Nuovo Hover Time (letto per modifica):", newHoverTime, "(Valore grezzo slider:", changeHoverCheckboxState ? multiHoverTimeSlider.value : 'N/A', ")");
+        // console.log("Numero Waypoint Selezionati:", selectedForMultiEdit.size);
         
         let changesMadeToAtLeastOneWp = false;
 
@@ -302,6 +361,7 @@ function applyMultiEdit() {
                 }
             }
         });
+        // console.log("--- applyMultiEdit FINE CICLO WAYPOINTS (da setTimeout) ---");
 
         if (changesMadeToAtLeastOneWp) {
             updateWaypointList();
