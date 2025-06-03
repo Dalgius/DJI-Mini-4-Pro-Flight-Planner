@@ -14,7 +14,6 @@ function setupEventListeners() {
         flightSpeedSlider.addEventListener('input', () => {
             if (flightSpeedValueEl) flightSpeedValueEl.textContent = flightSpeedSlider.value + ' m/s';
             updateFlightStatistics(); 
-            // If flight speed affects auto heading display (e.g. time to next waypoint), update markers
             waypoints.forEach(wp => { 
                 if (wp.headingControl === 'auto') updateMarkerIconStyle(wp);
             });
@@ -23,7 +22,6 @@ function setupEventListeners() {
     if (pathTypeSelect) {
         pathTypeSelect.addEventListener('change', () => {
             updateFlightPath();
-            // Path type change might affect 'auto' headings if they are visualized based on curved/straight path
             waypoints.forEach(wp => updateMarkerIconStyle(wp));
         });
     }
@@ -35,7 +33,6 @@ function setupEventListeners() {
             waypointAltitudeValueEl.textContent = waypointAltitudeSlider.value + 'm';
             selectedWaypoint.altitude = parseInt(waypointAltitudeSlider.value);
             updateWaypointList(); 
-            // updateMarkerIconStyle(selectedWaypoint); // Altitude does not change heading indicator
         });
     }
     if (hoverTimeSlider) {
@@ -60,7 +57,7 @@ function setupEventListeners() {
             fixedHeadingValueEl.textContent = fixedHeadingSlider.value + '°';
             selectedWaypoint.fixedHeading = parseInt(fixedHeadingSlider.value);
             if (selectedWaypoint.headingControl === 'fixed') {
-                updateMarkerIconStyle(selectedWaypoint); // Update visual heading
+                updateMarkerIconStyle(selectedWaypoint); 
             }
         });
     }
@@ -79,7 +76,7 @@ function setupEventListeners() {
                 selectedWaypoint.targetPoiId = null; 
             }
             updateWaypointList(); 
-            updateMarkerIconStyle(selectedWaypoint); // Update visual heading
+            updateMarkerIconStyle(selectedWaypoint); 
         });
     }
     if (targetPoiSelect) {
@@ -88,7 +85,7 @@ function setupEventListeners() {
                 selectedWaypoint.targetPoiId = this.value ? parseInt(this.value) : null;
                 updateWaypointList(); 
                 if (selectedWaypoint.headingControl === 'poi_track') {
-                    updateMarkerIconStyle(selectedWaypoint); // Update visual heading
+                    updateMarkerIconStyle(selectedWaypoint); 
                 }
             }
         });
@@ -104,10 +101,6 @@ function setupEventListeners() {
     if (deleteSelectedWaypointBtn) {
         deleteSelectedWaypointBtn.addEventListener('click', deleteSelectedWaypoint);
     }
-
-
-    // --- POI Input ---
-    // In poiManager.js, marker drag 'dragend' event needs to update relevant waypoint markers
 
     // --- Multi-Waypoint Edit Panel ---
     if (selectAllWaypointsCheckboxEl) {
@@ -128,51 +121,52 @@ function setupEventListeners() {
             if (multiFixedHeadingValueEl) multiFixedHeadingValueEl.textContent = this.value + '°';
         });
     }
-    // applyMultiEditBtn listener calls applyMultiEdit, which now calls updateMarkerIconStyle for each modified WP.
-
+    
     if (multiChangeGimbalPitchCheckbox) {
         multiChangeGimbalPitchCheckbox.addEventListener('change', function() {
-            // AGGIUNGIAMO DEI LOG QUI PER VEDERE COSA SUCCEDE
-            console.log("Checkbox Gimbal 'Change' cliccata. Checked:", this.checked);
+            console.log("Checkbox Gimbal 'Change' cliccata. Checked:", this.checked); // DEBUG LOG
             if (!multiGimbalPitchSlider || !multiGimbalPitchValueEl) {
-                console.error("Elementi slider Gimbal o valore non trovati!");
+                console.error("Elementi slider Gimbal o valore non trovati in event listener checkbox!");
                 return;
             }
             multiGimbalPitchSlider.disabled = !this.checked;
-            console.log("Slider Gimbal 'disabled' impostato a:", multiGimbalPitchSlider.disabled);
-
-            // Se stiamo deselezionando la checkbox, potremmo voler resettare lo slider a 0
-            // e al suo stato testuale, ma questo non dovrebbe impedirne l'abilitazione.
-            if (!this.checked) { 
-                 // Potresti voler resettare lo slider qui se necessario, es:
-                 // multiGimbalPitchSlider.value = 0;
-                 // multiGimbalPitchValueEl.textContent = multiGimbalPitchSlider.value + '°';
-            }
+            console.log("Slider Gimbal 'disabled' impostato a:", multiGimbalPitchSlider.disabled); // DEBUG LOG
         });
     }
-    if (multiGimbalPitchSlider) { /* ... no changes needed for heading ... */ }
+    if (multiGimbalPitchSlider) {
+        multiGimbalPitchSlider.addEventListener('input', function() {
+            if (multiGimbalPitchValueEl) {
+                multiGimbalPitchValueEl.textContent = this.value + '°';
+            }
+            console.log("Gimbal Slider INPUT event. Nuovo valore letto:", this.value); // DEBUG LOG
+        });
+    }
+
     if (multiChangeHoverTimeCheckbox) {
         multiChangeHoverTimeCheckbox.addEventListener('change', function() {
-            // AGGIUNGIAMO DEI LOG QUI
-            console.log("Checkbox Hover 'Change' cliccata. Checked:", this.checked);
+            console.log("Checkbox Hover 'Change' cliccata. Checked:", this.checked); // DEBUG LOG
             if (!multiHoverTimeSlider || !multiHoverTimeValueEl) {
-                console.error("Elementi slider Hover o valore non trovati!");
+                console.error("Elementi slider Hover o valore non trovati in event listener checkbox!");
                 return;
             }
             multiHoverTimeSlider.disabled = !this.checked;
-            console.log("Slider Hover 'disabled' impostato a:", multiHoverTimeSlider.disabled);
-
-            if (!this.checked) {
-                // ...
-            }
+            console.log("Slider Hover 'disabled' impostato a:", multiHoverTimeSlider.disabled); // DEBUG LOG
         });
     }
-    if (multiHoverTimeSlider) { /* ... no changes needed for heading ... */ }
+    if (multiHoverTimeSlider) {
+        multiHoverTimeSlider.addEventListener('input', function() {
+            if (multiHoverTimeValueEl) {
+                multiHoverTimeValueEl.textContent = this.value + 's';
+            }
+            console.log("Hover Slider INPUT event. Nuovo valore letto:", this.value); // DEBUG LOG
+        });
+    }
+
     if (applyMultiEditBtn) {
-        applyMultiEditBtn.addEventListener('click', function() { // Modifica qui per aggiungere un log/alert
-            alert("Pulsante 'Apply to Selected' CLICCATO!"); // <<< AGGIUNGI QUESTO ALERT
-            console.log("Pulsante 'Apply to Selected' CLICCATO! Chiamata a applyMultiEdit in corso..."); // <<< O QUESTO CONSOLE.LOG
-            applyMultiEdit(); // Chiama la funzione originale
+        applyMultiEditBtn.addEventListener('click', function() {
+            // alert("Pulsante 'Apply to Selected' CLICCATO!"); // Alert di debug precedente, puoi rimuoverlo se vuoi
+            console.log("Pulsante 'Apply to Selected' CLICCATO! Chiamata a applyMultiEdit in corso...");
+            applyMultiEdit();
         });
     }
     if (clearMultiSelectionBtn) {
@@ -180,16 +174,11 @@ function setupEventListeners() {
     }
 
     // --- Terrain & Orbit Tools ---
-    // adaptToAGLBtnEl, createOrbitBtn, getHomeElevationBtn: These actions don't directly change
-    // individual waypoint heading controls but might add new waypoints.
-    // addWaypoint (called by orbit generation) handles new marker styling.
     if (getHomeElevationBtn) { getHomeElevationBtn.addEventListener('click', getHomeElevationFromFirstWaypoint); }
     if (adaptToAGLBtnEl) { adaptToAGLBtnEl.addEventListener('click', adaptAltitudesToAGL); }
     if (createOrbitBtn) { createOrbitBtn.addEventListener('click', showOrbitDialog); }
 
     // --- Survey Grid Modal ---
-    // confirmSurveyGridBtnEl: calls handleConfirmSurveyGridGeneration, which calls addWaypoint.
-    // addWaypoint handles new marker styling.
     if (createSurveyGridBtn) { createSurveyGridBtn.addEventListener('click', openSurveyGridModal); }
     if (startDrawingSurveyAreaBtnEl) { startDrawingSurveyAreaBtnEl.addEventListener('click', handleStartDrawingSurveyArea); }
     if (finalizeSurveyAreaBtnEl) { finalizeSurveyAreaBtnEl.addEventListener('click', handleFinalizeSurveyArea); }
@@ -197,7 +186,6 @@ function setupEventListeners() {
     if (cancelSurveyGridBtnEl) { cancelSurveyGridBtnEl.addEventListener('click', handleCancelSurveyGrid); }
     
     // --- Import/Export Buttons ---
-    // handleFileImport calls loadFlightPlan, which calls addWaypoint.
     if (importJsonBtn) { importJsonBtn.addEventListener('click', triggerImport); }
     if (fileInputEl) { fileInputEl.addEventListener('change', handleFileImport); }
     if (exportJsonBtn) { exportJsonBtn.addEventListener('click', exportFlightPlanToJson); }
@@ -206,7 +194,7 @@ function setupEventListeners() {
 
     // --- General Action Buttons ---
     if (clearWaypointsBtn) {
-        clearWaypointsBtn.addEventListener('click', clearWaypoints); // This removes all markers.
+        clearWaypointsBtn.addEventListener('click', clearWaypoints);
     }
 
     // --- Map Control Buttons ---
@@ -216,6 +204,6 @@ function setupEventListeners() {
 
     // --- Modal Buttons ---
     if (customAlertOkButtonEl) { customAlertOkButtonEl.addEventListener('click', () => { if (customAlertOverlayEl) customAlertOverlayEl.style.display = 'none'; }); }
-    if (confirmOrbitBtnEl) { confirmOrbitBtnEl.addEventListener('click', handleConfirmOrbit); } // Calls generateOrbitWaypoints -> addWaypoint
+    if (confirmOrbitBtnEl) { confirmOrbitBtnEl.addEventListener('click', handleConfirmOrbit); } 
     if (cancelOrbitBtnEl) { cancelOrbitBtnEl.addEventListener('click', () => { if (orbitModalOverlayEl) orbitModalOverlayEl.style.display = 'none'; }); }
 }
