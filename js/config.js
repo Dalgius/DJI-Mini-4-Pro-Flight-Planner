@@ -25,18 +25,16 @@ let selectedForMultiEdit = new Set(); // Set of waypoint IDs selected for batch 
 
 // --- Constants (if any, e.g., API URLs, default values not tied to DOM elements at init) ---
 const R_EARTH = 6371000; // Earth radius in meters for orbit calculation
-const ELEVATION_API_PROXY_URL = '/.netlify/functions/elevation-proxy'; // Updated proxy URL for Netlify
+const ELEVATION_API_PROXY_URL = '/.netlify/functions/elevation-proxy'; 
 const OPENTOPODATA_API_BASE = 'https://api.opentopodata.org/v1/srtm90m';
 
 // --- DOM Element Cache (Variables to be populated by domCache.js) ---
-// These are declared here to indicate they are globally accessed,
-// but will be assigned in a dedicated DOM caching module or init.
 // Sidebar Controls
 let defaultAltitudeSlider, defaultAltitudeValueEl, flightSpeedSlider, flightSpeedValueEl;
 let pathTypeSelect;
 
 // Waypoint Specific Controls
-let waypointControlsDiv; // Container for single waypoint editing
+let waypointControlsDiv; 
 let waypointAltitudeSlider, waypointAltitudeValueEl, hoverTimeSlider, hoverTimeValueEl;
 let gimbalPitchSlider, gimbalPitchValueEl;
 let headingControlSelect, fixedHeadingGroupDiv, fixedHeadingSlider, fixedHeadingValueEl;
@@ -45,7 +43,7 @@ let cameraActionSelect;
 let deleteSelectedWaypointBtn;
 
 // POI Controls
-let poiNameInput;
+let poiNameInput, poiAltitudeInputEl; // MODIFIED: Added poiAltitudeInputEl
 
 // List Display Elements
 let waypointListEl, poiListEl;
@@ -63,10 +61,9 @@ let multiChangeGimbalPitchCheckbox, multiGimbalPitchSlider, multiGimbalPitchValu
 let multiChangeHoverTimeCheckbox, multiHoverTimeSlider, multiHoverTimeValueEl;
 let applyMultiEditBtn, clearMultiSelectionBtn;
 
-// ... (altre dichiarazioni) ...
+// Survey Grid Modal Elements
 let createSurveyGridBtn, surveyGridModalOverlayEl, surveyGridModalTitleEl, surveyGridInstructionsEl;
 let surveyGridAltitudeInputEl, surveySidelapInputEl, surveyFrontlapInputEl, surveyGridAngleInputEl;
-// surveyGridOvershootInputEl removed as it's not in HTML or surveyGridManager logic
 let surveyAreaStatusEl, startDrawingSurveyAreaBtnEl, finalizeSurveyAreaBtnEl, confirmSurveyGridBtnEl, cancelSurveyGridBtnEl;
 
 // Terrain & Orbit Tools
@@ -75,7 +72,7 @@ let getHomeElevationBtn, createOrbitBtn;
 
 // Import/Export Buttons
 let importJsonBtn, exportJsonBtn, exportKmzBtn, exportGoogleEarthBtn;
-let fileInputEl; // For triggering file import
+let fileInputEl; 
 
 // Map Control Buttons
 let satelliteToggleBtn, fitMapBtn, myLocationBtn;
@@ -88,5 +85,3 @@ let loadingOverlayEl;
 let customAlertOverlayEl, customAlertTitleEl, customAlertMessageEl, customAlertOkButtonEl;
 let orbitModalOverlayEl, orbitPoiSelectEl, orbitRadiusInputEl, orbitPointsInputEl;
 let confirmOrbitBtnEl, cancelOrbitBtnEl;
-
-// Note: Actual assignment of these DOM elements will be handled in a separate domCache.js or within app.js/main.js
