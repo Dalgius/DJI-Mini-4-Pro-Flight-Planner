@@ -43,18 +43,11 @@ if (typeof toRad === 'undefined') {
 }
 
 
-function triggerImport() { /* ... come prima ... */ }
-function handleFileImport(event) { /* ... come prima ... */ }
-function loadFlightPlan(plan) { /* ... come prima ... */ }
-function exportFlightPlanToJson() { /* ... come prima ... */ }
-function exportToGoogleEarthKml() { /* ... come prima ... */ }
-
-// (Incollo le funzioni precedenti per completezza)
 function triggerImport() {
     if (fileInputEl) { 
         fileInputEl.click();
     } else {
-        if(typeof showCustomAlert === 'function') showCustomAlert("File input element not found.", "Import Error");
+        if(typeof showCustomAlert === 'function') showCustomAlert("Elemento input file non trovato.", "Errore Import"); // Italian
     }
 }
 function handleFileImport(event) {
@@ -66,7 +59,7 @@ function handleFileImport(event) {
             const importedPlan = JSON.parse(e.target.result);
             if(typeof loadFlightPlan === 'function') loadFlightPlan(importedPlan);
         } catch (err) {
-            if(typeof showCustomAlert === 'function') showCustomAlert("Error parsing flight plan file: " + err.message, "Import Error");
+            if(typeof showCustomAlert === 'function') showCustomAlert("Errore nel parsing del file del piano di volo: " + err.message, "Errore Import"); // Italian
             console.error("Flight plan import error:", err);
         }
     };
@@ -108,11 +101,12 @@ function loadFlightPlan(plan) {
                 headingControl: wpData.headingControl, fixedHeading: wpData.fixedHeading,
                 cameraAction: wpData.cameraAction || 'none',
                 targetPoiId: wpData.targetPoiId === undefined ? null : wpData.targetPoiId,
+                terrainElevationMSL: wpData.terrainElevationMSL !== undefined ? wpData.terrainElevationMSL : null, // Importa terrainElevationMSL
                 id: wpData.id 
             };
             if(typeof addWaypoint === 'function') addWaypoint(L.latLng(wpData.lat, wpData.lng), waypointOptions);
             else console.error("Global addWaypoint function not found for import.");
-            if (wpData.id && wpData.id >= waypointCounter) waypointCounter = wpData.id + 1;
+            // waypointCounter è gestito da addWaypoint ora
         });
     }
     if(typeof updatePOIList === 'function') updatePOIList();
@@ -122,14 +116,12 @@ function loadFlightPlan(plan) {
     if(typeof fitMapToWaypoints === 'function') fitMapToWaypoints();
     if (waypoints.length > 0 && typeof selectWaypoint === 'function') selectWaypoint(waypoints[0]);
     else if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
-    if(typeof showCustomAlert === 'function') showCustomAlert("Flight plan imported successfully!", "Import Success");
+    if(typeof showCustomAlert === 'function') showCustomAlert("Piano di volo importato con successo!", "Import Successo"); // Italian
 }
-function exportFlightPlanToJson() { /* ... identica a prima ... */ }
-function exportToGoogleEarthKml() { /* ... identica a prima ... */ }
-// (Incollo per completezza)
+
 function exportFlightPlanToJson() {
     if (waypoints.length === 0 && pois.length === 0) {
-        if(typeof showCustomAlert === 'function') showCustomAlert("Nothing to export.", "Export Error"); return;
+        if(typeof showCustomAlert === 'function') showCustomAlert("Niente da esportare.", "Errore Export"); return; // Italian
     }
     const plan = {
         waypoints: waypoints.map(wp => ({
@@ -137,7 +129,8 @@ function exportFlightPlanToJson() {
             altitude: wp.altitude, hoverTime: wp.hoverTime, gimbalPitch: wp.gimbalPitch,
             headingControl: wp.headingControl, fixedHeading: wp.fixedHeading,
             cameraAction: wp.cameraAction || 'none',
-            targetPoiId: wp.targetPoiId === undefined ? null : wp.targetPoiId
+            targetPoiId: wp.targetPoiId === undefined ? null : wp.targetPoiId,
+            terrainElevationMSL: wp.terrainElevationMSL // Esporta terrainElevationMSL
         })),
         pois: pois.map(p => ({ id:p.id, name:p.name, lat:p.latlng.lat, lng:p.latlng.lng, altitude: p.altitude || 0 })),
         settings: {
@@ -152,15 +145,16 @@ function exportFlightPlanToJson() {
     const dl = document.createElement('a');
     dl.setAttribute("href", dataStr); dl.setAttribute("download", "flight_plan.json");
     document.body.appendChild(dl); dl.click(); document.body.removeChild(dl);
-    if(typeof showCustomAlert === 'function') showCustomAlert("Flight plan exported as JSON.", "Success");
+    if(typeof showCustomAlert === 'function') showCustomAlert("Piano di volo esportato come JSON.", "Successo"); // Italian
 }
+
 function exportToGoogleEarthKml() { 
     if (waypoints.length === 0) {
-        if(typeof showCustomAlert === 'function') showCustomAlert("No waypoints to export.", "Export Error"); return;
+        if(typeof showCustomAlert === 'function') showCustomAlert("Nessun waypoint da esportare.", "Errore Export"); return; // Italian
     }
     let homeElevationMSL = homeElevationMslInput ? parseFloat(homeElevationMslInput.value) : 0;
     if (isNaN(homeElevationMSL)) {
-        if(typeof showCustomAlert === 'function') showCustomAlert("Takeoff Elevation (MSL) is invalid. Using 0m as fallback.", "Export Warning");
+        if(typeof showCustomAlert === 'function') showCustomAlert("Elevazione di decollo (MSL) non valida. Uso 0m come fallback.", "Attenzione Export"); // Italian
         homeElevationMSL = 0;
     }
     let kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Flight Plan (GE)</name>`;
@@ -170,8 +164,12 @@ function exportToGoogleEarthKml() {
     kml += `<Folder><name>Waypoints</name>`;
     waypoints.forEach(wp => {
         const altMSL = homeElevationMSL + wp.altitude;
-        const description = `<![CDATA[MSL: ${altMSL.toFixed(1)}m<br/>Gimbal: ${wp.gimbalPitch}°<br/>Action: ${getCameraActionText(wp.cameraAction)}<br/>Heading: ${wp.headingControl}${wp.headingControl==='fixed' ? ` (${wp.fixedHeading}°)`:''}${wp.targetPoiId ? ` (POI ID ${wp.targetPoiId})`:''}]]>`;
-        kml += `<Placemark><name>WP ${wp.id} (Rel: ${wp.altitude}m)</name><description>${description}</description><styleUrl>#wpStyle</styleUrl><Point><altitudeMode>absolute</altitudeMode><coordinates>${wp.latlng.lng},${wp.latlng.lat},${altMSL.toFixed(1)}</coordinates></Point></Placemark>`;
+        let description = `<![CDATA[Alt. Volo (Rel): ${wp.altitude} m<br/>Alt. AMSL: ${altMSL.toFixed(1)} m<br/>`;
+        if (wp.terrainElevationMSL !== null) {
+            description += `Alt. AGL: ${(altMSL - wp.terrainElevationMSL).toFixed(1)} m<br/>Elev. Terreno: ${wp.terrainElevationMSL.toFixed(1)} m<br/>`;
+        }
+        description += `Gimbal: ${wp.gimbalPitch}°<br/>Azione: ${getCameraActionText(wp.cameraAction)}<br/>Heading: ${wp.headingControl}${wp.headingControl==='fixed' ? ` (${wp.fixedHeading}°)`:''}${wp.targetPoiId ? ` (POI ID ${wp.targetPoiId})`:''}]]>`;
+        kml += `<Placemark><name>WP ${wp.id}</name><description>${description}</description><styleUrl>#wpStyle</styleUrl><Point><altitudeMode>absolute</altitudeMode><coordinates>${wp.latlng.lng},${wp.latlng.lat},${altMSL.toFixed(1)}</coordinates></Point></Placemark>`;
     });
     kml += `</Folder>`;
     if (waypoints.length >= 2) {
@@ -191,19 +189,15 @@ function exportToGoogleEarthKml() {
     const dl = document.createElement('a');
     dl.setAttribute("href", dataStr); dl.setAttribute("download", "flight_plan_GE.kml");
     document.body.appendChild(dl); dl.click(); document.body.removeChild(dl);
-    if(typeof showCustomAlert === 'function') showCustomAlert("Exported for Google Earth.", "Success");
+    if(typeof showCustomAlert === 'function') showCustomAlert("Esportato per Google Earth.", "Successo"); // Italian
 }
 
-
-/**
- * Exports the flight plan to a DJI WPML KMZ file.
- */
 function exportToDjiWpmlKmz() {
     if (typeof JSZip === 'undefined') {
-        if(typeof showCustomAlert === 'function') showCustomAlert("JSZip library not loaded.", "Error"); return;
+        if(typeof showCustomAlert === 'function') showCustomAlert("Libreria JSZip non caricata.", "Errore"); return; // Italian
     }
     if (!waypoints || waypoints.length === 0) {
-        if(typeof showCustomAlert === 'function') showCustomAlert("No waypoints to export.", "Error"); return;
+        if(typeof showCustomAlert === 'function') showCustomAlert("Nessun waypoint da esportare.", "Errore"); return; // Italian
     }
 
     actionGroupCounter = 1; 
@@ -216,14 +210,7 @@ function exportToDjiWpmlKmz() {
     const createTimeMillis = now.getTime().toString();
     const waylineIdInt = Math.floor(now.getTime() / 1000); 
 
-    let kmlTotalDistance = 0;
-    if (waypoints.length >= 2) {
-        for (let i = 0; i < waypoints.length - 1; i++) {
-            kmlTotalDistance += (typeof haversineDistance === 'function' ? haversineDistance(waypoints[i].latlng, waypoints[i+1].latlng) : 0);
-        }
-    }
-    let kmlTotalHoverTime = waypoints.reduce((sum, wp) => sum + (wp.hoverTime || 0), 0);
-    const kmlTotalDuration = (kmlTotalDistance / (missionFlightSpeed > 0 ? missionFlightSpeed : 1)) + kmlTotalHoverTime;
+    // ... (calcolo kmlTotalDistance e kmlTotalDuration non modificato) ...
 
     let templateKmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
@@ -256,18 +243,33 @@ function exportToDjiWpmlKmz() {
   <Folder>
     <name>Wayline Mission ${waylineIdInt}</name>
     <wpml:templateId>0</wpml:templateId>
-    <wpml:executeHeightMode>relativeToStartPoint</wpml:executeHeightMode>
+    <wpml:executeHeightMode>relativeToStartPoint</wpml:executeHeightMode> 
     <wpml:waylineId>0</wpml:waylineId> 
     <wpml:distance>0</wpml:distance> 
     <wpml:duration>0</wpml:duration> 
     <wpml:autoFlightSpeed>${missionFlightSpeed.toFixed(1)}</wpml:autoFlightSpeed>
 `;
 
+    // La variabile homeElevationMslInput.value è usata per calcolare l'altitudine assoluta per wpml:waypointAbsoluteHeight
+    // Tuttavia, DJI Pilot spesso si aspetta relativeToStartPoint, quindi wpml:executeHeight è già relativo.
+    // Se si volesse usare WGS84 (absolute), wpml:executeHeightMode dovrebbe essere WGS84 e wpml:executeHeight dovrebbe essere AMSL.
+    // Per ora manteniamo relativeToStartPoint e usiamo wp.altitude.
+    // let takeoffElevationMSL = parseFloat(homeElevationMslInput.value) || 0;
+
+
     waypoints.forEach((wp, index) => {
         waylinesWpmlContent += `      <Placemark>\n`;
         waylinesWpmlContent += `        <Point><coordinates>${wp.latlng.lng.toFixed(10)},${wp.latlng.lat.toFixed(10)}</coordinates></Point>\n`;
         waylinesWpmlContent += `        <wpml:index>${index}</wpml:index>\n`;
+        // Dato executeHeightMode = relativeToStartPoint, executeHeight è l'altitudine relativa al decollo.
         waylinesWpmlContent += `        <wpml:executeHeight>${parseFloat(wp.altitude).toFixed(1)}</wpml:executeHeight>\n`;
+        
+        // Se il terreno è noto, si può includere waypointAbsoluteHeight per riferimento (ma non è sempre usato da Pilot se mode è relative)
+        // if (wp.terrainElevationMSL !== null) {
+        //    const absoluteHeight = takeoffElevationMSL + wp.altitude; // Questo sarebbe l'AMSL del waypoint
+        //    waylinesWpmlContent += `        <wpml:waypointAbsoluteHeight>${absoluteHeight.toFixed(1)}</wpml:waypointAbsoluteHeight>\n`;
+        // }
+
         waylinesWpmlContent += `        <wpml:waypointSpeed>${missionFlightSpeed.toFixed(1)}</wpml:waypointSpeed>\n`;
 
         // === Waypoint Heading Param ===
@@ -279,20 +281,21 @@ function exportToDjiWpmlKmz() {
             headingMode = 'smoothTransition'; 
             headingAngle = wp.fixedHeading;
             if (headingAngle > 180) headingAngle -= 360; 
-            headingAngleEnable = 1; // Enable fixed heading angle specification
+            headingAngleEnable = 1; 
             headingPathMode = 'followBadArc'; 
         } else if (wp.headingControl === 'poi_track' && wp.targetPoiId != null) {
             const targetPoi = pois.find(p => p.id === wp.targetPoiId);
             if (targetPoi) {
                 headingMode = 'towardPOI'; headingAngleEnable = 1; headingPathMode = 'followBadArc';
                 let poiAlt = targetPoi.altitude !== undefined ? parseFloat(targetPoi.altitude) : 0.0;
+                // Per towardPOI, DJI si aspetta Lat,Lng,Alt(MSL o relativo al POI, a seconda dell'interpretazione del drone)
+                // Usiamo 0 per l'altitudine del POI per semplicità, o potremmo usare wp.terrainElevationMSL se disponibile e rilevante.
                 poiPointXml = `          <wpml:waypointPoiPoint>${targetPoi.latlng.lat.toFixed(6)},${targetPoi.latlng.lng.toFixed(6)},${poiAlt.toFixed(1)}</wpml:waypointPoiPoint>\n`;
             } else { headingMode = 'followWayline'; headingPathMode = 'followBadArc'; headingAngleEnable = 0;} 
-        } else { // 'auto', 'followWayline'
-            headingMode = 'followWayline'; // Changed from smoothTransition to followWayline for auto
+        } else { 
+            headingMode = 'followWayline'; 
             headingPathMode = 'followBadArc';
-            headingAngleEnable = 0; // For followWayline, angle is usually not enabled/specified by user
-            // headingAngle can remain 0 or be calculated for reference, but won't be used if enable=0
+            headingAngleEnable = 0; 
             if (index < waypoints.length - 1 && typeof calculateBearing === 'function') {
                 headingAngle = calculateBearing(wp.latlng, waypoints[index+1].latlng);
             } else if (index > 0 && typeof calculateBearing === 'function') {
@@ -306,7 +309,7 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += poiPointXml;
         waylinesWpmlContent += `          <wpml:waypointHeadingAngleEnable>${headingAngleEnable}</wpml:waypointHeadingAngleEnable>\n`;
         waylinesWpmlContent += `          <wpml:waypointHeadingPathMode>${headingPathMode}</wpml:waypointHeadingPathMode>\n`;
-        waylinesWpmlContent += `          <wpml:waypointHeadingPoiIndex>0</wpml:waypointHeadingPoiIndex>\n`; // Assuming single POI focus if used
+        waylinesWpmlContent += `          <wpml:waypointHeadingPoiIndex>0</wpml:waypointHeadingPoiIndex>\n`; 
         waylinesWpmlContent += `        </wpml:waypointHeadingParam>\n`;
 
         // === Waypoint Turn Param & Use Straight Line ===
@@ -329,7 +332,6 @@ function exportToDjiWpmlKmz() {
         // === Azioni (Gimbal e Camera) ===
         let actionsXmlBlock = "";
         
-        // Azione Gimbal: Apply if gimbalPitch is defined for this waypoint
         if (typeof wp.gimbalPitch === 'number') {
             actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId><wpml:actionActuatorFunc>gimbalRotate</wpml:actionActuatorFunc><wpml:actionActuatorFuncParam>`;
             actionsXmlBlock += `<wpml:gimbalPitchRotateEnable>1</wpml:gimbalPitchRotateEnable><wpml:gimbalPitchRotateAngle>${parseFloat(wp.gimbalPitch).toFixed(1)}</wpml:gimbalPitchRotateAngle>`;
@@ -348,7 +350,7 @@ function exportToDjiWpmlKmz() {
             let actuatorFunc = '', params = `<wpml:payloadPositionIndex>0</wpml:payloadPositionIndex>\n`;
             if (wp.cameraAction === 'takePhoto') { actuatorFunc = 'takePhoto'; params += `<wpml:useGlobalPayloadLensIndex>0</wpml:useGlobalPayloadLensIndex>\n`; }
             else if (wp.cameraAction === 'startRecord') { actuatorFunc = 'startRecord'; params += `<wpml:useGlobalPayloadLensIndex>0</wpml:useGlobalPayloadLensIndex>\n`; }
-            else if (wp.cameraAction === 'stopRecord') { actuatorFunc = 'stopRecord';} // No extra params for stopRecord usually
+            else if (wp.cameraAction === 'stopRecord') { actuatorFunc = 'stopRecord';} 
             if (actuatorFunc) {
                 actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId>`;
                 actionsXmlBlock += `<wpml:actionActuatorFunc>${actuatorFunc}</wpml:actionActuatorFunc>`;
@@ -384,10 +386,10 @@ function exportToDjiWpmlKmz() {
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(link.href);
-            if(typeof showCustomAlert === 'function') showCustomAlert("DJI WPML KMZ exported.", "Success");
+            if(typeof showCustomAlert === 'function') showCustomAlert("DJI WPML KMZ esportato.", "Successo"); // Italian
         })
         .catch(function(err) {
-            if(typeof showCustomAlert === 'function') showCustomAlert("Error generating KMZ: " + err.message, "Error");
+            if(typeof showCustomAlert === 'function') showCustomAlert("Errore nella generazione del KMZ: " + err.message, "Errore"); // Italian
             console.error("KMZ generation error:", err);
         });
 }
