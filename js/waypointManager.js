@@ -113,7 +113,6 @@ function deleteSelectedWaypoint() {
     }
 
     const deletedWaypointId = selectedWaypoint.id;
-    // const deletedWaypointIndex = waypoints.findIndex(wp => wp.id === deletedWaypointId); // Non usato direttamente qui, ma utile per logica complessa
 
     if (selectedWaypoint.marker) {
         map.removeLayer(selectedWaypoint.marker);
@@ -244,111 +243,114 @@ function applyMultiEdit() {
         return;
     }
 
-    const changeGimbalCheckboxState = multiChangeGimbalPitchCheckbox.checked; // Stato checkbox prima di ogni altra cosa
-    const changeHoverCheckboxState = multiChangeHoverTimeCheckbox.checked;   // Stato checkbox prima di ogni altra cosa
+    // Leggi lo stato delle checkbox *prima* di entrare nel setTimeout
+    const changeGimbalCheckboxState = multiChangeGimbalPitchCheckbox.checked;
+    const changeHoverCheckboxState = multiChangeHoverTimeCheckbox.checked;
 
-    // Tentativo di riabilitazione FORZATA basato sullo stato della checkbox
+    // Abilita/Disabilita gli slider in base allo stato attuale delle checkbox
+    // Questa operazione sul DOM dovrebbe essere elaborata prima che il setTimeout venga eseguito.
     if (changeGimbalCheckboxState) {
         multiGimbalPitchSlider.disabled = false;
-        console.log("Tentativo di abilitare Gimbal slider. Stato attuale .disabled:", multiGimbalPitchSlider.disabled);
-    } else { // Se la checkbox non è spuntata, assicurati che lo slider sia disabilitato
+    } else {
         multiGimbalPitchSlider.disabled = true;
     }
     if (changeHoverCheckboxState) {
         multiHoverTimeSlider.disabled = false;
-        console.log("Tentativo di abilitare Hover slider. Stato attuale .disabled:", multiHoverTimeSlider.disabled);
-    } else { // Se la checkbox non è spuntata, assicurati che lo slider sia disabilitato
+    } else {
         multiHoverTimeSlider.disabled = true;
     }
-
-    // alert("DEBUG PAUSA: Controlla gli slider nel DOM ora!"); 
-    debugger; // Usa questo per mettere in pausa se hai gli strumenti per sviluppatori aperti
-
-    console.log("Stato DOPO tentativo riabilitazione E PAUSA - Checkbox Gimbal:", changeGimbalCheckboxState, "Slider value:", multiGimbalPitchSlider.value, "disabled:", multiGimbalPitchSlider.disabled);
-    console.log("Stato DOPO tentativo riabilitazione E PAUSA - Checkbox Hover:", changeHoverCheckboxState, "Slider value:", multiHoverTimeSlider.value, "disabled:", multiHoverTimeSlider.disabled);
-
-    const newHeadingControl = multiHeadingControlSelect.value;
-    const newFixedHeading = parseInt(multiFixedHeadingSlider.value);
-    const newCameraAction = multiCameraActionSelect.value;
-
-    // Leggi i valori solo se le checkbox sono spuntate (gli slider dovrebbero essere abilitati)
-    const newGimbalPitch = changeGimbalCheckboxState ? parseInt(multiGimbalPitchSlider.value) : null;
-    const newHoverTime = changeHoverCheckboxState ? parseInt(multiHoverTimeSlider.value) : null;
-
-    console.log("--- applyMultiEdit INIZIO (dopo lettura valori) ---");
-    console.log("Checkbox Gimbal Selezionata (letta per modifica):", changeGimbalCheckboxState);
-    console.log("Nuovo Gimbal Pitch (letto per modifica):", newGimbalPitch, "(Valore grezzo slider:", changeGimbalCheckboxState ? multiGimbalPitchSlider.value : 'N/A', ")");
-    console.log("Checkbox Hover Selezionata (letta per modifica):", changeHoverCheckboxState);
-    console.log("Nuovo Hover Time (letto per modifica):", newHoverTime, "(Valore grezzo slider:", changeHoverCheckboxState ? multiHoverTimeSlider.value : 'N/A', ")");
-    console.log("Numero Waypoint Selezionati:", selectedForMultiEdit.size);
     
-    let changesMadeToAtLeastOneWp = false;
+    console.log("Stato PRIMA di setTimeout - Checkbox Gimbal:", changeGimbalCheckboxState, "Slider disabled:", multiGimbalPitchSlider.disabled);
+    console.log("Stato PRIMA di setTimeout - Checkbox Hover:", changeHoverCheckboxState, "Slider disabled:", multiHoverTimeSlider.disabled);
+    
+    // Sposta il resto della logica dentro setTimeout per permettere al DOM di aggiornarsi
+    setTimeout(() => {
+        console.log("Dentro setTimeout - Stato slider attuale - Gimbal Slider value:", multiGimbalPitchSlider.value, "disabled:", multiGimbalPitchSlider.disabled);
+        console.log("Dentro setTimeout - Stato slider attuale - Hover Slider value:", multiHoverTimeSlider.value, "disabled:", multiHoverTimeSlider.disabled);
 
-    waypoints.forEach(wp => {
-        if (selectedForMultiEdit.has(wp.id)) {
-            let wpChangedThisIteration = false;
-            if (newHeadingControl) { 
-                wp.headingControl = newHeadingControl;
-                if (newHeadingControl === 'fixed') {
-                    wp.fixedHeading = newFixedHeading;
-                    wp.targetPoiId = null; 
-                } else if (newHeadingControl === 'poi_track') {
-                    wp.targetPoiId = (multiTargetPoiSelect.value) ? parseInt(multiTargetPoiSelect.value) : null; // Assicurati di leggere il target POI qui
-                } else { 
-                    wp.targetPoiId = null;
+        const newHeadingControl = multiHeadingControlSelect.value;
+        const newFixedHeading = parseInt(multiFixedHeadingSlider.value);
+        const newCameraAction = multiCameraActionSelect.value;
+
+        const newGimbalPitch = changeGimbalCheckboxState ? parseInt(multiGimbalPitchSlider.value) : null;
+        const newHoverTime = changeHoverCheckboxState ? parseInt(multiHoverTimeSlider.value) : null;
+
+        console.log("--- applyMultiEdit INIZIO (dopo lettura valori da setTimeout) ---");
+        console.log("Checkbox Gimbal Selezionata (letta per modifica):", changeGimbalCheckboxState);
+        console.log("Nuovo Gimbal Pitch (letto per modifica):", newGimbalPitch, "(Valore grezzo slider:", changeGimbalCheckboxState ? multiGimbalPitchSlider.value : 'N/A', ")");
+        console.log("Checkbox Hover Selezionata (letta per modifica):", changeHoverCheckboxState);
+        console.log("Nuovo Hover Time (letto per modifica):", newHoverTime, "(Valore grezzo slider:", changeHoverCheckboxState ? multiHoverTimeSlider.value : 'N/A', ")");
+        console.log("Numero Waypoint Selezionati:", selectedForMultiEdit.size);
+        
+        let changesMadeToAtLeastOneWp = false;
+
+        waypoints.forEach(wp => {
+            if (selectedForMultiEdit.has(wp.id)) {
+                let wpChangedThisIteration = false;
+                if (newHeadingControl) { 
+                    wp.headingControl = newHeadingControl;
+                    if (newHeadingControl === 'fixed') {
+                        wp.fixedHeading = newFixedHeading;
+                        wp.targetPoiId = null; 
+                    } else if (newHeadingControl === 'poi_track') {
+                        wp.targetPoiId = (multiTargetPoiSelect.value) ? parseInt(multiTargetPoiSelect.value) : null;
+                    } else { 
+                        wp.targetPoiId = null;
+                    }
+                    wpChangedThisIteration = true;
                 }
-                wpChangedThisIteration = true;
-            }
-            if (newCameraAction) { 
-                wp.cameraAction = newCameraAction;
-                wpChangedThisIteration = true;
-            }
+                if (newCameraAction) { 
+                    wp.cameraAction = newCameraAction;
+                    wpChangedThisIteration = true;
+                }
 
-            if (changeGimbalCheckboxState && newGimbalPitch !== null) {
-                wp.gimbalPitch = newGimbalPitch;
-                wpChangedThisIteration = true;
-            }
-            if (changeHoverCheckboxState && newHoverTime !== null) {
-                wp.hoverTime = newHoverTime;
-                wpChangedThisIteration = true;
-            }
+                if (changeGimbalCheckboxState && newGimbalPitch !== null) {
+                    wp.gimbalPitch = newGimbalPitch;
+                    wpChangedThisIteration = true;
+                }
+                if (changeHoverCheckboxState && newHoverTime !== null) {
+                    wp.hoverTime = newHoverTime;
+                    wpChangedThisIteration = true;
+                }
 
-            if (wpChangedThisIteration) {
-                changesMadeToAtLeastOneWp = true;
-                updateMarkerIconStyle(wp); 
+                if (wpChangedThisIteration) {
+                    changesMadeToAtLeastOneWp = true;
+                    updateMarkerIconStyle(wp); 
+                }
             }
+        });
+        console.log("--- applyMultiEdit FINE CICLO WAYPOINTS (da setTimeout) ---");
+
+        if (changesMadeToAtLeastOneWp) {
+            updateWaypointList();
+            updateFlightStatistics(); 
+            showCustomAlert(`${selectedForMultiEdit.size} waypoint sono stati aggiornati.`, "Successo"); 
+        } else {
+            showCustomAlert("Nessuna modifica specificata o nessun valore valido per le modifiche. Waypoint non modificati.", "Info"); 
         }
-    });
-    console.log("--- applyMultiEdit FINE CICLO WAYPOINTS ---");
 
-    if (changesMadeToAtLeastOneWp) {
-        updateWaypointList();
-        updateFlightStatistics(); 
-        showCustomAlert(`${selectedForMultiEdit.size} waypoint sono stati aggiornati.`, "Successo"); 
-    } else {
-        showCustomAlert("Nessuna modifica specificata o nessun valore valido per le modifiche. Waypoint non modificati.", "Info"); 
-    }
+        // Reset multi-edit form fields
+        multiHeadingControlSelect.value = ""; 
+        if (multiFixedHeadingGroupDiv) multiFixedHeadingGroupDiv.style.display = 'none';
+        if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'none';
+        multiFixedHeadingSlider.value = 0;
+        if (multiFixedHeadingValueEl) multiFixedHeadingValueEl.textContent = "0°";
 
-    // Reset multi-edit form fields
-    multiHeadingControlSelect.value = ""; 
-    if (multiFixedHeadingGroupDiv) multiFixedHeadingGroupDiv.style.display = 'none';
-    if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'none';
-    multiFixedHeadingSlider.value = 0;
-    if (multiFixedHeadingValueEl) multiFixedHeadingValueEl.textContent = "0°";
+        multiCameraActionSelect.value = ""; 
 
-    multiCameraActionSelect.value = ""; 
+        multiChangeGimbalPitchCheckbox.checked = false;
+        multiGimbalPitchSlider.disabled = true; 
+        multiGimbalPitchSlider.value = 0;
+        if (multiGimbalPitchValueEl) multiGimbalPitchValueEl.textContent = "0°";
 
-    multiChangeGimbalPitchCheckbox.checked = false;
-    multiGimbalPitchSlider.disabled = true; 
-    multiGimbalPitchSlider.value = 0;
-    if (multiGimbalPitchValueEl) multiGimbalPitchValueEl.textContent = "0°";
+        multiChangeHoverTimeCheckbox.checked = false;
+        multiHoverTimeSlider.disabled = true; 
+        multiHoverTimeSlider.value = 0;
+        if (multiHoverTimeValueEl) multiHoverTimeValueEl.textContent = "0s";
 
-    multiChangeHoverTimeCheckbox.checked = false;
-    multiHoverTimeSlider.disabled = true; 
-    multiHoverTimeSlider.value = 0;
-    if (multiHoverTimeValueEl) multiHoverTimeValueEl.textContent = "0s";
+        if(multiTargetPoiSelect) multiTargetPoiSelect.value = "";
 
-    if(multiTargetPoiSelect) multiTargetPoiSelect.value = "";
+        clearMultiSelection(); 
 
-    clearMultiSelection(); 
+    }, 0); // Il ritardo di 0ms sposta l'esecuzione alla fine della coda degli eventi
 }
