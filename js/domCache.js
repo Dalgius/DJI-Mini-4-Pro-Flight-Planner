@@ -29,6 +29,7 @@ function cacheDOMElements() {
 
     // Sidebar Controls - POI
     poiNameInput = document.getElementById('poiName');
+    poiAltitudeInputEl = document.getElementById('poiAltitude'); // MODIFIED: Added poiAltitudeInputEl
 
     // Sidebar Display - Lists
     waypointListEl = document.getElementById('waypointList');
@@ -58,7 +59,6 @@ function cacheDOMElements() {
     multiHoverTimeSlider = document.getElementById('multiHoverTime');
     multiHoverTimeValueEl = document.getElementById('multiHoverTimeValue');
     applyMultiEditBtn = document.getElementById('applyMultiEditBtn');
-    console.log("applyMultiEditBtn trovato in cacheDOMElements:", applyMultiEditBtn);
     clearMultiSelectionBtn = document.getElementById('clearMultiSelectionBtn');
 
     // Sidebar Controls - Terrain & Orbit Tools
@@ -78,13 +78,12 @@ function cacheDOMElements() {
     // Survey Grid Button and Modal Elements
     createSurveyGridBtn = document.getElementById('createSurveyGridBtn');
     surveyGridModalOverlayEl = document.getElementById('surveyGridModalOverlay');
-    surveyGridModalTitleEl = document.getElementById('surveyGridModalTitle'); // Se vuoi modificarlo dinamicamente
+    surveyGridModalTitleEl = document.getElementById('surveyGridModalTitle'); 
     surveyGridInstructionsEl = document.getElementById('surveyGridInstructions');
     surveyGridAltitudeInputEl = document.getElementById('surveyGridAltitudeInput');
     surveySidelapInputEl = document.getElementById('surveySidelapInput'); 
     surveyFrontlapInputEl = document.getElementById('surveyFrontlapInput'); 
     surveyGridAngleInputEl = document.getElementById('surveyGridAngleInput');
-    // surveyGridOvershootInputEl = document.getElementById('surveyGridOvershootInput'); // Removed: Element no longer exists in HTML
     surveyAreaStatusEl = document.getElementById('surveyAreaStatus');
     startDrawingSurveyAreaBtnEl = document.getElementById('startDrawingSurveyAreaBtn');
     finalizeSurveyAreaBtnEl = document.getElementById('finalizeSurveyAreaBtn');
@@ -112,7 +111,7 @@ function cacheDOMElements() {
     confirmOrbitBtnEl = document.getElementById('confirmOrbitBtn');
     cancelOrbitBtnEl = document.getElementById('cancelOrbitBtn');
 
-    // Initial UI state for some elements based on default slider values
+    // Initial UI state
     if (defaultAltitudeSlider && defaultAltitudeValueEl) defaultAltitudeValueEl.textContent = defaultAltitudeSlider.value + 'm';
     if (flightSpeedSlider && flightSpeedValueEl) flightSpeedValueEl.textContent = flightSpeedSlider.value + ' m/s';
     if (multiFixedHeadingSlider && multiFixedHeadingValueEl) multiFixedHeadingValueEl.textContent = multiFixedHeadingSlider.value + '°';
