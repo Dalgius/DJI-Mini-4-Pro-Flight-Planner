@@ -130,9 +130,43 @@ function setupEventListeners() {
     }
     // applyMultiEditBtn listener calls applyMultiEdit, which now calls updateMarkerIconStyle for each modified WP.
 
-    if (multiChangeGimbalPitchCheckbox) { /* ... no changes needed for heading ... */ }
+    if (multiChangeGimbalPitchCheckbox) {
+        multiChangeGimbalPitchCheckbox.addEventListener('change', function() {
+            // AGGIUNGIAMO DEI LOG QUI PER VEDERE COSA SUCCEDE
+            console.log("Checkbox Gimbal 'Change' cliccata. Checked:", this.checked);
+            if (!multiGimbalPitchSlider || !multiGimbalPitchValueEl) {
+                console.error("Elementi slider Gimbal o valore non trovati!");
+                return;
+            }
+            multiGimbalPitchSlider.disabled = !this.checked;
+            console.log("Slider Gimbal 'disabled' impostato a:", multiGimbalPitchSlider.disabled);
+
+            // Se stiamo deselezionando la checkbox, potremmo voler resettare lo slider a 0
+            // e al suo stato testuale, ma questo non dovrebbe impedirne l'abilitazione.
+            if (!this.checked) { 
+                 // Potresti voler resettare lo slider qui se necessario, es:
+                 // multiGimbalPitchSlider.value = 0;
+                 // multiGimbalPitchValueEl.textContent = multiGimbalPitchSlider.value + '°';
+            }
+        });
+    }
     if (multiGimbalPitchSlider) { /* ... no changes needed for heading ... */ }
-    if (multiChangeHoverTimeCheckbox) { /* ... no changes needed for heading ... */ }
+    if (multiChangeHoverTimeCheckbox) {
+        multiChangeHoverTimeCheckbox.addEventListener('change', function() {
+            // AGGIUNGIAMO DEI LOG QUI
+            console.log("Checkbox Hover 'Change' cliccata. Checked:", this.checked);
+            if (!multiHoverTimeSlider || !multiHoverTimeValueEl) {
+                console.error("Elementi slider Hover o valore non trovati!");
+                return;
+            }
+            multiHoverTimeSlider.disabled = !this.checked;
+            console.log("Slider Hover 'disabled' impostato a:", multiHoverTimeSlider.disabled);
+
+            if (!this.checked) {
+                // ...
+            }
+        });
+    }
     if (multiHoverTimeSlider) { /* ... no changes needed for heading ... */ }
     if (applyMultiEditBtn) {
         applyMultiEditBtn.addEventListener('click', function() { // Modifica qui per aggiungere un log/alert
