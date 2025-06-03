@@ -48,35 +48,25 @@
                 <p id="surveyGridInstructions" style="font-size: 0.9em; margin-bottom: 15px;">
                     Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon.
                 </p>
-
-                <!-- Flight Altitude con input corto -->
                 <div class="control-group inline-group">
                     <label for="surveyGridAltitudeInput" class="control-label">Flight Altitude (m):</label>
                     <input type="number" id="surveyGridAltitudeInput" class="control-input short-numeric" value="50" min="5">
                 </div>
-
-                <!-- Sidelap con input corto -->
                 <div class="control-group inline-group">
                     <label for="surveySidelapInput" class="control-label">Sidelap (%):</label>
                     <input type="number" id="surveySidelapInput" class="control-input short-numeric" value="70" min="10" max="95" title="Overlap between parallel flight lines (e.g., 60-80%)">
                 </div>
-                
-                <!-- Frontlap con input corto -->
                 <div class="control-group inline-group">
                     <label for="surveyFrontlapInput" class="control-label">Frontlap (%):</label>
                     <input type="number" id="surveyFrontlapInput" class="control-input short-numeric" value="80" min="10" max="95" title="Overlap between consecutive photos along a flight line (e.g., 70-90%)">
                 </div>
-                
-                <div class="control-group"> <!-- No inline-group qui, la label va sopra -->
+                <div class="control-group"> 
                     <label for="surveyGridAngleInput" class="control-label">Grid Angle (°):</label> 
                     <input type="number" id="surveyGridAngleInput" class="control-input" value="0" min="-359" max="359" step="1">
-                    <div class="input-description"> <!-- Usa la nuova classe per la descrizione -->
+                    <div class="input-description"> 
                         Flight line direction: 0° for E-W lines, 90° for N-S lines.
                     </div>
                 </div>
-
-                <!-- Overshoot è stato rimosso -->
-
                 <div id="surveyAreaStatus" style="margin-top: 10px; font-style: italic;">
                     Area not defined.
                 </div>
@@ -243,6 +233,12 @@
                 <div class="control-group">
                     <input type="text" class="control-input" id="poiName" data-i18n-key="poiNamePlaceholder" placeholder="POI Name" maxlength="20">
                 </div>
+                <!-- MODIFIED: Added POI Altitude Input -->
+                <div class="control-group">
+                    <label for="poiAltitude" class="control-label" data-i18n-key="poiAltitudeLabel">Default POI Altitude (MSL, m):</label>
+                    <input type="number" class="control-input-small" id="poiAltitude" value="0" step="1" title="Altitude of the POI above Mean Sea Level. Used for precise gimbal tracking in some formats.">
+                </div>
+                <!-- END MODIFICATION -->
                 <div style="font-size: 12px; color: #95a5a6; margin-bottom: 10px;" data-i18n-key="poiAddInstruction">Ctrl + Click on map to add POI</div>
                 <div class="poi-list" id="poiList"></div>
             </div>
@@ -261,7 +257,7 @@
                 <button class="btn" id="adaptToAGLBtn" data-i18n-key="adaptAGLBtn">Adapt Waypoint Altitudes to AGL</button>
                 <hr style="border-color: #34495e; margin: 15px 0;">
                 <button class="btn" id="createOrbitBtn" data-i18n-key="createOrbitBtn">Create POI Orbit</button>
-                <button id="createSurveyGridBtn" class="sidebar-btn btn" data-i18n-key="createSurveyGridBtn">Create Survey Grid</button> <!-- MODIFIED: Aggiunta classe btn per coerenza -->
+                <button id="createSurveyGridBtn" class="sidebar-btn btn" data-i18n-key="createSurveyGridBtn">Create Survey Grid</button>
             </div>
 
             <div class="section">
@@ -271,8 +267,6 @@
                 <button class="btn btn-secondary" id="exportKmzBtn" data-i18n-key="exportKmzBtn">Export DJI WPML (.kmz)</button>
                 <button class="btn btn-secondary" id="exportGoogleEarthBtn" data-i18n-key="exportGoogleEarthBtn">Export for Google Earth (.kml)</button>
             </div>
-
-           
             
             <div class="section">
                 <div class="section-title" data-i18n-key="statsTitle">📊 Flight Statistics</div>
@@ -297,7 +291,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     
-    <!-- Your Modularized Scripts -->
     <script src="js/config.js"></script>
     <script src="js/domCache.js"></script>
     <script src="js/utils.js"></script>
@@ -308,7 +301,7 @@
     <script src="js/waypointManager.js"></script>
     <script src="js/orbitManager.js"></script>
     <script src="js/terrainManager.js"></script>
-    <script src="js/surveyGridManager.js"></script> <!-- NUOVO SCRIPT INCLUSO -->
+    <script src="js/surveyGridManager.js"></script> 
     <script src="js/importExportManager.js"></script>
     <script src="js/eventListeners.js"></script>
     <script src="js/app.js"></script>
