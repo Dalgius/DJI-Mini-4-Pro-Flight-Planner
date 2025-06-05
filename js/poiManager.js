@@ -4,7 +4,7 @@
 
 /**
  * Updates the displayed final POI altitude in the sidebar.
- * Typically called after terrain elevation or object height changes.
+ * Typically called after terrain elevation or object height changes FOR THE CURRENTLY ACTIVE POI IN SIDEBAR.
  */
 function updatePoiFinalAltitudeDisplay() {
     if (!poiTerrainElevationInputEl || !poiObjectHeightInputEl || !poiFinalAltitudeDisplayEl) return;
@@ -17,48 +17,52 @@ function updatePoiFinalAltitudeDisplay() {
 
 
 /**
- * Fetches and updates terrain elevation for a given POI or the last active POI.
- * @param {object|null} poiToUpdate - The POI object to update. If null, uses lastActivePoiForTerrainFetch.
+ * Fetches and updates terrain elevation for a given POI.
+ * This also updates the POI's final altitude and related UI elements.
+ * @param {object} poiToUpdate - The POI object to update.
  */
-async function fetchAndUpdatePoiTerrainElevation(poiToUpdate = null) {
-    const targetPoi = poiToUpdate || lastActivePoiForTerrainFetch;
-    if (!targetPoi || !targetPoi.latlng) {
-        showCustomAlert("Nessun POI valido selezionato o coordinate mancanti per recuperare l'elevazione del terreno.", "Attenzione");
-        return false; // Indicate failure or no action
+async function fetchAndUpdatePoiTerrainElevation(poiToUpdate) {
+    if (!poiToUpdate || !poiToUpdate.latlng) {
+        showCustomAlert("Nessun POI valido o coordinate mancanti per recuperare l'elevazione del terreno.", "Attenzione");
+        return false;
     }
     if (!loadingOverlayEl || !poiTerrainElevationInputEl) return false;
 
-    const originalPoiIdForAlert = targetPoi.id; // Store for alert message
+    const originalPoiIdForAlert = poiToUpdate.id;
     loadingOverlayEl.textContent = `POI ${originalPoiIdForAlert}: Recupero elev. terreno...`;
     loadingOverlayEl.style.display = 'flex';
     if (refetchPoiTerrainBtnEl) refetchPoiTerrainBtnEl.disabled = true;
 
     try {
-        const elevations = await getElevationsBatch([{ lat: targetPoi.latlng.lat, lng: targetPoi.latlng.lng }]);
+        const elevations = await getElevationsBatch([{ lat: poiToUpdate.latlng.lat, lng: poiToUpdate.latlng.lng }]);
         if (elevations && elevations.length > 0 && elevations[0] !== null) {
-            targetPoi.terrainElevationMSL = parseFloat(elevations[0].toFixed(1));
-            if (targetPoi === lastActivePoiForTerrainFetch || !poiToUpdate) { // Update sidebar input only if it's the "active" one
-                poiTerrainElevationInputEl.value = targetPoi.terrainElevationMSL;
-                poiTerrainElevationInputEl.readOnly = true; // Make it readonly after successful fetch
-                 if(document.getElementById(`poi_terrain_elev_${targetPoi.id}`)) { // Update in list if present
-                    document.getElementById(`poi_terrain_elev_${targetPoi.id}`).value = targetPoi.terrainElevationMSL;
-                }
+            poiToUpdate.terrainElevationMSL = parseFloat(elevations[0].toFixed(1));
+            // Se il POI aggiornato è quello "attivo" per la sidebar, aggiorna l'input
+            if (lastActivePoiForTerrainFetch && lastActivePoiForTerrainFetch.id === poiToUpdate.id) {
+                poiTerrainElevationInputEl.value = poiToUpdate.terrainElevationMSL;
+                poiTerrainElevationInputEl.readOnly = true; 
             }
-            targetPoi.recalculateFinalAltitude(); // This will also update dependent elements
-            showCustomAlert(`POI ${originalPoiIdForAlert}: Elevazione terreno aggiornata a ${targetPoi.terrainElevationMSL}m MSL.`, "Successo");
-            updatePOIList(); // Refresh list to show updated AMSL
-            return true; // Indicate success
+            // Aggiorna anche l'input nella lista dei POI, se esiste
+            const poiListTerrainInput = document.getElementById(`poi_terrain_elev_${poiToUpdate.id}`);
+            if (poiListTerrainInput) {
+                poiListTerrainInput.value = poiToUpdate.terrainElevationMSL;
+            }
+            
+            poiToUpdate.recalculateFinalAltitude(); // Aggiorna .altitude e chiama updateAllPoiDependentElements
+            showCustomAlert(`POI ${originalPoiIdForAlert}: Elevazione terreno aggiornata a ${poiToUpdate.terrainElevationMSL}m MSL.`, "Successo");
+            updatePOIList(); 
+            return true;
         } else {
             showCustomAlert(`POI ${originalPoiIdForAlert}: Impossibile recuperare l'elevazione del terreno. Puoi inserirla manualmente.`, "Attenzione");
-            if (targetPoi === lastActivePoiForTerrainFetch || !poiToUpdate) {
-                poiTerrainElevationInputEl.readOnly = false; // Allow manual input
+            if (lastActivePoiForTerrainFetch && lastActivePoiForTerrainFetch.id === poiToUpdate.id) {
+                poiTerrainElevationInputEl.readOnly = false;
             }
-            return false; // Indicate failure
+            return false;
         }
     } catch (error) {
         console.error("Errore durante il recupero dell'elevazione del terreno per il POI:", error);
         showCustomAlert(`POI ${originalPoiIdForAlert}: Errore durante il recupero dell'elevazione del terreno.`, "Errore");
-        if (targetPoi === lastActivePoiForTerrainFetch || !poiToUpdate) {
+        if (lastActivePoiForTerrainFetch && lastActivePoiForTerrainFetch.id === poiToUpdate.id) {
             poiTerrainElevationInputEl.readOnly = false;
         }
         return false;
@@ -78,40 +82,42 @@ async function addPOI(latlng) {
     if (!map || !poiNameInput || !poiObjectHeightInputEl || !poiTerrainElevationInputEl || !poiFinalAltitudeDisplayEl ||
         !targetPoiSelect || !multiTargetPoiSelect ) return;
 
-    const name = poiNameInput.value.trim() || `POI ${poiCounter}`;
-    const objectHeight = parseFloat(poiObjectHeightInputEl.value) || 0;
+    const name = poiNameInput.value.trim() || `POI ${poiCounter}`; // Leggi il nome prima
+    const objectHeight = parseFloat(poiObjectHeightInputEl.value) || 0; // Leggi altezza oggetto prima
 
-    // Temporarily set sidebar inputs for the new POI being added
-    poiTerrainElevationInputEl.value = "0"; // Placeholder
-    poiTerrainElevationInputEl.readOnly = true; // Readonly while fetching
-    updatePoiFinalAltitudeDisplay(); // Update display based on current objectHeight and temp terrain
+    // Imposta i campi della sidebar per il nuovo POI (che diventerà lastActivePoiForTerrainFetch)
+    // poiTerrainElevationInputEl.value = "0"; // Sarà aggiornato da fetch
+    poiObjectHeightInputEl.value = objectHeight; // Riflette l'input utente
+    poiTerrainElevationInputEl.readOnly = true; // In attesa del fetch
+    // updatePoiFinalAltitudeDisplay(); // Si aggiornerà dopo il fetch
+
+    const currentPoiId = poiCounter; // Salva l'ID corrente prima di incrementarlo
 
     const newPoi = {
-        id: poiCounter, // Assign ID now for display during fetch
+        id: currentPoiId,
         name: name,
         latlng: L.latLng(latlng.lat, latlng.lng),
-        altitude: objectHeight, // Initial final altitude (terrain is 0 for now)
-        terrainElevationMSL: 0, // Will be updated by fetch
+        altitude: objectHeight, // Inizialmente, l'AMSL è solo l'altezza dell'oggetto (terrain MSL è 0)
+        terrainElevationMSL: null, // Sarà popolato dal fetch
         objectHeightAboveGround: objectHeight,
         marker: null,
         updatePopup: null,
         recalculateFinalAltitude: function() {
             this.altitude = (parseFloat(this.terrainElevationMSL) || 0) + (parseFloat(this.objectHeightAboveGround) || 0);
             
-            // Update sidebar display only if this POI is the "last active one"
             if (this === lastActivePoiForTerrainFetch) {
                  if (poiFinalAltitudeDisplayEl) poiFinalAltitudeDisplayEl.textContent = `${this.altitude.toFixed(1)} m`;
                  if (poiTerrainElevationInputEl) poiTerrainElevationInputEl.value = this.terrainElevationMSL !== null ? this.terrainElevationMSL.toFixed(1) : "0";
-                 if (poiObjectHeightInputEl) poiObjectHeightInputEl.value = this.objectHeightAboveGround;
+                 if (poiObjectHeightInputEl) poiObjectHeightInputEl.value = this.objectHeightAboveGround; // Mantieni coerenza
             }
 
             if (this.updatePopup) this.updatePopup();
-            updateAllPoiDependentElements(this.id); // Update waypoints tracking this POI
+            updateAllPoiDependentElements(this.id); 
         }
     };
     
-    lastActivePoiForTerrainFetch = newPoi; // Set this as the POI whose terrain is being fetched for UI updates
-    poiCounter++; // Increment global counter *after* assigning to newPoi
+    lastActivePoiForTerrainFetch = newPoi; 
+    poiCounter++; 
 
     const markerIconHtml = () => `<div style="background: #f39c12; color: white; border-radius: 50%; width: 22px; height: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3); line-height:1.1;">🎯<span style="font-size:7px; margin-top: -1px;">${newPoi.altitude.toFixed(0)}m</span></div>`;
     
@@ -131,11 +137,11 @@ async function addPOI(latlng) {
     
     marker.bindPopup(updatePoiPopupContent());
 
-    marker.on('dragend', () => {
+    marker.on('dragend', async () => { // dragend ora può essere async
         newPoi.latlng = marker.getLatLng();
-        // Refetch terrain for new location if dragged
-        fetchAndUpdatePoiTerrainElevation(newPoi); 
-        // Waypoints targeting this POI are updated by recalculateFinalAltitude via fetchAndUpdatePoiTerrainElevation
+        lastActivePoiForTerrainFetch = newPoi; // Imposta come attivo per aggiornamenti UI sidebar
+        await fetchAndUpdatePoiTerrainElevation(newPoi); 
+        // la chiamata a recalculateFinalAltitude dentro fetchAndUpdatePoiTerrainElevation aggiornerà i waypoint
     });
     
     newPoi.updatePopup = () => {
@@ -145,27 +151,21 @@ async function addPOI(latlng) {
     newPoi.marker = marker;
 
     pois.push(newPoi);
-    updatePOIList(); // Add to list first
+    // Mostra il POI nella lista subito, si aggiornerà dopo il fetch del terreno
+    updatePOIList(); 
     updateFlightStatistics();
 
-    // Now fetch terrain and update
+    // Avvia il recupero dell'elevazione del terreno per il nuovo POI
     await fetchAndUpdatePoiTerrainElevation(newPoi);
-    // Note: fetchAndUpdatePoiTerrainElevation will call newPoi.recalculateFinalAltitude() which updates dependent elements.
+    // newPoi.recalculateFinalAltitude() è chiamato da fetchAndUpdatePoiTerrainElevation
+    // updateAllPoiDependentElements() è chiamato da recalculateFinalAltitude
 
-    // Populate dropdowns after POI is fully processed
-    if (selectedWaypoint && headingControlSelect && headingControlSelect.value === 'poi_track') {
-        populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Select POI for Heading --");
-    }
-    if (multiWaypointEditControlsDiv && multiWaypointEditControlsDiv.style.display === 'block' &&
-        multiHeadingControlSelect && multiHeadingControlSelect.value === 'poi_track') {
-        populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Select POI for all --");
-    }
-    if (orbitModalOverlayEl && orbitModalOverlayEl.style.display === 'flex') {
-        populatePoiSelectDropdown(orbitPoiSelectEl, orbitPoiSelectEl.value || null, false);
-    }
+    // Aggiorna i dropdown dopo che il POI è completamente processato
+    updateAllPoiDependentElements(newPoi.id); 
 
     poiNameInput.value = '';
-    // Do not reset objectHeight or terrainElevation, user might want to add multiple POIs with similar base settings
+    // Non resettare objectHeight, l'utente potrebbe voler aggiungere più POI con la stessa altezza oggetto.
+    // poiTerrainElevationInputEl verrà aggiornato da fetchAndUpdatePoiTerrainElevation per newPoi (che è lastActivePoiForTerrainFetch)
 }
 
 
@@ -182,21 +182,20 @@ function deletePOI(poiId) {
         }
         pois.splice(poiIndex, 1);
 
+        // Gestisci lastActivePoiForTerrainFetch se il POI cancellato era quello attivo
         if (lastActivePoiForTerrainFetch && lastActivePoiForTerrainFetch.id === poiId) {
-            lastActivePoiForTerrainFetch = pois.length > 0 ? pois[pois.length -1] : null;
-            if (lastActivePoiForTerrainFetch) { // Update sidebar display to last POI or clear
-                poiObjectHeightInputEl.value = lastActivePoiForTerrainFetch.objectHeightAboveGround;
-                poiTerrainElevationInputEl.value = lastActivePoiForTerrainFetch.terrainElevationMSL !== null ? lastActivePoiForTerrainFetch.terrainElevationMSL : 0;
-                poiTerrainElevationInputEl.readOnly = lastActivePoiForTerrainFetch.terrainElevationMSL !== null;
-                updatePoiFinalAltitudeDisplay();
-            } else {
-                 poiObjectHeightInputEl.value = 0;
-                 poiTerrainElevationInputEl.value = 0;
-                 poiTerrainElevationInputEl.readOnly = true;
-                 updatePoiFinalAltitudeDisplay();
+            lastActivePoiForTerrainFetch = pois.length > 0 ? pois[pois.length -1] : null; // Prendi l'ultimo o null
+            if (lastActivePoiForTerrainFetch) { 
+                if(lastActivePoiForTerrainFetch.recalculateFinalAltitude) lastActivePoiForTerrainFetch.recalculateFinalAltitude(); // Aggiorna UI sidebar
+            } else { // Nessun POI rimasto, pulisci la sidebar
+                 if(poiObjectHeightInputEl) poiObjectHeightInputEl.value = 0;
+                 if(poiTerrainElevationInputEl) {
+                     poiTerrainElevationInputEl.value = 0;
+                     poiTerrainElevationInputEl.readOnly = true; // In attesa di un nuovo Ctrl+Click
+                 }
+                 if(typeof updatePoiFinalAltitudeDisplay === 'function') updatePoiFinalAltitudeDisplay();
             }
         }
-
 
         if (pois.length === 0) {
             poiCounter = 1; 
@@ -205,24 +204,21 @@ function deletePOI(poiId) {
         updatePOIList();
         updateFlightStatistics();
 
-        let waypointsUpdatedForDisplay = false;
         waypoints.forEach(wp => {
             if (wp.targetPoiId === poiId) {
                 wp.targetPoiId = null; 
-                if (selectedWaypoint && selectedWaypoint.id === wp.id) {
+                if (selectedWaypoint && selectedWaypoint.id === wp.id) { // Se il WP selezionato tracciava questo POI
                     if(headingControlSelect) headingControlSelect.value = 'auto'; 
                     if(targetPoiForHeadingGroupDiv) targetPoiForHeadingGroupDiv.style.display = 'none';
-                    populatePoiSelectDropdown(targetPoiSelect, null, true, "-- Select POI for Heading --");
+                    updateGimbalForPoiTrack(wp, true); // Ricalcola gimbal, forza update UI
+                } else {
+                    updateGimbalForPoiTrack(wp); // Ricalcola gimbal
                 }
                 updateMarkerIconStyle(wp); 
-                waypointsUpdatedForDisplay = true;
             }
         });
-
-        if (waypointsUpdatedForDisplay) {
-            updateWaypointList(); 
-        }
-        updateAllPoiDependentElements(null); // Force update of all dropdowns
+        updateWaypointList(); // Per riflettere eventuali cambi di target POI nel testo
+        updateAllPoiDependentElements(null); // Forza aggiornamento di tutti i dropdown dei POI
 
     } else {
         showCustomAlert(`POI with ID ${poiId} not found.`, "Error");
@@ -234,15 +230,33 @@ function deletePOI(poiId) {
  * @param {number|null} changedPoiId - The ID of the POI that changed, or null to refresh all.
  */
 function updateAllPoiDependentElements(changedPoiId) {
-    // Refresh POI select dropdowns in single and multi-edit panels, and orbit modal
+    // Se un POI specifico è cambiato, aggiorna i waypoint che lo tracciano
+    if (changedPoiId !== null) {
+        waypoints.forEach(wp => {
+            if (wp.headingControl === 'poi_track' && wp.targetPoiId === changedPoiId) {
+                updateGimbalForPoiTrack(wp, (selectedWaypoint && selectedWaypoint.id === wp.id));
+                updateMarkerIconStyle(wp);
+            }
+        });
+    }
+
+    // Aggiorna sempre tutti i dropdown dei POI
     if (selectedWaypoint && headingControlSelect && headingControlSelect.value === 'poi_track') {
         populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Select POI for Heading --");
+    } else if (selectedWaypoint && targetPoiSelect) { // Popola anche se non è poi_track per averlo pronto
+         populatePoiSelectDropdown(targetPoiSelect, null, true, "-- Select POI for Heading --");
     }
+
     if (multiWaypointEditControlsDiv && multiWaypointEditControlsDiv.style.display === 'block' &&
         multiHeadingControlSelect && multiHeadingControlSelect.value === 'poi_track') {
+        populatePoiSelectDropdown(multiTargetPoiSelect, multiTargetPoiSelect.value || null, true, "-- Select POI for all --");
+    } else if (multiTargetPoiSelect) { // Popola anche se non è poi_track per averlo pronto
         populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Select POI for all --");
     }
+
     if (orbitModalOverlayEl && orbitModalOverlayEl.style.display === 'flex') {
         populatePoiSelectDropdown(orbitPoiSelectEl, orbitPoiSelectEl.value || null, false);
+    } else if (orbitPoiSelectEl && orbitPoiSelectEl.options.length === 0 && pois.length > 0) { // Popola se vuoto e ci sono POI
+        populatePoiSelectDropdown(orbitPoiSelectEl, null, false);
     }
 }
