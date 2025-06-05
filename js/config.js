@@ -1,34 +1,34 @@
 // File: config.js
 
 // --- Global Application State & Configuration ---
-let map; // Leaflet map instance
+let map; 
 let isDrawingSurveyArea = false;
 let waypoints = [];
 let pois = [];
-let selectedWaypoint = null; // Holds the currently selected waypoint object for single editing
-let flightPath = null; // Leaflet polyline object for the flight path
-let userLocationMarker = null; // Marker for user's current location
+let selectedWaypoint = null; 
+let flightPath = null; 
+let userLocationMarker = null; 
 
 // --- Map Layers ---
 let defaultTileLayer;
 let satelliteTileLayer;
-let satelliteView = false; // Tracks current map view type
+let satelliteView = false; 
 
 // --- Counters for Unique IDs ---
 let waypointCounter = 1;
 let poiCounter = 1;
-let actionGroupCounter = 1; // For DJI WPML export
-let actionCounter = 1;      // For DJI WPML export
+let actionGroupCounter = 1; 
+let actionCounter = 1;      
 
 // --- Multi-Edit State ---
-let selectedForMultiEdit = new Set(); // Set of waypoint IDs selected for batch editing
+let selectedForMultiEdit = new Set(); 
 
-// --- Constants (if any, e.g., API URLs, default values not tied to DOM elements at init) ---
-const R_EARTH = 6371000; // Earth radius in meters for orbit calculation
+// --- Constants ---
+const R_EARTH = 6371000; 
 const ELEVATION_API_PROXY_URL = '/.netlify/functions/elevation-proxy'; 
 const OPENTOPODATA_API_BASE = 'https://api.opentopodata.org/v1/srtm90m';
 
-// --- DOM Element Cache (Variables to be populated by domCache.js) ---
+// --- DOM Element Cache ---
 // Sidebar Controls
 let defaultAltitudeSlider, defaultAltitudeValueEl, flightSpeedSlider, flightSpeedValueEl;
 let pathTypeSelect;
@@ -43,7 +43,8 @@ let cameraActionSelect;
 let deleteSelectedWaypointBtn;
 
 // POI Controls
-let poiNameInput, poiAltitudeInputEl; // MODIFIED: Added poiAltitudeInputEl
+// MODIFIED: Added new POI input elements
+let poiNameInput, poiObjectHeightInputEl, poiTerrainElevationInputEl, poiFinalAltitudeDisplayEl, refetchPoiTerrainBtnEl;
 
 // List Display Elements
 let waypointListEl, poiListEl;
@@ -85,3 +86,6 @@ let loadingOverlayEl;
 let customAlertOverlayEl, customAlertTitleEl, customAlertMessageEl, customAlertOkButtonEl;
 let orbitModalOverlayEl, orbitPoiSelectEl, orbitRadiusInputEl, orbitPointsInputEl;
 let confirmOrbitBtnEl, cancelOrbitBtnEl;
+
+// State for last added/selected POI for refetching terrain
+let lastActivePoiForTerrainFetch = null;
