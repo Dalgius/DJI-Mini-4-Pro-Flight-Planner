@@ -82,7 +82,6 @@ function generateOrbitWaypoints(centerPoi, radius, numPoints, altitudeRelToHome)
     // Utilizza la funzione helper per calcolare il gimbal pitch
     // La distanza orizzontale in un'orbita è il raggio.
     const calculatedGimbalPitch = calculateRequiredGimbalPitch(orbitWpAMSL, poiAMSL, radius);
-
     console.log(`Orbit Gen: WP AMSL=${orbitWpAMSL}, POI AMSL=${poiAMSL}, Radius=${radius}, Calculated Gimbal Pitch=${calculatedGimbalPitch}°`);
 
     for (let i = 0; i < numPoints; i++) {
