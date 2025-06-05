@@ -172,8 +172,24 @@ function setupEventListeners() {
 
     // --- Multi-Waypoint Edit Panel ---
     // (Nessuna modifica qui rispetto alla tua versione funzionante per gli slider)
-    if (selectAllWaypointsCheckboxEl) { selectAllWaypointsCheckboxEl.addEventListener('change', (e) => toggleSelectAllWaypoints(e.target.checked));}
-    if (multiHeadingControlSelect) { multiHeadingControlSelect.addEventListener('change', function() { /* ... */ });}
+    if (selectAllWaypointsCheckboxEl) {
+        selectAllWaypointsCheckboxEl.addEventListener('change', (e) => toggleSelectAllWaypoints(e.target.checked));
+    }
+    if (multiHeadingControlSelect) {
+        multiHeadingControlSelect.addEventListener('change', function() {
+            if (!multiFixedHeadingGroupDiv || !multiTargetPoiForHeadingGroupDiv || !multiTargetPoiSelect) return;
+            
+            const showFixed = this.value === 'fixed';
+            const showPoiTarget = this.value === 'poi_track';
+
+            multiFixedHeadingGroupDiv.style.display = showFixed ? 'block' : 'none';
+            multiTargetPoiForHeadingGroupDiv.style.display = showPoiTarget ? 'block' : 'none';
+            
+            if (showPoiTarget) {
+                populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Seleziona POI per tutti --"); // Italian
+            }
+        });
+    }
     if (multiFixedHeadingSlider) { multiFixedHeadingSlider.addEventListener('input', function() { /* ... */ });}
     if (multiChangeGimbalPitchCheckbox) { multiChangeGimbalPitchCheckbox.addEventListener('change', function() { if (!multiGimbalPitchSlider) return; multiGimbalPitchSlider.disabled = !this.checked; });}
     if (multiGimbalPitchSlider) { multiGimbalPitchSlider.addEventListener('input', function() { if (multiGimbalPitchValueEl) multiGimbalPitchValueEl.textContent = this.value + '°'; });}
