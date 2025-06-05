@@ -5,7 +5,7 @@
 // waypointCounter, poiCounter, actionGroupCounter, actionCounter (from config.js)
 // fileInputEl, poiNameInput, poiObjectHeightInputEl, poiTerrainElevationInputEl (from domCache.js)
 // showCustomAlert, getCameraActionText, haversineDistance, calculateBearing, toRad (from utils.js or global)
-// addWaypoint, addPOI (from waypointManager.js, poiManager.js)
+// addWaypoint, addPOI, updateGimbalForPoiTrack (from waypointManager.js, poiManager.js)
 // JSZip (libreria esterna)
 // map (per POI import, se necessario)
 
@@ -14,10 +14,10 @@ if (typeof getCameraActionText === 'undefined') {
     // eslint-disable-next-line no-inner-declarations
     function getCameraActionText(action) {
         switch (action) {
-            case 'takePhoto': return 'Photo';
-            case 'startRecord': return 'Rec Start';
-            case 'stopRecord': return 'Rec Stop';
-            default: return 'None';
+            case 'takePhoto': return 'Foto'; // Italian
+            case 'startRecord': return 'Avvia Reg.'; // Italian
+            case 'stopRecord': return 'Ferma Reg.'; // Italian
+            default: return 'Nessuna'; // Italian
         }
     }
 }
@@ -67,15 +67,8 @@ function handleFileImport(event) {
     if (event.target) event.target.value = null;
 }
 
-async function loadFlightPlan(plan) { // Made async to handle await for addPOI if needed in future
-    if(typeof clearWaypoints === 'function') clearWaypoints(); // Clears waypoints and POIs via its own logic
-    // clearWaypoints should ideally also reset poiCounter, or we do it here explicitly.
-    // For safety, let's assume clearWaypoints also calls a clearPOIs that resets poiCounter.
-    // If not, uncomment:
-    // if (pois) pois.forEach(p => { if (p.marker) map.removeLayer(p.marker); });
-    // pois = []; 
-    // poiCounter = 1;
-
+async function loadFlightPlan(plan) {
+    if(typeof clearWaypoints === 'function') clearWaypoints();
 
     if (plan.settings) {
         if (defaultAltitudeSlider) defaultAltitudeSlider.value = plan.settings.defaultAltitude || 30;
@@ -84,14 +77,14 @@ async function loadFlightPlan(plan) { // Made async to handle await for addPOI i
         if (flightSpeedValueEl) flightSpeedValueEl.textContent = flightSpeedSlider.value + ' m/s';
         if (pathTypeSelect) pathTypeSelect.value = plan.settings.pathType || 'straight';
         waypointCounter = plan.settings.nextWaypointId || 1; 
-        poiCounter = plan.settings.nextPoiId || 1; // Restore POI counter
+        poiCounter = plan.settings.nextPoiId || 1; 
         if (homeElevationMslInput && typeof plan.settings.homeElevationMsl === 'number') {
             homeElevationMslInput.value = plan.settings.homeElevationMsl;
         }
     }
 
     if (plan.pois && Array.isArray(plan.pois)) {
-        for (const pData of plan.pois) { // Use for...of for async addPOI if it were truly async and we needed to await
+        for (const pData of plan.pois) { 
             const poiLatlng = L.latLng(pData.lat, pData.lng);
             
             const tempPoiNameVal = poiNameInput ? poiNameInput.value : '';
@@ -102,33 +95,25 @@ async function loadFlightPlan(plan) { // Made async to handle await for addPOI i
             if(poiObjectHeightInputEl) poiObjectHeightInputEl.value = pData.objectHeightAboveGround !== undefined ? String(pData.objectHeightAboveGround) : '0';
             if(poiTerrainElevationInputEl) {
                 poiTerrainElevationInputEl.value = pData.terrainElevationMSL !== undefined ? String(pData.terrainElevationMSL) : '0';
-                // During import, if terrainElevationMSL is provided, assume it's "verified" or manually set
                 poiTerrainElevationInputEl.readOnly = pData.terrainElevationMSL !== undefined && pData.terrainElevationMSL !== null;
             }
             
             if(typeof addPOI === 'function') {
-                // addPOI is async due to terrain fetch. We should await it if precise order and
-                // subsequent UI updates depend on its completion for each POI.
-                // For now, we call it and let them run. This might cause rapid API calls.
-                // A better approach for bulk import would be to batch terrain fetches.
-                await addPOI(poiLatlng); // Assuming addPOI is now async and we want to process one by one for import.
-                                       // If addPOI is not declared async, remove await.
+                await addPOI(poiLatlng); 
             }
 
-            // Restore original input values (optional, good practice if inputs are global)
             if(poiNameInput) poiNameInput.value = tempPoiNameVal;
             if(poiObjectHeightInputEl) poiObjectHeightInputEl.value = tempPoiObjHVal;
             if(poiTerrainElevationInputEl) {
                  poiTerrainElevationInputEl.value = tempPoiTerrElVal;
-                 // poiTerrainElevationInputEl.readOnly = true; // Default state after use
+                 poiTerrainElevationInputEl.readOnly = true; 
             }
-            // Ensure poiCounter is always ahead
             if (pData.id && pData.id >= poiCounter) poiCounter = pData.id + 1;
         }
     }
 
     if (plan.waypoints && Array.isArray(plan.waypoints)) {
-         plan.waypoints.forEach(wpData => {
+         plan.waypoints.forEach(wpData => { // addWaypoint non è async, quindi forEach va bene
             const waypointOptions = {
                 altitude: wpData.altitude, hoverTime: wpData.hoverTime, gimbalPitch: wpData.gimbalPitch,
                 headingControl: wpData.headingControl, fixedHeading: wpData.fixedHeading,
@@ -141,7 +126,6 @@ async function loadFlightPlan(plan) { // Made async to handle await for addPOI i
         });
     }
 
-    // Final UI updates after all data is loaded
     if(typeof updatePOIList === 'function') updatePOIList();
     if(typeof updateWaypointList === 'function') updateWaypointList();
     if(typeof updateFlightPath === 'function') updateFlightPath();
@@ -149,16 +133,15 @@ async function loadFlightPlan(plan) { // Made async to handle await for addPOI i
     if(typeof fitMapToWaypoints === 'function') fitMapToWaypoints();
 
     if (waypoints.length > 0 && typeof selectWaypoint === 'function') {
-        selectWaypoint(waypoints[0]);
+        selectWaypoint(waypoints[0]); // Seleziona il primo waypoint dopo il caricamento
     } else if (waypointControlsDiv) {
         waypointControlsDiv.style.display = 'none';
     }
     
-    // Update the main POI sidebar display if there are POIs
     if (pois.length > 0 && typeof lastActivePoiForTerrainFetch !== 'undefined') {
-        lastActivePoiForTerrainFetch = pois[pois.length - 1]; // Set last imported POI as active for sidebar display
+        lastActivePoiForTerrainFetch = pois[pois.length - 1]; 
         if (lastActivePoiForTerrainFetch.recalculateFinalAltitude) {
-            lastActivePoiForTerrainFetch.recalculateFinalAltitude(); // This updates the sidebar POI inputs
+            lastActivePoiForTerrainFetch.recalculateFinalAltitude(); 
         }
     } else if (typeof updatePoiFinalAltitudeDisplay === 'function') {
         if (poiObjectHeightInputEl) poiObjectHeightInputEl.value = 0;
@@ -166,8 +149,24 @@ async function loadFlightPlan(plan) { // Made async to handle await for addPOI i
             poiTerrainElevationInputEl.value = 0;
             poiTerrainElevationInputEl.readOnly = true;
         }
-        updatePoiFinalAltitudeDisplay(); // Clear display if no POIs
+        updatePoiFinalAltitudeDisplay(); 
     }
+
+    // Dopo che tutti i POI e Waypoint sono stati caricati e la UI principale aggiornata:
+    // Ricalcola il gimbal pitch per tutti i waypoint in modalità POI_TRACK
+    console.log("LOADFLIGHTPLAN: Tentativo di ricalcolo gimbal per tutti i waypoint POI_TRACK...");
+    waypoints.forEach(wp => {
+        if (wp.headingControl === 'poi_track' && wp.targetPoiId !== null) {
+            if (typeof updateGimbalForPoiTrack === "function") {
+                updateGimbalForPoiTrack(wp, (selectedWaypoint && selectedWaypoint.id === wp.id));
+            }
+        }
+    });
+    // Assicurati che la lista e il pannello del waypoint selezionato siano aggiornati se il gimbal è cambiato
+    if (selectedWaypoint && typeof updateSingleWaypointEditControls === "function") {
+        updateSingleWaypointEditControls();
+    }
+    if (typeof updateWaypointList === "function") updateWaypointList(); // Ridisegna la lista per mostrare il gimbal pitch aggiornato
 
 
     if(typeof showCustomAlert === 'function') showCustomAlert("Piano di volo importato con successo!", "Import Successo"); 
@@ -192,7 +191,7 @@ function exportFlightPlanToJson() {
             name:p.name, 
             lat:p.latlng.lat, 
             lng:p.latlng.lng, 
-            altitude: p.altitude, // This is the final calculated AMSL
+            altitude: p.altitude, 
             terrainElevationMSL: p.terrainElevationMSL,
             objectHeightAboveGround: p.objectHeightAboveGround
         })),
@@ -332,7 +331,7 @@ function exportToDjiWpmlKmz() {
             const targetPoi = pois.find(p => p.id === wp.targetPoiId);
             if (targetPoi) {
                 headingMode = 'towardPOI'; headingAngleEnable = 1; headingPathMode = 'followBadArc';
-                let poiAltMSL = targetPoi.altitude; // targetPoi.altitude è l'AMSL finale calcolato
+                let poiAltMSL = targetPoi.altitude; 
                 poiPointXml = `          <wpml:waypointPoiPoint>${targetPoi.latlng.lat.toFixed(6)},${targetPoi.latlng.lng.toFixed(6)},${parseFloat(poiAltMSL).toFixed(1)}</wpml:waypointPoiPoint>\n`; 
             } else { headingMode = 'followWayline'; headingPathMode = 'followBadArc'; headingAngleEnable = 0;} 
         } else { 
@@ -355,7 +354,6 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `          <wpml:waypointHeadingPoiIndex>0</wpml:waypointHeadingPoiIndex>\n`; 
         waylinesWpmlContent += `        </wpml:waypointHeadingParam>\n`;
 
-        // ... (Turn Param, Straight Line, Azioni come prima) ...
         let turnMode, useStraight;
         if (wp.headingControl === 'fixed' || missionPathType === 'straight') {
             useStraight = '1';
