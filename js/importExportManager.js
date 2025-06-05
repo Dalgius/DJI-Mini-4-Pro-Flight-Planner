@@ -1,59 +1,133 @@
 // File: importExportManager.js
-// ... (fallback e funzioni triggerImport, handleFileImport - invariate) ...
 
-function loadFlightPlan(plan) {
-    if(typeof clearWaypoints === 'function') clearWaypoints();
-    if (pois && typeof map !== 'undefined') { 
-        pois.forEach(p => { if (p.marker) map.removeLayer(p.marker); });
+// Global dependencies (expected from other files):
+// waypoints, pois, flightSpeedSlider, pathTypeSelect, homeElevationMslInput,
+// waypointCounter, poiCounter, actionGroupCounter, actionCounter (from config.js)
+// fileInputEl, poiNameInput, poiObjectHeightInputEl, poiTerrainElevationInputEl (from domCache.js)
+// showCustomAlert, getCameraActionText, haversineDistance, calculateBearing, toRad (from utils.js or global)
+// addWaypoint, addPOI (from waypointManager.js, poiManager.js)
+// JSZip (libreria esterna)
+// map (per POI import, se necessario)
+
+// Fallback per getCameraActionText se non definita globalmente
+if (typeof getCameraActionText === 'undefined') {
+    // eslint-disable-next-line no-inner-declarations
+    function getCameraActionText(action) {
+        switch (action) {
+            case 'takePhoto': return 'Photo';
+            case 'startRecord': return 'Rec Start';
+            case 'stopRecord': return 'Rec Stop';
+            default: return 'None';
+        }
     }
-    pois = []; poiCounter = 1; 
+}
+// Fallback per calculateBearing se non definita globalmente
+if (typeof calculateBearing === 'undefined') {
+    // eslint-disable-next-line no-inner-declarations
+    function calculateBearing(point1LatLng, point2LatLng) {
+        const toRadFn = typeof toRad === 'function' ? toRad : (deg => deg * Math.PI / 180);
+        const lat1 = toRadFn(point1LatLng.lat); const lon1 = toRadFn(point1LatLng.lng);
+        const lat2 = toRadFn(point2LatLng.lat); const lon2 = toRadFn(point2LatLng.lng);
+        const dLon = lon2 - lon1;
+        const y = Math.sin(dLon) * Math.cos(lat2);
+        const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+        let brng = Math.atan2(y, x) * 180 / Math.PI;
+        return (brng + 360) % 360;
+    }
+}
+// Fallback per toRad se non globale
+if (typeof toRad === 'undefined') {
+    // eslint-disable-next-line no-inner-declarations
+    function toRad(degrees) { return degrees * Math.PI / 180; }
+}
+
+
+function triggerImport() {
+    if (fileInputEl) { 
+        fileInputEl.click();
+    } else {
+        if(typeof showCustomAlert === 'function') showCustomAlert("Elemento input file non trovato.", "Errore Import"); 
+    }
+}
+
+function handleFileImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const importedPlan = JSON.parse(e.target.result);
+            if(typeof loadFlightPlan === 'function') loadFlightPlan(importedPlan);
+        } catch (err) {
+            if(typeof showCustomAlert === 'function') showCustomAlert("Errore nel parsing del file del piano di volo: " + err.message, "Errore Import"); 
+            console.error("Flight plan import error:", err);
+        }
+    };
+    reader.readAsText(file);
+    if (event.target) event.target.value = null;
+}
+
+async function loadFlightPlan(plan) { // Made async to handle await for addPOI if needed in future
+    if(typeof clearWaypoints === 'function') clearWaypoints(); // Clears waypoints and POIs via its own logic
+    // clearWaypoints should ideally also reset poiCounter, or we do it here explicitly.
+    // For safety, let's assume clearWaypoints also calls a clearPOIs that resets poiCounter.
+    // If not, uncomment:
+    // if (pois) pois.forEach(p => { if (p.marker) map.removeLayer(p.marker); });
+    // pois = []; 
+    // poiCounter = 1;
+
+
     if (plan.settings) {
-        // ... (caricamento settings come prima) ...
+        if (defaultAltitudeSlider) defaultAltitudeSlider.value = plan.settings.defaultAltitude || 30;
+        if (defaultAltitudeValueEl) defaultAltitudeValueEl.textContent = defaultAltitudeSlider.value + 'm';
+        if (flightSpeedSlider) flightSpeedSlider.value = plan.settings.flightSpeed || 8;
+        if (flightSpeedValueEl) flightSpeedValueEl.textContent = flightSpeedSlider.value + ' m/s';
+        if (pathTypeSelect) pathTypeSelect.value = plan.settings.pathType || 'straight';
+        waypointCounter = plan.settings.nextWaypointId || 1; 
+        poiCounter = plan.settings.nextPoiId || 1; // Restore POI counter
+        if (homeElevationMslInput && typeof plan.settings.homeElevationMsl === 'number') {
+            homeElevationMslInput.value = plan.settings.homeElevationMsl;
+        }
     }
+
     if (plan.pois && Array.isArray(plan.pois)) {
-        plan.pois.forEach(pData => {
+        for (const pData of plan.pois) { // Use for...of for async addPOI if it were truly async and we needed to await
             const poiLatlng = L.latLng(pData.lat, pData.lng);
             
             const tempPoiNameVal = poiNameInput ? poiNameInput.value : '';
-            // MODIFIED: Gestisci i nuovi campi per l'altitudine del POI
             const tempPoiObjHVal = poiObjectHeightInputEl ? poiObjectHeightInputEl.value : '0';
             const tempPoiTerrElVal = poiTerrainElevationInputEl ? poiTerrainElevationInputEl.value : '0';
 
-
             if(poiNameInput) poiNameInput.value = pData.name || `POI ${pData.id || poiCounter}`;
-            // Imposta i valori che addPOI leggerà
             if(poiObjectHeightInputEl) poiObjectHeightInputEl.value = pData.objectHeightAboveGround !== undefined ? String(pData.objectHeightAboveGround) : '0';
             if(poiTerrainElevationInputEl) {
                 poiTerrainElevationInputEl.value = pData.terrainElevationMSL !== undefined ? String(pData.terrainElevationMSL) : '0';
-                // Durante l'importazione, se terrainElevationMSL è fornito, lo consideriamo "verificato"
-                poiTerrainElevationInputEl.readOnly = pData.terrainElevationMSL !== undefined;
+                // During import, if terrainElevationMSL is provided, assume it's "verified" or manually set
+                poiTerrainElevationInputEl.readOnly = pData.terrainElevationMSL !== undefined && pData.terrainElevationMSL !== null;
             }
             
-            // addPOI è ora asincrono, ma per l'importazione seriale va bene chiamarlo con await se necessario,
-            // o gestire la coda. Per ora, lo chiamiamo e speriamo che l'ordine si mantenga.
-            // Idealmente, addPOI non dovrebbe dipendere da input globali per l'importazione.
-            // Sarebbe meglio passare un oggetto opzioni a addPOI.
-            // Per questa modifica, continuiamo con l'approccio attuale.
             if(typeof addPOI === 'function') {
-                addPOI(poiLatlng).then(() => { // addPOI è asincrono
-                    // Eventuali azioni post-aggiunta POI durante l'import
-                });
+                // addPOI is async due to terrain fetch. We should await it if precise order and
+                // subsequent UI updates depend on its completion for each POI.
+                // For now, we call it and let them run. This might cause rapid API calls.
+                // A better approach for bulk import would be to batch terrain fetches.
+                await addPOI(poiLatlng); // Assuming addPOI is now async and we want to process one by one for import.
+                                       // If addPOI is not declared async, remove await.
             }
 
-
-            // Ripristina i valori originali degli input
+            // Restore original input values (optional, good practice if inputs are global)
             if(poiNameInput) poiNameInput.value = tempPoiNameVal;
             if(poiObjectHeightInputEl) poiObjectHeightInputEl.value = tempPoiObjHVal;
             if(poiTerrainElevationInputEl) {
                  poiTerrainElevationInputEl.value = tempPoiTerrElVal;
-                 poiTerrainElevationInputEl.readOnly = true; // Di default torna readonly
+                 // poiTerrainElevationInputEl.readOnly = true; // Default state after use
             }
-            
+            // Ensure poiCounter is always ahead
             if (pData.id && pData.id >= poiCounter) poiCounter = pData.id + 1;
-        });
+        }
     }
+
     if (plan.waypoints && Array.isArray(plan.waypoints)) {
-        // ... (caricamento waypoint come prima, assicurati che terrainElevationMSL sia gestito) ...
          plan.waypoints.forEach(wpData => {
             const waypointOptions = {
                 altitude: wpData.altitude, hoverTime: wpData.hoverTime, gimbalPitch: wpData.gimbalPitch,
@@ -66,18 +140,46 @@ function loadFlightPlan(plan) {
             if(typeof addWaypoint === 'function') addWaypoint(L.latLng(wpData.lat, wpData.lng), waypointOptions);
         });
     }
-    // ... (chiamate di update UI come prima) ...
-    // È importante chiamare updatePoiFinalAltitudeDisplay dopo aver caricato i POI e impostato gli input
-    if (typeof updatePoiFinalAltitudeDisplay === 'function') updatePoiFinalAltitudeDisplay();
+
+    // Final UI updates after all data is loaded
+    if(typeof updatePOIList === 'function') updatePOIList();
+    if(typeof updateWaypointList === 'function') updateWaypointList();
+    if(typeof updateFlightPath === 'function') updateFlightPath();
+    if(typeof updateFlightStatistics === 'function') updateFlightStatistics();
+    if(typeof fitMapToWaypoints === 'function') fitMapToWaypoints();
+
+    if (waypoints.length > 0 && typeof selectWaypoint === 'function') {
+        selectWaypoint(waypoints[0]);
+    } else if (waypointControlsDiv) {
+        waypointControlsDiv.style.display = 'none';
+    }
+    
+    // Update the main POI sidebar display if there are POIs
+    if (pois.length > 0 && typeof lastActivePoiForTerrainFetch !== 'undefined') {
+        lastActivePoiForTerrainFetch = pois[pois.length - 1]; // Set last imported POI as active for sidebar display
+        if (lastActivePoiForTerrainFetch.recalculateFinalAltitude) {
+            lastActivePoiForTerrainFetch.recalculateFinalAltitude(); // This updates the sidebar POI inputs
+        }
+    } else if (typeof updatePoiFinalAltitudeDisplay === 'function') {
+        if (poiObjectHeightInputEl) poiObjectHeightInputEl.value = 0;
+        if (poiTerrainElevationInputEl) {
+            poiTerrainElevationInputEl.value = 0;
+            poiTerrainElevationInputEl.readOnly = true;
+        }
+        updatePoiFinalAltitudeDisplay(); // Clear display if no POIs
+    }
+
+
+    if(typeof showCustomAlert === 'function') showCustomAlert("Piano di volo importato con successo!", "Import Successo"); 
 }
+
 
 function exportFlightPlanToJson() {
     if (waypoints.length === 0 && pois.length === 0) {
-        // ...
+        if(typeof showCustomAlert === 'function') showCustomAlert("Niente da esportare.", "Errore Export"); return; 
     }
     const plan = {
         waypoints: waypoints.map(wp => ({
-            // ... (proprietà waypoint come prima, inclusa terrainElevationMSL) ...
             id: wp.id, lat: wp.latlng.lat, lng: wp.latlng.lng,
             altitude: wp.altitude, hoverTime: wp.hoverTime, gimbalPitch: wp.gimbalPitch,
             headingControl: wp.headingControl, fixedHeading: wp.fixedHeading,
@@ -90,19 +192,54 @@ function exportFlightPlanToJson() {
             name:p.name, 
             lat:p.latlng.lat, 
             lng:p.latlng.lng, 
-            altitude: p.altitude, // Questo è l'AMSL finale calcolato
+            altitude: p.altitude, // This is the final calculated AMSL
             terrainElevationMSL: p.terrainElevationMSL,
             objectHeightAboveGround: p.objectHeightAboveGround
         })),
         settings: {
-            // ... (settings come prima) ...
+            defaultAltitude: defaultAltitudeSlider ? parseInt(defaultAltitudeSlider.value) : 30,
+            flightSpeed: flightSpeedSlider ? parseFloat(flightSpeedSlider.value) : 5,
+            pathType: pathTypeSelect ? pathTypeSelect.value : 'straight',
+            nextWaypointId: waypointCounter, nextPoiId: poiCounter,
+            homeElevationMsl: homeElevationMslInput ? parseFloat(homeElevationMslInput.value) : 0
         }
     };
-    // ... (resto della funzione di esportazione JSON) ...
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(plan, null, 2));
+    const dl = document.createElement('a');
+    dl.setAttribute("href", dataStr); dl.setAttribute("download", "flight_plan.json");
+    document.body.appendChild(dl); dl.click(); document.body.removeChild(dl);
+    if(typeof showCustomAlert === 'function') showCustomAlert("Piano di volo esportato come JSON.", "Successo"); 
 }
 
 function exportToGoogleEarthKml() { 
-    // ...
+    if (waypoints.length === 0) {
+        if(typeof showCustomAlert === 'function') showCustomAlert("Nessun waypoint da esportare.", "Errore Export"); return; 
+    }
+    let homeElevationMSL = homeElevationMslInput ? parseFloat(homeElevationMslInput.value) : 0;
+    if (isNaN(homeElevationMSL)) {
+        if(typeof showCustomAlert === 'function') showCustomAlert("Elevazione di decollo (MSL) non valida. Uso 0m come fallback.", "Attenzione Export"); 
+        homeElevationMSL = 0;
+    }
+    let kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Flight Plan (GE)</name>`;
+    kml += `<Style id="wpStyle"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/paddle/blu-circle.png</href></Icon></IconStyle></Style>`;
+    kml += `<Style id="pathStyle"><LineStyle><color>ffdb9834</color><width>3</width></LineStyle></Style>`;
+    kml += `<Style id="poiStyle"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/paddle/ylw-stars.png</href></Icon></IconStyle></Style>`;
+    kml += `<Folder><name>Waypoints</name>`;
+    waypoints.forEach(wp => {
+        const altMSL = homeElevationMSL + wp.altitude;
+        let description = `<![CDATA[Alt. Volo (Rel): ${wp.altitude} m<br/>Alt. AMSL: ${altMSL.toFixed(1)} m<br/>`;
+        if (wp.terrainElevationMSL !== null) {
+            description += `Alt. AGL: ${(altMSL - wp.terrainElevationMSL).toFixed(1)} m<br/>Elev. Terreno: ${wp.terrainElevationMSL.toFixed(1)} m<br/>`;
+        }
+        description += `Gimbal: ${wp.gimbalPitch}°<br/>Azione: ${getCameraActionText(wp.cameraAction)}<br/>Heading: ${wp.headingControl}${wp.headingControl==='fixed' ? ` (${wp.fixedHeading}°)`:''}${wp.targetPoiId ? ` (POI ID ${wp.targetPoiId})`:''}]]>`;
+        kml += `<Placemark><name>WP ${wp.id}</name><description>${description}</description><styleUrl>#wpStyle</styleUrl><Point><altitudeMode>absolute</altitudeMode><coordinates>${wp.latlng.lng},${wp.latlng.lat},${altMSL.toFixed(1)}</coordinates></Point></Placemark>`;
+    });
+    kml += `</Folder>`;
+    if (waypoints.length >= 2) {
+        kml += `<Placemark><name>Flight Path</name><styleUrl>#pathStyle</styleUrl><LineString><tessellate>1</tessellate><altitudeMode>absolute</altitudeMode><coordinates>\n`;
+        const pathCoords = waypoints.map(wp => `${wp.latlng.lng},${wp.latlng.lat},${(homeElevationMSL + wp.altitude).toFixed(1)}`).join('\n');
+        kml += pathCoords + `\n</coordinates></LineString></Placemark>`;
+    }
     if (pois.length > 0) {
         kml += `<Folder><name>POIs</name>`;
         pois.forEach(p => { 
@@ -110,21 +247,15 @@ function exportToGoogleEarthKml() {
         });
         kml += `</Folder>`;
     }
-    // ...
+    kml += `</Document></kml>`;
+    const dataStr = "data:application/vnd.google-earth.kml+xml;charset=utf-8," + encodeURIComponent(kml);
+    const dl = document.createElement('a');
+    dl.setAttribute("href", dataStr); dl.setAttribute("download", "flight_plan_GE.kml");
+    document.body.appendChild(dl); dl.click(); document.body.removeChild(dl);
+    if(typeof showCustomAlert === 'function') showCustomAlert("Esportato per Google Earth.", "Successo"); 
 }
 
 function exportToDjiWpmlKmz() {
-    // ...
-    // Dentro il loop dei waypoints, per headingControl === 'poi_track':
-    // const targetPoi = pois.find(p => p.id === wp.targetPoiId);
-    // if (targetPoi) {
-    //     ...
-    //     let poiAltMSL = targetPoi.altitude; // Usa direttamente l'altitude del POI (che è già MSL finale)
-    //     poiPointXml = `          <wpml:waypointPoiPoint>${targetPoi.latlng.lat.toFixed(6)},${targetPoi.latlng.lng.toFixed(6)},${parseFloat(poiAltMSL).toFixed(1)}</wpml:waypointPoiPoint>\n`;
-    // ...
-    // Il resto della funzione rimane sostanzialmente invariato, assicurandosi che usi targetPoi.altitude per l'altezza del POI.
-    // (Il codice esistente per exportToDjiWpmlKmz dovrebbe già usare targetPoi.altitude, che ora sarà l'AMSL finale)
-    // Lo incollo qui sotto per completezza con la modifica esplicita
     if (typeof JSZip === 'undefined') {
         if(typeof showCustomAlert === 'function') showCustomAlert("Libreria JSZip non caricata.", "Errore"); return; 
     }
@@ -224,6 +355,7 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `          <wpml:waypointHeadingPoiIndex>0</wpml:waypointHeadingPoiIndex>\n`; 
         waylinesWpmlContent += `        </wpml:waypointHeadingParam>\n`;
 
+        // ... (Turn Param, Straight Line, Azioni come prima) ...
         let turnMode, useStraight;
         if (wp.headingControl === 'fixed' || missionPathType === 'straight') {
             useStraight = '1';
@@ -249,17 +381,38 @@ function exportToDjiWpmlKmz() {
             actionsXmlBlock += `<wpml:gimbalRotateTimeEnable>0</wpml:gimbalRotateTimeEnable><wpml:gimbalRotateTime>0</wpml:gimbalRotateTime>`;
             actionsXmlBlock += `</wpml:actionActuatorFuncParam></wpml:action>\n`;
         }
-        if (wp.hoverTime > 0) { /* ... */ } // Come prima
-        if (wp.cameraAction && wp.cameraAction !== 'none') { /* ... */ } // Come prima
+        if (wp.hoverTime > 0) {
+            actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId>`;
+            actionsXmlBlock += `<wpml:actionActuatorFunc>HOVER</wpml:actionActuatorFunc>`;
+            actionsXmlBlock += `<wpml:actionActuatorFuncParam><wpml:hoverTime>${wp.hoverTime}</wpml:hoverTime></wpml:actionActuatorFuncParam></wpml:action>\n`;
+        }
+        if (wp.cameraAction && wp.cameraAction !== 'none') {
+            let actuatorFunc = '', params = `<wpml:payloadPositionIndex>0</wpml:payloadPositionIndex>\n`;
+            if (wp.cameraAction === 'takePhoto') { actuatorFunc = 'takePhoto'; params += `<wpml:useGlobalPayloadLensIndex>0</wpml:useGlobalPayloadLensIndex>\n`; }
+            else if (wp.cameraAction === 'startRecord') { actuatorFunc = 'startRecord'; params += `<wpml:useGlobalPayloadLensIndex>0</wpml:useGlobalPayloadLensIndex>\n`; }
+            else if (wp.cameraAction === 'stopRecord') { actuatorFunc = 'stopRecord';} 
+            if (actuatorFunc) {
+                actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId>`;
+                actionsXmlBlock += `<wpml:actionActuatorFunc>${actuatorFunc}</wpml:actionActuatorFunc>`;
+                actionsXmlBlock += `<wpml:actionActuatorFuncParam>\n${params}</wpml:actionActuatorFuncParam></wpml:action>\n`;
+            }
+        }
 
-        if (actionsXmlBlock) { /* ... */ } // Come prima
+        if (actionsXmlBlock) {
+            waylinesWpmlContent += `        <wpml:actionGroup><wpml:actionGroupId>${actionGroupCounter++}</wpml:actionGroupId>`;
+            waylinesWpmlContent += `<wpml:actionGroupStartIndex>${index}</wpml:actionGroupStartIndex><wpml:actionGroupEndIndex>${index}</wpml:actionGroupEndIndex>`;
+            waylinesWpmlContent += `<wpml:actionGroupMode>sequence</wpml:actionGroupMode>`;
+            waylinesWpmlContent += `<wpml:actionTrigger><wpml:actionTriggerType>reachPoint</wpml:actionTriggerType></wpml:actionTrigger>\n`;
+            waylinesWpmlContent += actionsXmlBlock;
+            waylinesWpmlContent += `        </wpml:actionGroup>\n`;
+        }
         waylinesWpmlContent += `      </Placemark>\n`;
     });
 
     waylinesWpmlContent += `    </Folder>\n  </Document>\n</kml>`;
 
-    const zip = new JSZip(); // ... (resto della creazione ZIP come prima)
-     const wpmzFolder = zip.folder("wpmz");
+    const zip = new JSZip();
+    const wpmzFolder = zip.folder("wpmz");
     wpmzFolder.folder("res"); 
     wpmzFolder.file("template.kml", templateKmlContent);
     wpmzFolder.file("waylines.wpml", waylinesWpmlContent);
