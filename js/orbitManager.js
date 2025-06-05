@@ -104,7 +104,7 @@ function generateOrbitWaypoints(centerPoi, radius, numPoints, altitudeRelToHome)
             altitude: altitudeRelToHome, 
             headingControl: 'poi_track', 
             targetPoiId: centerPoi.id,
-            gimbalPitch: calculatedGimbalPitch // Usa il gimbal pitch calcolato e clampato
+            gimbalPitch: calculatedGimbalPitch // Usa il valore clampato e arrotondato
         };
 
         addWaypoint(wpLatlng, waypointOptions);
