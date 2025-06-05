@@ -19,6 +19,7 @@
     </div>
 
     <div id="orbitModalOverlay" class="modal-overlay" style="display:none;">
+        <!-- Contenuto della modale orbita come prima -->
         <div class="modal-content">
             <h2 data-i18n-key="createOrbitModalTitle" style="color: #3498db; margin-bottom: 20px;">Create POI Orbit</h2>
             <div class="control-group">
@@ -41,12 +42,62 @@
     </div>
 
     <div id="surveyGridModalOverlay" class="modal-overlay" style="display: none;">
+        <!-- Contenuto della modale survey grid come prima -->
+        <div class="modal-content">
+            <h2 id="surveyGridModalTitle">Create Survey Grid</h2>
+            <div class="modal-body">
+                <p id="surveyGridInstructions" style="font-size: 0.9em; margin-bottom: 15px;">
+                    Click "Start Drawing" then click on the map to define the survey area corners. Click the first point again to close the polygon.
+                </p>
+                <div class="control-group inline-group">
+                    <label for="surveyGridAltitudeInput" class="control-label">Flight Altitude (m):</label>
+                    <input type="number" id="surveyGridAltitudeInput" class="control-input short-numeric" value="50" min="5">
+                </div>
+                <div class="control-group inline-group">
+                    <label for="surveySidelapInput" class="control-label">Sidelap (%):</label>
+                    <input type="number" id="surveySidelapInput" class="control-input short-numeric" value="70" min="10" max="95" title="Overlap between parallel flight lines (e.g., 60-80%)">
+                </div>
+                <div class="control-group inline-group">
+                    <label for="surveyFrontlapInput" class="control-label">Frontlap (%):</label>
+                    <input type="number" id="surveyFrontlapInput" class="control-input short-numeric" value="80" min="10" max="95" title="Overlap between consecutive photos along a flight line (e.g., 70-90%)">
+                </div>
+                <div class="control-group"> 
+                    <label for="surveyGridAngleInput" class="control-label">Grid Angle (°):</label> 
+                    <input type="number" id="surveyGridAngleInput" class="control-input" value="0" min="-359" max="359" step="1">
+                    <div class="input-description"> 
+                        Flight line direction: 0° for E-W lines, 90° for N-S lines.
+                    </div>
+                </div>
+                <div id="surveyAreaStatus" style="margin-top: 10px; font-style: italic;">
+                    Area not defined.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="startDrawingSurveyAreaBtn" class="modal-btn">Start Drawing Area</button>
+                <button id="finalizeSurveyAreaBtn" class="modal-btn" style="display: none;">Finalize Area</button>
+                <button id="confirmSurveyGridBtn" class="modal-btn" disabled>Generate Grid</button>
+                <button id="cancelSurveyGridBtn" class="modal-btn modal-btn-secondary">Cancel</button>
+            </div>
         </div>
+    </div>
 
     <div class="app-container">
         <div class="sidebar">
+            <!-- TUTTO IL CONTENUTO DELLA SIDEBAR VA QUI -->
+            <!-- (App Header, Language Select, Flight Settings, Waypoints, Multi-Edit, POI Settings, Terrain/Orbit, File Ops, Stats) -->
+            <!-- Ad esempio, la sezione POI aggiornata: -->
+            <div class="app-header">
+                <div class="app-title">✈️ DJI Mini 4 Pro</div>
+                <div class="app-subtitle" data-i18n-key="appSubtitle">Flight Planner</div>
             </div>
-
+             <div class="section" style="padding: 10px; margin-bottom:15px; background: rgba(0,0,0,0.2);">
+                <label for="langSelect" class="control-label" data-i18n-key="languageLabel" style="margin-bottom: 3px;">Language:</label>
+                <select id="langSelect" class="control-input" style="padding: 5px 8px; font-size: 13px;">
+                    <option value="en">English</option>
+                    <option value="it">Italiano</option>
+                </select>
+            </div>
+            <!-- ... altre sezioni della sidebar ... -->
             <div class="section">
                 <div class="section-title" data-i18n-key="poiTitle">🎯 Points of Interest</div>
                 <div class="control-group">
@@ -71,10 +122,48 @@
                 <div style="font-size: 12px; color: #95a5a6; margin-bottom: 10px; margin-top:15px;" data-i18n-key="poiAddInstruction">Ctrl + Click sulla mappa per aggiungere POI e recuperare elev. terreno</div>
                 <div class="poi-list" id="poiList"></div>
             </div>
-
+            <!-- ... e tutte le altre sezioni della sidebar: Waypoints, Flight Settings, ecc. -->
+             <div class="section">
+                <div class="section-title" data-i18n-key="statsTitle">📊 Flight Statistics</div>
+                <div class="flight-stats">
+                    <div class="stat-row"><span class="stat-label" data-i18n-key="statsTotalDistance">Total Distance:</span><span class="stat-value" id="totalDistance">0 m</span></div>
+                    <div class="stat-row"><span class="stat-label" data-i18n-key="statsEstFlightTime">Est. Flight Time:</span><span class="stat-value" id="flightTime">0 min 0 sec</span></div>
+                    <div class="stat-row"><span class="stat-label" data-i18n-key="statsWaypoints">Waypoints:</span><span class="stat-value" id="waypointCount">0</span></div>
+                    <div class="stat-row"><span class="stat-label" data-i18n-key="statsPOIs">POIs:</span><span class="stat-value" id="poiCount">0</span></div>
+                </div>
             </div>
+        </div> <!-- Chiusura di .sidebar -->
+
         <div class="map-container">
-    </div>
+            <div id="map"></div> <!-- ELEMENTO MAPPA FONDAMENTALE -->
+            <div class="map-controls">
+                <button class="map-btn" id="satelliteToggleBtn" data-i18n-key="mapBtnSatellite" data-i18n-target-text="true">📡 Satellite</button>
+                <button class="map-btn" id="fitMapBtn" data-i18n-key="mapBtnFitView">🎯 Fit View</button>
+                <button class="map-btn" id="myLocationBtn" data-i18n-key="mapBtnMyLocation">📍 My Location</button>
+            </div>
+        </div> <!-- Chiusura di .map-container -->
+    </div> <!-- Chiusura di .app-container -->
+
     <input type="file" id="fileInput" accept=".json" style="display: none;">
-    </body>
+
+    <!-- Script Leaflet e JSZip -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <!-- Script Modularizzati -->
+    <script src="js/config.js"></script>
+    <script src="js/domCache.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/mapManager.js"></script>
+    <script src="js/uiUpdater.js"></script>
+    <script src="js/flightPathManager.js"></script>
+    <script src="js/poiManager.js"></script>
+    <script src="js/waypointManager.js"></script>
+    <script src="js/orbitManager.js"></script>
+    <script src="js/terrainManager.js"></script>
+    <script src="js/surveyGridManager.js"></script> 
+    <script src="js/importExportManager.js"></script>
+    <script src="js/eventListeners.js"></script>
+    <script src="js/app.js"></script>
+</body>
 </html>
