@@ -273,6 +273,7 @@ function updateGimbalForPoiTrack(waypoint, forceUpdateUI = false) {
 
     const targetPoi = pois.find(p => p.id === waypoint.targetPoiId);
     if (!targetPoi) {
+        console.warn(`POI target ID ${waypoint.targetPoiId} non trovato per WP ${waypoint.id} durante calcolo gimbal.`);
         return; 
     }
 
@@ -281,16 +282,32 @@ function updateGimbalForPoiTrack(waypoint, forceUpdateUI = false) {
     const poiAMSL = targetPoi.altitude; 
     const horizontalDistance = haversineDistance(waypoint.latlng, targetPoi.latlng);
 
+    // <<< LOG DI DEBUG DETTAGLIATI >>>
+    console.log(`updateGimbalForPoiTrack per WP ${waypoint.id}:`);
+    console.log(`  - WP LatLng: ${waypoint.latlng.lat}, ${waypoint.latlng.lng}`);
+    console.log(`  - POI LatLng: ${targetPoi.latlng.lat}, ${targetPoi.latlng.lng}`);
+    console.log(`  - Home Elevation: ${homeElevation}`);
+    console.log(`  - WP Relative Alt: ${waypoint.altitude}`);
+    console.log(`  - WP AMSL (observerAMSL): ${waypointAMSL}`);
+    console.log(`  - POI AMSL (targetAMSL): ${poiAMSL}`);
+    console.log(`  - Horizontal Distance: ${horizontalDistance}`);
+    console.log(`  - Delta Altitude (target - observer): ${poiAMSL - waypointAMSL}`);
+    // <<< FINE LOG DI DEBUG DETTAGLIATI >>>
+
     const requiredPitch = calculateRequiredGimbalPitch(waypointAMSL, poiAMSL, horizontalDistance);
     
+    console.log(`  - Required Pitch CALCOLATO: ${requiredPitch}`); // Log del risultato
+
     if (waypoint.gimbalPitch !== requiredPitch) {
-        // console.log(`WP ${waypoint.id}: Auto-Update Gimbal Pitch for POI_TRACK from ${waypoint.gimbalPitch}° to ${requiredPitch}°`);
+        console.log(`  - WP ${waypoint.id}: Aggiornamento Gimbal Pitch da ${waypoint.gimbalPitch}° a ${requiredPitch}°`);
         waypoint.gimbalPitch = requiredPitch;
         
         if (selectedWaypoint && selectedWaypoint.id === waypoint.id && (waypointControlsDiv.style.display === 'block' || forceUpdateUI)) {
             if (gimbalPitchSlider) gimbalPitchSlider.value = waypoint.gimbalPitch;
             if (gimbalPitchValueEl) gimbalPitchValueEl.textContent = waypoint.gimbalPitch + '°';
         }
+    } else {
+        console.log(`  - WP ${waypoint.id}: Gimbal Pitch (${waypoint.gimbalPitch}°) già corretto, nessun aggiornamento.`);
     }
 }
 
