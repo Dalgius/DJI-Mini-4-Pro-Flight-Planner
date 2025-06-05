@@ -34,13 +34,12 @@ function toRad(degrees) {
  * @returns {number} Distance in meters.
  */
 function haversineDistance(coords1, coords2) {
-    // Ensure we handle L.LatLng objects from Leaflet directly
     const lat1 = (typeof coords1.lat === 'function') ? coords1.lat() : (coords1.lat || coords1[0]);
     const lon1 = (typeof coords1.lng === 'function') ? coords1.lng() : (coords1.lng || coords1[1]);
     const lat2 = (typeof coords2.lat === 'function') ? coords2.lat() : (coords2.lat || coords2[0]);
     const lon2 = (typeof coords2.lng === 'function') ? coords2.lng() : (coords2.lng || coords2[1]);
 
-    const R = R_EARTH; // Radius of Earth in meters from config.js
+    const R = R_EARTH; 
     const φ1 = toRad(lat1);
     const φ2 = toRad(lat2);
     const Δφ = toRad(lat2 - lat1);
@@ -113,9 +112,9 @@ function createSmoothPath(points) {
  */
 function getCameraActionText(action) {
     switch (action) {
-        case 'takePhoto': return 'Photo';
-        case 'startRecord': return 'Rec Start';
-        case 'stopRecord': return 'Rec Stop';
+        case 'takePhoto': return 'Foto';
+        case 'startRecord': return 'Avvia Reg.';
+        case 'stopRecord': return 'Ferma Reg.';
         default: return ''; 
     }
 }
@@ -138,7 +137,7 @@ function calculateBearing(point1LatLng, point2LatLng) {
     const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
     let brng = Math.atan2(y, x) * 180 / Math.PI;
 
-    return (brng + 360) % 360; // Normalize to 0-360
+    return (brng + 360) % 360; 
 }
 
 /**
@@ -149,8 +148,8 @@ function calculateBearing(point1LatLng, point2LatLng) {
  * @returns {L.LatLng} The destination L.LatLng point.
  */
 function destinationPoint(startLatLng, bearingDeg, distanceMeters) {
-    const R = R_EARTH; // Earth's radius in meters from config.js
-    const angularDistance = distanceMeters / R; // Angular distance in radians
+    const R = R_EARTH; 
+    const angularDistance = distanceMeters / R; 
     const bearingRad = toRad(bearingDeg);
 
     const lat1 = toRad(startLatLng.lat);
@@ -162,8 +161,38 @@ function destinationPoint(startLatLng, bearingDeg, distanceMeters) {
     let lon2 = lon1 + Math.atan2(Math.sin(bearingRad) * Math.sin(angularDistance) * Math.cos(lat1),
                                  Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2));
 
-    // Normalize lon2 to -180 to +180 degrees
     lon2 = (lon2 * 180 / Math.PI + 540) % 360 - 180;
 
     return L.latLng(lat2 * 180 / Math.PI, lon2);
+}
+
+/**
+ * Calculates the required gimbal pitch angle to aim at a target from an observer's position.
+ * @param {number} observerAMSL - AMSL altitude of the observer (e.g., waypoint).
+ * @param {number} targetAMSL - AMSL altitude of the target (e.g., POI).
+ * @param {number} horizontalDistance - Horizontal distance between observer and target in meters.
+ * @returns {number} Gimbal pitch angle in degrees. Negative for looking down, positive for up. Clamped to [-90, 60].
+ */
+function calculateRequiredGimbalPitch(observerAMSL, targetAMSL, horizontalDistance) {
+    if (horizontalDistance <= 0.1) { // Avoid division by zero or very small distances
+        // If directly above or below, or very close horizontally:
+        if (targetAMSL < observerAMSL) return -90; // Target is below, look straight down
+        if (targetAMSL > observerAMSL) return 60;  // Target is above, look max up (or 0 if straight up is not desired/possible)
+        return 0; // Target is at the same height and very close, look horizontal
+    }
+
+    const deltaAltitude = targetAMSL - observerAMSL; // Positive if target is higher, negative if target is lower
+
+    // Math.atan2(y, x) is generally preferred for angle calculations as it handles quadrants.
+    // Here, atan(opposite/adjacent) is atan(deltaAltitude / horizontalDistance)
+    // If target is lower (deltaAltitude < 0), angle is negative (look down).
+    // If target is higher (deltaAltitude > 0), angle is positive (look up).
+    // This directly matches DJI gimbal convention: negative for down, positive for up.
+    let pitchAngleRad = Math.atan2(deltaAltitude, horizontalDistance);
+    let pitchAngleDeg = pitchAngleRad * (180 / Math.PI);
+
+    // Clamp to typical gimbal limits (e.g., Mini 4 Pro: -90 to +60, though often +30 practical for upward)
+    pitchAngleDeg = Math.max(-90, Math.min(60, pitchAngleDeg));
+    
+    return Math.round(pitchAngleDeg);
 }
