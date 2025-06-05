@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"> <!-- Cambiato lang in "en" per coerenza con la UI -->
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -233,13 +233,23 @@
                 <div class="control-group">
                     <input type="text" class="control-input" id="poiName" data-i18n-key="poiNamePlaceholder" placeholder="POI Name" maxlength="20">
                 </div>
-                <!-- MODIFIED: Added POI Altitude Input -->
                 <div class="control-group">
-                    <label for="poiAltitude" class="control-label" data-i18n-key="poiAltitudeLabel">Default POI Altitude (MSL, m):</label>
-                    <input type="number" class="control-input-small" id="poiAltitude" value="0" step="1" title="Altitude of the POI above Mean Sea Level. Used for precise gimbal tracking in some formats.">
+                    <label for="poiObjectHeight" class="control-label" data-i18n-key="poiObjectHeightLabel">Altezza Oggetto POI (sopra il suo terreno, m):</label>
+                    <input type="number" class="control-input-small" id="poiObjectHeight" value="0" step="1" title="Altezza dell'oggetto POI rispetto al suo terreno di base.">
                 </div>
-                <!-- END MODIFICATION -->
-                <div style="font-size: 12px; color: #95a5a6; margin-bottom: 10px;" data-i18n-key="poiAddInstruction">Ctrl + Click on map to add POI</div>
+                <div class="control-group" id="poiTerrainElevationGroup" style="margin-top: 5px;">
+                    <label for="poiTerrainElevation" class="control-label" data-i18n-key="poiTerrainElevationLabel">Elev. Terreno POI (MSL, m):</label>
+                    <div style="display:flex; align-items:center; gap: 5px;">
+                        <input type="number" class="control-input-small" id="poiTerrainElevation" value="0" step="1" title="Elevazione del terreno MSL alla base del POI. Modificabile se il recupero automatico fallisce.">
+                        <button id="refetchPoiTerrainBtn" class="btn-secondary" style="padding: 3px 6px; font-size: 10px; width:auto; line-height:1;" title="Tenta di recuperare di nuovo l'elevazione del terreno per l'ultimo POI aggiunto/selezionato dalle coordinate Lat/Lng del POI.">⟳ Refetch</button>
+                    </div>
+                    <div style="font-size:0.75em; color:#95a5a6; margin-top:3px;">(Riempito da Ctrl+Click sulla mappa. Modifica se necessario.)</div>
+                </div>
+                <div class="control-group" style="margin-top: 8px;">
+                    <label class="control-label" data-i18n-key="poiFinalAltitudeLabel">Altitudine Finale POI (MSL, m):</label>
+                    <span id="poiFinalAltitudeDisplay" style="font-weight:bold; color: #3498db; font-size: 1.1em;">0.0 m</span>
+                </div>
+                <div style="font-size: 12px; color: #95a5a6; margin-bottom: 10px; margin-top:15px;" data-i18n-key="poiAddInstruction">Ctrl + Click sulla mappa per aggiungere POI e recuperare elev. terreno</div>
                 <div class="poi-list" id="poiList"></div>
             </div>
 
