@@ -1,7 +1,7 @@
 // File: orbitManager.js
 
-// Depends on: config.js, utils.js, uiUpdater.js (populatePoiSelectDropdown), waypointManager.js (addWaypoint, selectWaypoint for updating UI if new orbit WPs are selected)
-// Depends on: mapManager.js (fitMapToWaypoints)
+// Depends on: config.js, utils.js (calculateRequiredGimbalPitch), uiUpdater.js (populatePoiSelectDropdown),
+// waypointManager.js (addWaypoint), mapManager.js (fitMapToWaypoints)
 
 /**
  * Displays the orbit creation dialog.
@@ -53,8 +53,8 @@ function handleConfirmOrbit() {
         showCustomAlert("POI non valido selezionato per l'orbita. Seleziona un POI valido.", "Errore Orbita"); 
         return;
     }
-    if (isNaN(radius) || radius <= 0) {
-        showCustomAlert("Raggio non valido. Deve essere un numero positivo.", "Errore Orbita"); 
+    if (isNaN(radius) || radius <= 0.1) { // Raggio deve essere significativamente positivo
+        showCustomAlert("Raggio non valido. Deve essere un numero positivo maggiore di 0.1m.", "Errore Orbita"); 
         return;
     }
     if (isNaN(numPoints) || numPoints < 3) { 
@@ -62,7 +62,6 @@ function handleConfirmOrbit() {
         return;
     }
 
-    // Passa l'oggetto POI completo e l'altitudine relativa al decollo per i waypoint dell'orbita
     generateOrbitWaypoints(targetPoi, radius, numPoints, altitudeForOrbitWpsRel);
 
     if (orbitModalOverlayEl) orbitModalOverlayEl.style.display = 'none'; 
@@ -77,18 +76,14 @@ function handleConfirmOrbit() {
  */
 function generateOrbitWaypoints(centerPoi, radius, numPoints, altitudeRelToHome) {
     const homeElevation = parseFloat(homeElevationMslInput.value) || 0; 
-    const orbitWpAMSL = homeElevation + altitudeRelToHome; 
-    const poiAMSL = centerPoi.altitude; // centerPoi.altitude è l'AMSL finale già calcolato
+    const orbitWpAMSL = homeElevation + altitudeRelToHome; // AMSL altitude of the orbit waypoints
+    const poiAMSL = centerPoi.altitude; // centerPoi.altitude is the final calculated MSL of the POI
 
-    let calculatedGimbalPitch = 0; 
+    // Utilizza la funzione helper per calcolare il gimbal pitch
+    // La distanza orizzontale in un'orbita è il raggio.
+    const calculatedGimbalPitch = calculateRequiredGimbalPitch(orbitWpAMSL, poiAMSL, radius);
 
-    if (radius > 0) {
-        // deltaAltitude è la differenza di altezza tra il waypoint dell'orbita (in AMSL) e il target POI (in AMSL)
-        const deltaAltitude = orbitWpAMSL - poiAMSL; 
-        calculatedGimbalPitch = Math.atan(deltaAltitude / radius) * (180 / Math.PI);
-        calculatedGimbalPitch = Math.max(-90, Math.min(60, calculatedGimbalPitch)); 
-        calculatedGimbalPitch = -calculatedGimbalPitch; // Negativo per guardare in basso
-    }
+    console.log(`Orbit Gen: WP AMSL=${orbitWpAMSL}, POI AMSL=${poiAMSL}, Radius=${radius}, Calculated Gimbal Pitch=${calculatedGimbalPitch}°`);
 
     for (let i = 0; i < numPoints; i++) {
         const angle = (i / numPoints) * 2 * Math.PI; 
@@ -110,12 +105,12 @@ function generateOrbitWaypoints(centerPoi, radius, numPoints, altitudeRelToHome)
             altitude: altitudeRelToHome, 
             headingControl: 'poi_track', 
             targetPoiId: centerPoi.id,
-            gimbalPitch: Math.round(calculatedGimbalPitch) 
+            gimbalPitch: calculatedGimbalPitch // Usa il gimbal pitch calcolato e clampato
         };
 
         addWaypoint(wpLatlng, waypointOptions);
     }
 
     fitMapToWaypoints(); 
-    showCustomAlert(`${numPoints} waypoint dell'orbita creati attorno a ${centerPoi.name}.`, "Orbita Creata"); 
+    showCustomAlert(`${numPoints} waypoint dell'orbita creati attorno a ${centerPoi.name}. Gimbal Pitch: ${calculatedGimbalPitch}°`, "Orbita Creata"); 
 }
