@@ -8,24 +8,24 @@ function setupEventListeners() {
     if (defaultAltitudeSlider) {
         defaultAltitudeSlider.addEventListener('input', () => {
             if (defaultAltitudeValueEl) defaultAltitudeValueEl.textContent = defaultAltitudeSlider.value + 'm';
-            // Se un waypoint è selezionato e in POI_TRACK, ricalcola il suo gimbal pitch
-            if (selectedWaypoint && selectedWaypoint.headingControl === 'poi_track') {
-                updateGimbalForPoiTrack(selectedWaypoint, true);
-            }
+            // Se un waypoint è selezionato e in POI_TRACK, e la sua altitudine relativa al decollo
+            // è quella di default, allora il suo AMSL cambia e quindi il gimbal va ricalcolato.
+            // Tuttavia, questo è gestito meglio quando l'altitudine del waypoint viene modificata specificamente.
         });
     }
     if (flightSpeedSlider) {
         flightSpeedSlider.addEventListener('input', () => {
             if (flightSpeedValueEl) flightSpeedValueEl.textContent = flightSpeedSlider.value + ' m/s';
             updateFlightStatistics(); 
-            waypoints.forEach(wp => { 
-                if (wp.headingControl === 'auto') updateMarkerIconStyle(wp);
-            });
+            // La velocità di volo non influisce direttamente sul gimbal pitch o sull'orientamento visivo dei marker
         });
     }
     if (pathTypeSelect) {
         pathTypeSelect.addEventListener('change', () => {
             updateFlightPath();
+            // Il tipo di percorso (curvo/dritto) non influisce sul calcolo del gimbal,
+            // ma potrebbe influenzare l'heading 'auto' se lo visualizzassimo diversamente.
+            // L'aggiornamento di tutti i marker qui è una misura di sicurezza.
             waypoints.forEach(wp => updateMarkerIconStyle(wp));
         });
     }
@@ -37,7 +37,10 @@ function setupEventListeners() {
             waypointAltitudeValueEl.textContent = waypointAltitudeSlider.value + 'm';
             selectedWaypoint.altitude = parseInt(waypointAltitudeSlider.value);
             updateWaypointList(); 
-            updateGimbalForPoiTrack(selectedWaypoint, true); // Ricalcola gimbal se POI_TRACK e altitudine cambia
+            // Se il waypoint selezionato è in POI_TRACK, il cambio di altitudine WP ne influenza il gimbal
+            if (selectedWaypoint.headingControl === 'poi_track') {
+                updateGimbalForPoiTrack(selectedWaypoint, true); // true per forzare update UI
+            }
         });
     }
     if (hoverTimeSlider) {
@@ -49,14 +52,16 @@ function setupEventListeners() {
             updateWaypointList(); 
         });
     }
-    if (gimbalPitchSlider) { // Slider per il gimbal pitch del singolo waypoint
+    if (gimbalPitchSlider) { 
         gimbalPitchSlider.addEventListener('input', function() {
             if (!selectedWaypoint || !gimbalPitchValueEl) return;
             gimbalPitchValueEl.textContent = this.value + '°';
-            // Se l'utente modifica manualmente il gimbal, potrebbe non essere più 'poi_track' implicitamente
-            // Ma per ora, permettiamo la sovrascrittura. Il calcolo automatico avviene solo quando si cambia target/modo.
+            // Se l'utente imposta manualmente il gimbal, questo sovrascrive il calcolo automatico
+            // per la modalità POI_TRACK. Il calcolo automatico avviene solo quando
+            // si SELEZIONA POI_TRACK o si cambia il target/altitudini.
             selectedWaypoint.gimbalPitch = parseInt(this.value);
-            // Non chiamiamo updateGimbalForPoiTrack qui per evitare loop se l'utente sta intenzionalmente sovrascrivendo.
+            // Non chiamare updateGimbalForPoiTrack qui, altrimenti entrerebbe in loop
+            // o annullerebbe l'input manuale se headingControl è già 'poi_track'.
         });
     }
     if (fixedHeadingSlider) {
@@ -73,36 +78,29 @@ function setupEventListeners() {
         headingControlSelect.addEventListener('change', function() {
             if (!selectedWaypoint || !fixedHeadingGroupDiv || !targetPoiForHeadingGroupDiv) return;
             const selectedValue = this.value;
-            const oldHeadingControl = selectedWaypoint.headingControl;
             selectedWaypoint.headingControl = selectedValue;
 
             fixedHeadingGroupDiv.style.display = selectedValue === 'fixed' ? 'block' : 'none';
             targetPoiForHeadingGroupDiv.style.display = selectedValue === 'poi_track' ? 'block' : 'none';
 
             if (selectedValue === 'poi_track') {
-                populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Select POI for Heading --");
+                populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Seleziona POI per Heading --");
                 updateGimbalForPoiTrack(selectedWaypoint, true); // Calcola gimbal quando si passa a POI_TRACK
             } else {
                 selectedWaypoint.targetPoiId = null; 
-                // Se prima era POI_TRACK e ora non lo è, potremmo resettare il gimbal a 0 o al default
-                if (oldHeadingControl === 'poi_track') {
-                    // selectedWaypoint.gimbalPitch = 0; // Opzionale: resetta gimbal
-                    // if (gimbalPitchSlider) gimbalPitchSlider.value = 0;
-                    // if (gimbalPitchValueEl) gimbalPitchValueEl.textContent = "0°";
-                }
             }
             updateWaypointList(); 
             updateMarkerIconStyle(selectedWaypoint); 
         });
     }
-    if (targetPoiSelect) { // Dropdown per selezionare il POI target per un singolo waypoint
+    if (targetPoiSelect) { 
         targetPoiSelect.addEventListener('change', function() {
             if (selectedWaypoint) {
                 selectedWaypoint.targetPoiId = this.value ? parseInt(this.value) : null;
                 updateWaypointList(); 
                 if (selectedWaypoint.headingControl === 'poi_track') {
                     updateMarkerIconStyle(selectedWaypoint); 
-                    updateGimbalForPoiTrack(selectedWaypoint, true); // Ricalcola gimbal se il POI target cambia
+                    updateGimbalForPoiTrack(selectedWaypoint, true); 
                 }
             }
         });
@@ -130,7 +128,7 @@ function setupEventListeners() {
                     lastActivePoiForTerrainFetch.recalculateFinalAltitude();
                     updatePOIList(); 
                 }
-            } else { // Se nessun POI è "attivo", aggiorna solo il display
+            } else { 
                 updatePoiFinalAltitudeDisplay();
             }
         });
@@ -145,7 +143,7 @@ function setupEventListeners() {
                     lastActivePoiForTerrainFetch.recalculateFinalAltitude();
                     updatePOIList();
                 }
-            } else if (!lastActivePoiForTerrainFetch) { // Se nessun POI è attivo, aggiorna solo il display
+            } else if (!lastActivePoiForTerrainFetch) { 
                  updatePoiFinalAltitudeDisplay();
             }
         });
@@ -154,10 +152,6 @@ function setupEventListeners() {
         refetchPoiTerrainBtnEl.addEventListener('click', () => {
             let poiToFetchFor = lastActivePoiForTerrainFetch;
             if (!poiToFetchFor && pois.length > 0) {
-                // Se nessun POI è "attivo" per la sidebar (es. pagina appena caricata),
-                // e l'utente clicca refetch, potremmo non avere un target chiaro.
-                // Per ora, se c'è almeno un POI, tentiamo per l'ultimo, altrimenti alert.
-                // Una logica migliore sarebbe legare il refetch a un POI esplicitamente selezionato (non ancora implementato)
                 poiToFetchFor = pois[pois.length - 1]; 
             }
 
@@ -169,35 +163,55 @@ function setupEventListeners() {
         });
     }
 
-
     // --- Multi-Waypoint Edit Panel ---
-    // (Nessuna modifica qui rispetto alla tua versione funzionante per gli slider)
     if (selectAllWaypointsCheckboxEl) {
         selectAllWaypointsCheckboxEl.addEventListener('change', (e) => toggleSelectAllWaypoints(e.target.checked));
     }
     if (multiHeadingControlSelect) {
         multiHeadingControlSelect.addEventListener('change', function() {
             if (!multiFixedHeadingGroupDiv || !multiTargetPoiForHeadingGroupDiv || !multiTargetPoiSelect) return;
-            
             const showFixed = this.value === 'fixed';
             const showPoiTarget = this.value === 'poi_track';
-
             multiFixedHeadingGroupDiv.style.display = showFixed ? 'block' : 'none';
             multiTargetPoiForHeadingGroupDiv.style.display = showPoiTarget ? 'block' : 'none';
-            
             if (showPoiTarget) {
-                populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Seleziona POI per tutti --"); // Italian
+                populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Seleziona POI per tutti --"); 
             }
         });
     }
-    if (multiFixedHeadingSlider) { multiFixedHeadingSlider.addEventListener('input', function() { /* ... */ });}
-    if (multiChangeGimbalPitchCheckbox) { multiChangeGimbalPitchCheckbox.addEventListener('change', function() { if (!multiGimbalPitchSlider) return; multiGimbalPitchSlider.disabled = !this.checked; });}
-    if (multiGimbalPitchSlider) { multiGimbalPitchSlider.addEventListener('input', function() { if (multiGimbalPitchValueEl) multiGimbalPitchValueEl.textContent = this.value + '°'; });}
-    if (multiChangeHoverTimeCheckbox) { multiChangeHoverTimeCheckbox.addEventListener('change', function() { if(!multiHoverTimeSlider) return; multiHoverTimeSlider.disabled = !this.checked; });}
-    if (multiHoverTimeSlider) { multiHoverTimeSlider.addEventListener('input', function() { if (multiHoverTimeValueEl) multiHoverTimeValueEl.textContent = this.value + 's'; });}
-    if (applyMultiEditBtn) { applyMultiEditBtn.addEventListener('click', applyMultiEdit); } // applyMultiEdit gestisce il ricalcolo del gimbal
-    if (clearMultiSelectionBtn) { clearMultiSelectionBtn.addEventListener('click', clearMultiSelection); }
-
+    if (multiFixedHeadingSlider) {
+        multiFixedHeadingSlider.addEventListener('input', function() {
+            if (multiFixedHeadingValueEl) multiFixedHeadingValueEl.textContent = this.value + '°';
+        });
+    }
+    if (multiChangeGimbalPitchCheckbox) {
+        multiChangeGimbalPitchCheckbox.addEventListener('change', function() { 
+            if (!multiGimbalPitchSlider) return; 
+            multiGimbalPitchSlider.disabled = !this.checked; 
+        });
+    }
+    if (multiGimbalPitchSlider) {
+        multiGimbalPitchSlider.addEventListener('input', function() { 
+            if (multiGimbalPitchValueEl) multiGimbalPitchValueEl.textContent = this.value + '°'; 
+        });
+    }
+    if (multiChangeHoverTimeCheckbox) {
+        multiChangeHoverTimeCheckbox.addEventListener('change', function() { 
+            if(!multiHoverTimeSlider) return; 
+            multiHoverTimeSlider.disabled = !this.checked; 
+        });
+    }
+    if (multiHoverTimeSlider) {
+        multiHoverTimeSlider.addEventListener('input', function() { 
+            if (multiHoverTimeValueEl) multiHoverTimeValueEl.textContent = this.value + 's'; 
+        });
+    }
+    if (applyMultiEditBtn) { 
+        applyMultiEditBtn.addEventListener('click', applyMultiEdit); 
+    }
+    if (clearMultiSelectionBtn) { 
+        clearMultiSelectionBtn.addEventListener('click', clearMultiSelection); 
+    }
 
     // --- Terrain & Orbit Tools ---
     if (getHomeElevationBtn) { getHomeElevationBtn.addEventListener('click', getHomeElevationFromFirstWaypoint); }
