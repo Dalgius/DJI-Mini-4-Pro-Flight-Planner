@@ -11,19 +11,16 @@
 
 // Fallback per getCameraActionText se non definita globalmente
 if (typeof getCameraActionText === 'undefined') {
-    // eslint-disable-next-line no-inner-declarations
     function getCameraActionText(action) {
         switch (action) {
-            case 'takePhoto': return 'Foto'; // Italian
-            case 'startRecord': return 'Avvia Reg.'; // Italian
-            case 'stopRecord': return 'Ferma Reg.'; // Italian
-            default: return 'Nessuna'; // Italian
+            case 'takePhoto': return 'Foto'; 
+            case 'startRecord': return 'Avvia Reg.'; 
+            case 'stopRecord': return 'Ferma Reg.'; 
+            default: return 'Nessuna'; 
         }
     }
 }
-// Fallback per calculateBearing se non definita globalmente
 if (typeof calculateBearing === 'undefined') {
-    // eslint-disable-next-line no-inner-declarations
     function calculateBearing(point1LatLng, point2LatLng) {
         const toRadFn = typeof toRad === 'function' ? toRad : (deg => deg * Math.PI / 180);
         const lat1 = toRadFn(point1LatLng.lat); const lon1 = toRadFn(point1LatLng.lng);
@@ -35,12 +32,9 @@ if (typeof calculateBearing === 'undefined') {
         return (brng + 360) % 360;
     }
 }
-// Fallback per toRad se non globale
 if (typeof toRad === 'undefined') {
-    // eslint-disable-next-line no-inner-declarations
     function toRad(degrees) { return degrees * Math.PI / 180; }
 }
-
 
 function triggerImport() {
     if (fileInputEl) { 
@@ -54,10 +48,12 @@ function handleFileImport(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => { // Make onload async to await loadFlightPlan
         try {
             const importedPlan = JSON.parse(e.target.result);
-            if(typeof loadFlightPlan === 'function') loadFlightPlan(importedPlan);
+            if(typeof loadFlightPlan === 'function') {
+                await loadFlightPlan(importedPlan); // Await if loadFlightPlan is async
+            }
         } catch (err) {
             if(typeof showCustomAlert === 'function') showCustomAlert("Errore nel parsing del file del piano di volo: " + err.message, "Errore Import"); 
             console.error("Flight plan import error:", err);
@@ -68,7 +64,15 @@ function handleFileImport(event) {
 }
 
 async function loadFlightPlan(plan) {
-    if(typeof clearWaypoints === 'function') clearWaypoints();
+    if(typeof clearWaypoints === 'function') clearWaypoints(); 
+    // clearWaypoints dovrebbe anche chiamare una funzione clearPOIs che resetta poiCounter
+    // Altrimenti, se clearWaypoints non gestisce i POI:
+    // if (pois) pois.forEach(p => { if (p.marker) map.removeLayer(p.marker); });
+    // pois = []; 
+    // poiCounter = 1;
+
+    let maxImportedPoiId = 0;
+    let maxImportedWaypointId = 0;
 
     if (plan.settings) {
         if (defaultAltitudeSlider) defaultAltitudeSlider.value = plan.settings.defaultAltitude || 30;
@@ -76,8 +80,7 @@ async function loadFlightPlan(plan) {
         if (flightSpeedSlider) flightSpeedSlider.value = plan.settings.flightSpeed || 8;
         if (flightSpeedValueEl) flightSpeedValueEl.textContent = flightSpeedSlider.value + ' m/s';
         if (pathTypeSelect) pathTypeSelect.value = plan.settings.pathType || 'straight';
-        waypointCounter = plan.settings.nextWaypointId || 1; 
-        poiCounter = plan.settings.nextPoiId || 1; 
+        // Non impostare waypointCounter e poiCounter qui, lo faremo alla fine
         if (homeElevationMslInput && typeof plan.settings.homeElevationMsl === 'number') {
             homeElevationMslInput.value = plan.settings.homeElevationMsl;
         }
@@ -85,45 +88,43 @@ async function loadFlightPlan(plan) {
 
     if (plan.pois && Array.isArray(plan.pois)) {
         for (const pData of plan.pois) { 
-            const poiLatlng = L.latLng(pData.lat, pData.lng);
-            
-            const tempPoiNameVal = poiNameInput ? poiNameInput.value : '';
-            const tempPoiObjHVal = poiObjectHeightInputEl ? poiObjectHeightInputEl.value : '0';
-            const tempPoiTerrElVal = poiTerrainElevationInputEl ? poiTerrainElevationInputEl.value : '0';
-
-            if(poiNameInput) poiNameInput.value = pData.name || `POI ${pData.id || poiCounter}`;
-            if(poiObjectHeightInputEl) poiObjectHeightInputEl.value = pData.objectHeightAboveGround !== undefined ? String(pData.objectHeightAboveGround) : '0';
-            if(poiTerrainElevationInputEl) {
-                poiTerrainElevationInputEl.value = pData.terrainElevationMSL !== undefined ? String(pData.terrainElevationMSL) : '0';
-                poiTerrainElevationInputEl.readOnly = pData.terrainElevationMSL !== undefined && pData.terrainElevationMSL !== null;
+            const poiOptions = {
+                id: pData.id,
+                name: pData.name,
+                objectHeightAboveGround: pData.objectHeightAboveGround !== undefined ? pData.objectHeightAboveGround : 0,
+                terrainElevationMSL: pData.terrainElevationMSL !== undefined ? pData.terrainElevationMSL : null,
+                calledFromLoad: true 
+            };
+            if (typeof addPOI === 'function') {
+                await addPOI(L.latLng(pData.lat, pData.lng), poiOptions); 
             }
-            
-            if(typeof addPOI === 'function') {
-                await addPOI(poiLatlng); 
-            }
-
-            if(poiNameInput) poiNameInput.value = tempPoiNameVal;
-            if(poiObjectHeightInputEl) poiObjectHeightInputEl.value = tempPoiObjHVal;
-            if(poiTerrainElevationInputEl) {
-                 poiTerrainElevationInputEl.value = tempPoiTerrElVal;
-                 poiTerrainElevationInputEl.readOnly = true; 
-            }
-            if (pData.id && pData.id >= poiCounter) poiCounter = pData.id + 1;
+            if (pData.id > maxImportedPoiId) maxImportedPoiId = pData.id;
         }
     }
 
     if (plan.waypoints && Array.isArray(plan.waypoints)) {
-         plan.waypoints.forEach(wpData => { // addWaypoint non è async, quindi forEach va bene
+         plan.waypoints.forEach(wpData => { 
             const waypointOptions = {
+                id: wpData.id, 
                 altitude: wpData.altitude, hoverTime: wpData.hoverTime, gimbalPitch: wpData.gimbalPitch,
                 headingControl: wpData.headingControl, fixedHeading: wpData.fixedHeading,
                 cameraAction: wpData.cameraAction || 'none',
                 targetPoiId: wpData.targetPoiId === undefined ? null : wpData.targetPoiId,
-                terrainElevationMSL: wpData.terrainElevationMSL !== undefined ? wpData.terrainElevationMSL : null, 
-                id: wpData.id 
+                terrainElevationMSL: wpData.terrainElevationMSL !== undefined ? wpData.terrainElevationMSL : null
             };
             if(typeof addWaypoint === 'function') addWaypoint(L.latLng(wpData.lat, wpData.lng), waypointOptions);
+            if (wpData.id > maxImportedWaypointId) maxImportedWaypointId = wpData.id;
         });
+    }
+
+    waypointCounter = maxImportedWaypointId + 1;
+    poiCounter = maxImportedPoiId + 1;
+    
+    if(poiNameInput) poiNameInput.value = '';
+    if(poiObjectHeightInputEl) poiObjectHeightInputEl.value = '0';
+    if(poiTerrainElevationInputEl) {
+        poiTerrainElevationInputEl.value = '0';
+        poiTerrainElevationInputEl.readOnly = true; 
     }
 
     if(typeof updatePOIList === 'function') updatePOIList();
@@ -133,14 +134,14 @@ async function loadFlightPlan(plan) {
     if(typeof fitMapToWaypoints === 'function') fitMapToWaypoints();
 
     if (waypoints.length > 0 && typeof selectWaypoint === 'function') {
-        selectWaypoint(waypoints[0]); // Seleziona il primo waypoint dopo il caricamento
+        selectWaypoint(waypoints[0]); 
     } else if (waypointControlsDiv) {
         waypointControlsDiv.style.display = 'none';
     }
     
     if (pois.length > 0 && typeof lastActivePoiForTerrainFetch !== 'undefined') {
         lastActivePoiForTerrainFetch = pois[pois.length - 1]; 
-        if (lastActivePoiForTerrainFetch.recalculateFinalAltitude) {
+        if (lastActivePoiForTerrainFetch && lastActivePoiForTerrainFetch.recalculateFinalAltitude) {
             lastActivePoiForTerrainFetch.recalculateFinalAltitude(); 
         }
     } else if (typeof updatePoiFinalAltitudeDisplay === 'function') {
@@ -152,8 +153,6 @@ async function loadFlightPlan(plan) {
         updatePoiFinalAltitudeDisplay(); 
     }
 
-    // Dopo che tutti i POI e Waypoint sono stati caricati e la UI principale aggiornata:
-    // Ricalcola il gimbal pitch per tutti i waypoint in modalità POI_TRACK
     console.log("LOADFLIGHTPLAN: Tentativo di ricalcolo gimbal per tutti i waypoint POI_TRACK...");
     waypoints.forEach(wp => {
         if (wp.headingControl === 'poi_track' && wp.targetPoiId !== null) {
@@ -162,11 +161,10 @@ async function loadFlightPlan(plan) {
             }
         }
     });
-    // Assicurati che la lista e il pannello del waypoint selezionato siano aggiornati se il gimbal è cambiato
     if (selectedWaypoint && typeof updateSingleWaypointEditControls === "function") {
         updateSingleWaypointEditControls();
     }
-    if (typeof updateWaypointList === "function") updateWaypointList(); // Ridisegna la lista per mostrare il gimbal pitch aggiornato
+    if (typeof updateWaypointList === "function") updateWaypointList(); 
 
 
     if(typeof showCustomAlert === 'function') showCustomAlert("Piano di volo importato con successo!", "Import Successo"); 
@@ -199,7 +197,8 @@ function exportFlightPlanToJson() {
             defaultAltitude: defaultAltitudeSlider ? parseInt(defaultAltitudeSlider.value) : 30,
             flightSpeed: flightSpeedSlider ? parseFloat(flightSpeedSlider.value) : 5,
             pathType: pathTypeSelect ? pathTypeSelect.value : 'straight',
-            nextWaypointId: waypointCounter, nextPoiId: poiCounter,
+            nextWaypointId: waypointCounter, 
+            nextPoiId: poiCounter,       // Salva i contatori aggiornati
             homeElevationMsl: homeElevationMslInput ? parseFloat(homeElevationMslInput.value) : 0
         }
     };
