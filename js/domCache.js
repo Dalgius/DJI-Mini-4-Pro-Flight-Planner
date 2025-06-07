@@ -128,4 +128,10 @@ function cacheDOMElements() {
     if (gimbalPitchSlider && gimbalPitchValueEl) gimbalPitchValueEl.textContent = gimbalPitchSlider.value + '°';
     if (poiFinalAltitudeDisplayEl) poiFinalAltitudeDisplayEl.textContent = "0.0 m";
     if (currentPathModeValueEl && typeof translate === "function") currentPathModeValueEl.textContent = translate('pathModeRelative'); // Inizializza testo modalità percorso
+    if (currentPathModeValueEl && typeof translate === "function") {
+    currentPathModeValueEl.textContent = translate('pathModeRelative'); 
+    currentPathModeValueEl.setAttribute('data-i18n-key', 'pathModeRelative');
+} else if (currentPathModeValueEl) { // Fallback se translate non è ancora pronto
+    currentPathModeValueEl.textContent = "Relative to Takeoff"; 
+}
 }
