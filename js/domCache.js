@@ -68,10 +68,13 @@ function cacheDOMElements() {
     homeElevationMslInput = document.getElementById('homeElevationMsl');
     desiredAGLInput = document.getElementById('desiredAGL');
     adaptToAGLBtnEl = document.getElementById('adaptToAGLBtn');
-    desiredAMSLInputEl = document.getElementById('desiredAMSL'); // NUOVO
-    adaptToAMSLBtnEl = document.getElementById('adaptToAMSLBtn');   // NUOVO
+    desiredAMSLInputEl = document.getElementById('desiredAMSL'); 
+    adaptToAMSLBtnEl = document.getElementById('adaptToAMSLBtn');   
     getHomeElevationBtn = document.getElementById('getHomeElevationBtn');
     createOrbitBtn = document.getElementById('createOrbitBtn');
+    currentPathModeInfoEl = document.getElementById('currentPathModeInfo'); // Per visualizzare la modalità altitudine
+    currentPathModeValueEl = document.getElementById('currentPathModeValue'); // Per visualizzare la modalità altitudine
+
 
     // Sidebar Controls - Import/Export
     importJsonBtn = document.getElementById('importJsonBtn');
@@ -124,4 +127,5 @@ function cacheDOMElements() {
     if (multiHoverTimeSlider && multiHoverTimeValueEl) multiHoverTimeValueEl.textContent = multiHoverTimeSlider.value + 's';
     if (gimbalPitchSlider && gimbalPitchValueEl) gimbalPitchValueEl.textContent = gimbalPitchSlider.value + '°';
     if (poiFinalAltitudeDisplayEl) poiFinalAltitudeDisplayEl.textContent = "0.0 m";
+    if (currentPathModeValueEl && typeof translate === "function") currentPathModeValueEl.textContent = translate('pathModeRelative'); // Inizializza testo modalità percorso
 }
