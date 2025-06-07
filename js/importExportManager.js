@@ -82,7 +82,6 @@ async function loadFlightPlan(plan) {
         lastAltitudeAdaptationMode = plan.settings.lastAltitudeAdaptationMode || 'relative';
         if(desiredAGLInput && plan.settings.desiredAGL) desiredAGLInput.value = plan.settings.desiredAGL;
         if(desiredAMSLInputEl && plan.settings.desiredAMSL) desiredAMSLInputEl.value = plan.settings.desiredAMSL;
-
     } else {
         lastAltitudeAdaptationMode = 'relative'; 
     }
@@ -94,6 +93,8 @@ async function loadFlightPlan(plan) {
                 name: pData.name,
                 objectHeightAboveGround: pData.objectHeightAboveGround !== undefined ? pData.objectHeightAboveGround : 0,
                 terrainElevationMSL: pData.terrainElevationMSL !== undefined ? pData.terrainElevationMSL : null,
+                // Passa anche l'AMSL finale se presente, così addPOI può usarlo se terrainElevationMSL non c'è
+                altitude: pData.altitude, 
                 calledFromLoad: true 
             };
             if (typeof addPOI === 'function') {
@@ -134,14 +135,12 @@ async function loadFlightPlan(plan) {
     if(typeof updatePoiFinalAltitudeDisplay === "function") updatePoiFinalAltitudeDisplay(); 
     lastActivePoiForTerrainFetch = null; 
 
-
     if(typeof updatePOIList === 'function') updatePOIList();
     if(typeof updateWaypointList === 'function') updateWaypointList();
     if(typeof updateFlightPath === 'function') updateFlightPath(); 
     if(typeof updateFlightStatistics === 'function') updateFlightStatistics();
     if(typeof fitMapToWaypoints === 'function') fitMapToWaypoints();
     if(typeof updatePathModeDisplay === "function") updatePathModeDisplay(); 
-
 
     if (waypoints.length > 0 && typeof selectWaypoint === 'function') {
         selectWaypoint(waypoints[0]); 
@@ -209,9 +208,9 @@ function exportFlightPlanToJson() {
             nextWaypointId: waypointCounter, 
             nextPoiId: poiCounter,       
             homeElevationMsl: homeElevationMslInput ? parseFloat(homeElevationMslInput.value) : 0,
-            lastAltitudeAdaptationMode: lastAltitudeAdaptationMode, // Salva la modalità
-            desiredAGL: desiredAGLInput ? parseInt(desiredAGLInput.value) : 50, // Salva AGL target
-            desiredAMSL: desiredAMSLInputEl ? parseInt(desiredAMSLInputEl.value) : 100 // Salva AMSL target
+            lastAltitudeAdaptationMode: lastAltitudeAdaptationMode, 
+            desiredAGL: desiredAGLInput ? parseInt(desiredAGLInput.value) : 50, 
+            desiredAMSL: desiredAMSLInputEl ? parseInt(desiredAMSLInputEl.value) : 100 
         }
     };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(plan, null, 2));
@@ -283,8 +282,13 @@ function exportToDjiWpmlKmz() {
     const createTimeMillis = now.getTime().toString();
     const waylineIdInt = Math.floor(now.getTime() / 1000); 
 
+    // NOTA: Il namespace DJI a volte è "http://www.dji.com/wpmz/1.0.2" e a volte "http://www.uav.com/wpmz/1.0.2"
+    // Usiamo quello più comune o quello che risulta più compatibile. Per ora manteniamo "dji.com"
+    const wpmlNs = "http://www.dji.com/wpmz/1.0.2";
+
+
     let templateKmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="${wpmlNs}">
 <Document>
   <wpml:author>FlightPlanner</wpml:author> 
   <wpml:createTime>${createTimeMillis}</wpml:createTime>
@@ -301,7 +305,7 @@ function exportToDjiWpmlKmz() {
 </Document></kml>`;
 
     let waylinesWpmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="${wpmlNs}">
 <Document>
   <wpml:missionConfig>
     <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
@@ -341,10 +345,15 @@ function exportToDjiWpmlKmz() {
             const targetPoi = pois.find(p => p.id === wp.targetPoiId);
             if (targetPoi) {
                 headingMode = 'towardPOI'; 
-                headingAngleEnable = (index === 0 || index === waypoints.length - 1 || waypoints[index-1]?.targetPoiId !== wp.targetPoiId || (index + 1 < waypoints.length && waypoints[index+1]?.targetPoiId !== wp.targetPoiId) ) ? 1 : 0;
+                const prevWp = index > 0 ? waypoints[index - 1] : null;
+                const nextWp = index < waypoints.length - 1 ? waypoints[index + 1] : null;
+                const isStartOfPoiSequence = !prevWp || prevWp.headingControl !== 'poi_track' || prevWp.targetPoiId !== wp.targetPoiId;
+                const isEndOfPoiSequence = !nextWp || nextWp.headingControl !== 'poi_track' || nextWp.targetPoiId !== wp.targetPoiId;
+                headingAngleEnable = (isStartOfPoiSequence || isEndOfPoiSequence) ? 1 : 0;
+                headingAngle = 0; 
                 headingPathMode = 'followBadArc';
-                let poiAltMSL = targetPoi.altitude; 
-                poiPointXml = `          <wpml:waypointPoiPoint>${targetPoi.latlng.lat.toFixed(6)},${targetPoi.latlng.lng.toFixed(6)},${parseFloat(poiAltMSL).toFixed(1)}</wpml:waypointPoiPoint>\n`; 
+                // Usiamo 0.0 per l'altitudine del POI come da file DJI di esempio per poi_track semplice
+                poiPointXml = `          <wpml:waypointPoiPoint>${targetPoi.latlng.lat.toFixed(6)},${targetPoi.latlng.lng.toFixed(6)},0.0</wpml:waypointPoiPoint>\n`; 
             } else { 
                 headingMode = 'followWayline'; 
                 headingPathMode = 'followBadArc'; 
@@ -370,9 +379,9 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `        </wpml:waypointHeadingParam>\n`;
 
         let turnMode;
-        if (index === 0 || index === waypoints.length - 1 || wp.headingControl === 'fixed' || missionPathType === 'straight') {
-            turnMode = (missionPathType === 'curved' && wp.headingControl !== 'fixed') ? 'toPointAndStopWithContinuityCurvature' : 'toPointAndStopWithDiscontinuityCurvature';
-        } else { 
+        if (index === 0 || index === waypoints.length - 1) {
+            turnMode = 'toPointAndStopWithContinuityCurvature';
+        } else {
             turnMode = 'toPointAndPassWithContinuityCurvature';
         }
         const useStraight = (missionPathType === 'straight' || wp.headingControl === 'fixed') ? '1' : '0';
@@ -383,24 +392,29 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `        </wpml:waypointTurnParam>\n`;
         waylinesWpmlContent += `        <wpml:useStraightLine>${useStraight}</wpml:useStraightLine>\n`;
 
-        let gimbalPitchForParam = 0; 
-        if(wp.headingControl !== 'poi_track' && typeof wp.gimbalPitch === 'number') {
-            gimbalPitchForParam = wp.gimbalPitch;
+        let gimbalPitchForParamTag = 0; 
+        if (wp.headingControl !== 'poi_track' && typeof wp.gimbalPitch === 'number') {
+            gimbalPitchForParamTag = wp.gimbalPitch;
         }
+        // Se è poi_track, gimbalPitchForParamTag rimane 0, come nel file dji.
         waylinesWpmlContent += `        <wpml:waypointGimbalHeadingParam>\n`;
-        waylinesWpmlContent += `          <wpml:waypointGimbalPitchAngle>${gimbalPitchForParam}</wpml:waypointGimbalPitchAngle>\n`;
+        waylinesWpmlContent += `          <wpml:waypointGimbalPitchAngle>${gimbalPitchForParamTag}</wpml:waypointGimbalPitchAngle>\n`;
         waylinesWpmlContent += `          <wpml:waypointGimbalYawAngle>0</wpml:waypointGimbalYawAngle>\n`; 
         waylinesWpmlContent += `        </wpml:waypointGimbalHeadingParam>\n`;
 
         let actionsXmlBlock = "";
+        // Non generare actionGroup per gimbalRotate se è poi_track
         if (typeof wp.gimbalPitch === 'number' && wp.headingControl !== 'poi_track') {
-            actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId><wpml:actionActuatorFunc>gimbalRotate</wpml:actionActuatorFunc><wpml:actionActuatorFuncParam>`;
-            actionsXmlBlock += `<wpml:gimbalPitchRotateEnable>1</wpml:gimbalPitchRotateEnable><wpml:gimbalPitchRotateAngle>${parseFloat(wp.gimbalPitch).toFixed(1)}</wpml:gimbalPitchRotateAngle>`;
-            actionsXmlBlock += `<wpml:payloadPositionIndex>0</wpml:payloadPositionIndex><wpml:gimbalHeadingYawBase>aircraft</wpml:gimbalHeadingYawBase><wpml:gimbalRotateMode>absoluteAngle</wpml:gimbalRotateMode>`;
-            actionsXmlBlock += `<wpml:gimbalRollRotateEnable>0</wpml:gimbalRollRotateEnable><wpml:gimbalYawRotateEnable>0</wpml:gimbalYawRotateEnable><wpml:gimbalYawRotateAngle>0</wpml:gimbalYawRotateAngle>`;
-            actionsXmlBlock += `<wpml:gimbalRotateTimeEnable>0</wpml:gimbalRotateTimeEnable><wpml:gimbalRotateTime>0</wpml:gimbalRotateTime>`;
-            actionsXmlBlock += `</wpml:actionActuatorFuncParam></wpml:action>\n`;
+            if (wp.gimbalPitch !== gimbalPitchForParamTag) { 
+                actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId><wpml:actionActuatorFunc>gimbalRotate</wpml:actionActuatorFunc><wpml:actionActuatorFuncParam>`;
+                actionsXmlBlock += `<wpml:gimbalPitchRotateEnable>1</wpml:gimbalPitchRotateEnable><wpml:gimbalPitchRotateAngle>${parseFloat(wp.gimbalPitch).toFixed(1)}</wpml:gimbalPitchRotateAngle>`;
+                actionsXmlBlock += `<wpml:payloadPositionIndex>0</wpml:payloadPositionIndex><wpml:gimbalHeadingYawBase>aircraft</wpml:gimbalHeadingYawBase><wpml:gimbalRotateMode>absoluteAngle</wpml:gimbalRotateMode>`;
+                actionsXmlBlock += `<wpml:gimbalRollRotateEnable>0</wpml:gimbalRollRotateEnable><wpml:gimbalYawRotateEnable>0</wpml:gimbalYawRotateEnable><wpml:gimbalYawRotateAngle>0</wpml:gimbalYawRotateAngle>`;
+                actionsXmlBlock += `<wpml:gimbalRotateTimeEnable>0</wpml:gimbalRotateTimeEnable><wpml:gimbalRotateTime>0</wpml:gimbalRotateTime>`;
+                actionsXmlBlock += `</wpml:actionActuatorFuncParam></wpml:action>\n`;
+            }
         }
+        
         if (wp.hoverTime > 0) {
             actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId>`;
             actionsXmlBlock += `<wpml:actionActuatorFunc>HOVER</wpml:actionActuatorFunc>`;
