@@ -40,7 +40,6 @@
         </div>
     </div>
 
-    <!-- Survey Grid Modal -->
     <div id="surveyGridModalOverlay" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <h2 id="surveyGridModalTitle">Create Survey Grid</h2>
@@ -79,7 +78,6 @@
             </div>
         </div>
     </div>
-
 
     <div class="app-container">
         <div class="sidebar">
@@ -129,6 +127,7 @@
             </div>
             
             <div class="section" id="multiWaypointEditControls" style="display: none; border-top: 2px solid #f39c12; background: rgba(52,73,94,0.5);">
+                <!-- Contenuto del pannello Multi-Edit come prima -->
                 <div class="section-title" style="color: #f39c12;" data-i18n-key="multiEditTitle" data-i18n-html="true">⚙️ Edit <span id="selectedWaypointsCount">0</span> Selected Waypoints</div>
                 <div class="control-group">
                     <label class="control-label" data-i18n-key="multiEditHeadingLabel">New Heading Control</label>
@@ -178,7 +177,8 @@
             </div>
 
             <div class="section" id="waypointControls" style="display: none;">
-                <div class="section-title" data-i18n-key="waypointSettingsTitle">⚙️ Waypoint Settings</div>
+                <!-- Contenuto del pannello Waypoint Settings come prima -->
+                 <div class="section-title" data-i18n-key="waypointSettingsTitle">⚙️ Waypoint Settings</div>
                 <div class="control-group">
                     <label class="control-label" data-i18n-key="altitudeLabel" data-i18n-html="true">Altitude (m) <span style="font-style: italic; color: #95a5a6;">(Rel. to Takeoff)</span></label>
                     <div class="slider-container">
@@ -229,7 +229,8 @@
             </div>
 
             <div class="section">
-                <div class="section-title" data-i18n-key="poiTitle">🎯 Points of Interest</div>
+                <!-- Sezione POI come definita nel messaggio precedente, con i nuovi campi -->
+                 <div class="section-title" data-i18n-key="poiTitle">🎯 Points of Interest</div>
                 <div class="control-group">
                     <input type="text" class="control-input" id="poiName" data-i18n-key="poiNamePlaceholder" placeholder="POI Name" maxlength="20">
                 </div>
@@ -255,23 +256,35 @@
 
             <div class="section">
                 <div class="section-title" data-i18n-key="terrainOrbitTitle">🏞️ Terrain & Orbit Tools</div>
-                 <div class="control-group">
+                <div class="control-group">
                     <label class="control-label" data-i18n-key="takeoffElevationLabel">Takeoff Point Elevation (MSL, m)</label>
                     <input type="number" class="control-input-small" id="homeElevationMsl" value="0" step="1">
                     <button class="btn-secondary" id="getHomeElevationBtn" style="width:auto; padding: 5px 10px; margin-left:10px; font-size:11px;" data-i18n-key="useWp1ElevationBtn">Use WP1 Elev.</button>
                 </div>
+                <hr style="border-color: #34495e; margin: 15px 0;">
+
+                <div class="section-title" style="font-size: 1em; margin-top:10px; margin-bottom:8px;" data-i18n-key="adaptPathAltTitle">Adatta Altitudini Percorso:</div>
+                
                 <div class="control-group">
-                    <label class="control-label" data-i18n-key="desiredAGLLabel">Desired Altitude Above Ground (AGL, m)</label>
-                    <input type="number" class="control-input-small" id="desiredAGL" value="50" min="5">
+                    <label class="control-label" data-i18n-key="desiredAGLLabel">Target Costante AGL (m):</label>
+                    <input type="number" class="control-input-small" id="desiredAGL" value="50" min="1">
                 </div>
-                <button class="btn" id="adaptToAGLBtn" data-i18n-key="adaptAGLBtn">Adapt Waypoint Altitudes to AGL</button>
+                <button class="btn" id="adaptToAGLBtn" data-i18n-key="adaptAGLBtn" style="margin-bottom:10px;">Imposta AGL Costante</button>
+
+                <div class="control-group">
+                    <label class="control-label" data-i18n-key="desiredAMSLLabel">Target Costante AMSL (m):</label>
+                    <input type="number" class="control-input-small" id="desiredAMSL" value="100" min="0">
+                </div>
+                <button class="btn" id="adaptToAMSLBtn" data-i18n-key="adaptAMSLBtn" style="margin-bottom:10px;">Imposta AMSL Costante</button>
+                
                 <hr style="border-color: #34495e; margin: 15px 0;">
                 <button class="btn" id="createOrbitBtn" data-i18n-key="createOrbitBtn">Create POI Orbit</button>
                 <button id="createSurveyGridBtn" class="sidebar-btn btn" data-i18n-key="createSurveyGridBtn">Create Survey Grid</button>
             </div>
 
             <div class="section">
-                <div class="section-title" data-i18n-key="fileOpsTitle">📁 File Operations</div>
+                <!-- Sezione File Operations come prima -->
+                 <div class="section-title" data-i18n-key="fileOpsTitle">📁 File Operations</div>
                 <button class="btn btn-secondary" id="importJsonBtn" data-i18n-key="importJsonBtn">Import Flight Plan (.json)</button>
                 <button class="btn btn-secondary" id="exportJsonBtn" data-i18n-key="exportJsonBtn">Export Flight Plan (.json)</button>
                 <button class="btn btn-secondary" id="exportKmzBtn" data-i18n-key="exportKmzBtn">Export DJI WPML (.kmz)</button>
@@ -279,7 +292,8 @@
             </div>
             
             <div class="section">
-                <div class="section-title" data-i18n-key="statsTitle">📊 Flight Statistics</div>
+                <!-- Sezione Flight Statistics come prima -->
+                 <div class="section-title" data-i18n-key="statsTitle">📊 Flight Statistics</div>
                 <div class="flight-stats">
                     <div class="stat-row"><span class="stat-label" data-i18n-key="statsTotalDistance">Total Distance:</span><span class="stat-value" id="totalDistance">0 m</span></div>
                     <div class="stat-row"><span class="stat-label" data-i18n-key="statsEstFlightTime">Est. Flight Time:</span><span class="stat-value" id="flightTime">0 min 0 sec</span></div>
@@ -287,7 +301,8 @@
                     <div class="stat-row"><span class="stat-label" data-i18n-key="statsPOIs">POIs:</span><span class="stat-value" id="poiCount">0</span></div>
                 </div>
             </div>
-        </div>
+        </div> <!-- Chiusura di .sidebar -->
+
         <div class="map-container">
             <div id="map"></div>
             <div class="map-controls">
@@ -295,9 +310,11 @@
                 <button class="map-btn" id="fitMapBtn" data-i18n-key="mapBtnFitView">🎯 Fit View</button>
                 <button class="map-btn" id="myLocationBtn" data-i18n-key="mapBtnMyLocation">📍 My Location</button>
             </div>
-        </div>
-    </div>
+        </div> 
+    </div> 
+
     <input type="file" id="fileInput" accept=".json" style="display: none;">
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     
