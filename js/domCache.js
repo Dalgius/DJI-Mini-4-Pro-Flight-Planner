@@ -3,28 +3,14 @@
 // Depends on: config.js (for variable declarations)
 
 function cacheDOMElements() {
-    // ... (Flight Settings, Waypoint Specific Controls - invariati) ...
-
-    // Sidebar Controls - POI
-    poiNameInput = document.getElementById('poiName');
-    // MODIFIED: Cache new POI input elements
-    poiObjectHeightInputEl = document.getElementById('poiObjectHeight');
-    poiTerrainElevationInputEl = document.getElementById('poiTerrainElevation');
-    poiFinalAltitudeDisplayEl = document.getElementById('poiFinalAltitudeDisplay');
-    refetchPoiTerrainBtnEl = document.getElementById('refetchPoiTerrainBtn');
-
-
-    // ... (Liste, Statistiche, Multi-Edit, Terrain/Orbit, Import/Export, Survey, Map Controls, General Actions, Modals - invariati) ...
-    // Copia le sezioni non modificate dal tuo file domCache.js esistente per completezza
-
-    // Flight Settings
+    // Sidebar Controls - Flight Settings
     defaultAltitudeSlider = document.getElementById('defaultAltitude');
     defaultAltitudeValueEl = document.getElementById('defaultAltitudeValue');
     flightSpeedSlider = document.getElementById('flightSpeed');
     flightSpeedValueEl = document.getElementById('flightSpeedValue');
     pathTypeSelect = document.getElementById('pathType');
 
-    // Waypoint Specific
+    // Sidebar Controls - Waypoint Specific
     waypointControlsDiv = document.getElementById('waypointControls');
     waypointAltitudeSlider = document.getElementById('waypointAltitude');
     waypointAltitudeValueEl = document.getElementById('waypointAltitudeValue');
@@ -40,18 +26,25 @@ function cacheDOMElements() {
     targetPoiSelect = document.getElementById('targetPoiSelect');
     cameraActionSelect = document.getElementById('cameraActionSelect');
     deleteSelectedWaypointBtn = document.getElementById('deleteSelectedWaypointBtn');
-    
-    // Lists
+
+    // Sidebar Controls - POI
+    poiNameInput = document.getElementById('poiName');
+    poiObjectHeightInputEl = document.getElementById('poiObjectHeight');
+    poiTerrainElevationInputEl = document.getElementById('poiTerrainElevation');
+    poiFinalAltitudeDisplayEl = document.getElementById('poiFinalAltitudeDisplay');
+    refetchPoiTerrainBtnEl = document.getElementById('refetchPoiTerrainBtn');
+
+    // Sidebar Display - Lists
     waypointListEl = document.getElementById('waypointList');
     poiListEl = document.getElementById('poiList');
 
-    // Statistics
+    // Sidebar Display - Flight Statistics
     totalDistanceEl = document.getElementById('totalDistance');
     flightTimeEl = document.getElementById('flightTime');
     waypointCountEl = document.getElementById('waypointCount');
     poiCountEl = document.getElementById('poiCount');
 
-    // Multi-Edit
+    // Sidebar Controls - Multi-Waypoint Edit
     multiWaypointEditControlsDiv = document.getElementById('multiWaypointEditControls');
     selectedWaypointsCountEl = document.getElementById('selectedWaypointsCount');
     selectAllWaypointsCheckboxEl = document.getElementById('selectAllWaypointsCheckbox');
@@ -71,28 +64,30 @@ function cacheDOMElements() {
     applyMultiEditBtn = document.getElementById('applyMultiEditBtn');
     clearMultiSelectionBtn = document.getElementById('clearMultiSelectionBtn');
 
-    // Terrain & Orbit
+    // Sidebar Controls - Terrain & Orbit Tools
     homeElevationMslInput = document.getElementById('homeElevationMsl');
     desiredAGLInput = document.getElementById('desiredAGL');
     adaptToAGLBtnEl = document.getElementById('adaptToAGLBtn');
+    desiredAMSLInputEl = document.getElementById('desiredAMSL'); // NUOVO
+    adaptToAMSLBtnEl = document.getElementById('adaptToAMSLBtn');   // NUOVO
     getHomeElevationBtn = document.getElementById('getHomeElevationBtn');
     createOrbitBtn = document.getElementById('createOrbitBtn');
 
-    // Import/Export
+    // Sidebar Controls - Import/Export
     importJsonBtn = document.getElementById('importJsonBtn');
     exportJsonBtn = document.getElementById('exportJsonBtn');
     exportKmzBtn = document.getElementById('exportKmzBtn');
     exportGoogleEarthBtn = document.getElementById('exportGoogleEarthBtn');
     fileInputEl = document.getElementById('fileInput');
 
-    // Survey Grid
+    // Survey Grid Button and Modal Elements
     createSurveyGridBtn = document.getElementById('createSurveyGridBtn');
     surveyGridModalOverlayEl = document.getElementById('surveyGridModalOverlay');
-    surveyGridModalTitleEl = document.getElementById('surveyGridModalTitle');
+    surveyGridModalTitleEl = document.getElementById('surveyGridModalTitle'); 
     surveyGridInstructionsEl = document.getElementById('surveyGridInstructions');
     surveyGridAltitudeInputEl = document.getElementById('surveyGridAltitudeInput');
-    surveySidelapInputEl = document.getElementById('surveySidelapInput');
-    surveyFrontlapInputEl = document.getElementById('surveyFrontlapInput');
+    surveySidelapInputEl = document.getElementById('surveySidelapInput'); 
+    surveyFrontlapInputEl = document.getElementById('surveyFrontlapInput'); 
     surveyGridAngleInputEl = document.getElementById('surveyGridAngleInput');
     surveyAreaStatusEl = document.getElementById('surveyAreaStatus');
     startDrawingSurveyAreaBtnEl = document.getElementById('startDrawingSurveyAreaBtn');
@@ -100,15 +95,15 @@ function cacheDOMElements() {
     confirmSurveyGridBtnEl = document.getElementById('confirmSurveyGridBtn');
     cancelSurveyGridBtnEl = document.getElementById('cancelSurveyGridBtn');
 
-    // Map Controls
+    // Map Control Buttons
     satelliteToggleBtn = document.getElementById('satelliteToggleBtn');
     fitMapBtn = document.getElementById('fitMapBtn');
     myLocationBtn = document.getElementById('myLocationBtn');
 
-    // General Actions
+    // General Action Buttons
     clearWaypointsBtn = document.getElementById('clearWaypointsBtn');
 
-    // Modals & Overlays
+    // Modal & Overlay Elements
     loadingOverlayEl = document.getElementById('loadingOverlay');
     customAlertOverlayEl = document.getElementById('customAlertOverlay');
     customAlertTitleEl = document.getElementById('customAlertTitle');
@@ -121,12 +116,12 @@ function cacheDOMElements() {
     confirmOrbitBtnEl = document.getElementById('confirmOrbitBtn');
     cancelOrbitBtnEl = document.getElementById('cancelOrbitBtn');
 
-
     // Initial UI state
     if (defaultAltitudeSlider && defaultAltitudeValueEl) defaultAltitudeValueEl.textContent = defaultAltitudeSlider.value + 'm';
     if (flightSpeedSlider && flightSpeedValueEl) flightSpeedValueEl.textContent = flightSpeedSlider.value + ' m/s';
-    // ... (altri stati iniziali come prima)
+    if (multiFixedHeadingSlider && multiFixedHeadingValueEl) multiFixedHeadingValueEl.textContent = multiFixedHeadingSlider.value + '°';
+    if (multiGimbalPitchSlider && multiGimbalPitchValueEl) multiGimbalPitchValueEl.textContent = multiGimbalPitchSlider.value + '°';
+    if (multiHoverTimeSlider && multiHoverTimeValueEl) multiHoverTimeValueEl.textContent = multiHoverTimeSlider.value + 's';
+    if (gimbalPitchSlider && gimbalPitchValueEl) gimbalPitchValueEl.textContent = gimbalPitchSlider.value + '°';
     if (poiFinalAltitudeDisplayEl) poiFinalAltitudeDisplayEl.textContent = "0.0 m";
-
-
 }
