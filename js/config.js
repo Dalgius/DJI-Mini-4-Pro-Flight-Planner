@@ -43,7 +43,6 @@ let cameraActionSelect;
 let deleteSelectedWaypointBtn;
 
 // POI Controls
-// MODIFIED: Added new POI input elements
 let poiNameInput, poiObjectHeightInputEl, poiTerrainElevationInputEl, poiFinalAltitudeDisplayEl, refetchPoiTerrainBtnEl;
 
 // List Display Elements
@@ -69,6 +68,7 @@ let surveyAreaStatusEl, startDrawingSurveyAreaBtnEl, finalizeSurveyAreaBtnEl, co
 
 // Terrain & Orbit Tools
 let homeElevationMslInput, desiredAGLInput, adaptToAGLBtnEl;
+let desiredAMSLInputEl, adaptToAMSLBtnEl; // NUOVI ELEMENTI per AMSL costante
 let getHomeElevationBtn, createOrbitBtn;
 
 // Import/Export Buttons
