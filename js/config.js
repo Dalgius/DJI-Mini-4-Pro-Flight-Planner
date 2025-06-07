@@ -8,6 +8,7 @@ let pois = [];
 let selectedWaypoint = null; 
 let flightPath = null; 
 let userLocationMarker = null; 
+let lastAltitudeAdaptationMode = 'relative'; // 'relative', 'agl', 'amsl'
 
 // --- Map Layers ---
 let defaultTileLayer;
@@ -68,8 +69,9 @@ let surveyAreaStatusEl, startDrawingSurveyAreaBtnEl, finalizeSurveyAreaBtnEl, co
 
 // Terrain & Orbit Tools
 let homeElevationMslInput, desiredAGLInput, adaptToAGLBtnEl;
-let desiredAMSLInputEl, adaptToAMSLBtnEl; // NUOVI ELEMENTI per AMSL costante
+let desiredAMSLInputEl, adaptToAMSLBtnEl; 
 let getHomeElevationBtn, createOrbitBtn;
+let currentPathModeInfoEl, currentPathModeValueEl; 
 
 // Import/Export Buttons
 let importJsonBtn, exportJsonBtn, exportKmzBtn, exportGoogleEarthBtn;
