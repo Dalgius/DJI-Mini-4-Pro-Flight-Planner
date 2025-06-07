@@ -40,6 +40,15 @@ function setupEventListeners() {
     if (multiChangeHoverTimeCheckbox) { multiChangeHoverTimeCheckbox.addEventListener('change', function() { if(!multiHoverTimeSlider) return; multiHoverTimeSlider.disabled = !this.checked; });}
     if (multiHoverTimeSlider) { multiHoverTimeSlider.addEventListener('input', function() { if (multiHoverTimeValueEl) multiHoverTimeValueEl.textContent = this.value + 's'; });}
     if (applyMultiEditBtn) { applyMultiEditBtn.addEventListener('click', applyMultiEdit); } 
+    if (applyMultiEditBtn) {
+    console.log("DEBUG eventListeners: Trovato applyMultiEditBtn, aggiungo listener."); // <<< AGGIUNGI QUESTO
+    applyMultiEditBtn.addEventListener('click', function() {
+        console.log("Pulsante 'Apply to Selected' CLICCATO! Chiamata a applyMultiEdit in corso...");
+        applyMultiEdit();
+    });
+} else {
+    console.error("DEBUG eventListeners: ERRORE - applyMultiEditBtn non trovato!"); // <<< AGGIUNGI QUESTO
+}
     if (clearMultiSelectionBtn) { clearMultiSelectionBtn.addEventListener('click', clearMultiSelection); }
 
 
