@@ -324,6 +324,23 @@ function updateMultiEditPanelVisibility() {
 /**
  * Updates the single waypoint editing controls in the sidebar with the selected waypoint's data.
  */
+function updatePathModeDisplay() {
+    if (!currentPathModeValueEl || typeof translate !== 'function') { // Assicurati che currentPathModeValueEl sia definito e translate esista
+        // console.warn("Elemento currentPathModeValueEl o funzione translate non trovati per updatePathModeDisplay.");
+        return;
+    }
+
+    let modeKey = 'pathModeRelative'; // Chiave i18n di default
+    if (lastAltitudeAdaptationMode === 'agl') {
+        modeKey = 'pathModeAGL';
+    } else if (lastAltitudeAdaptationMode === 'amsl') {
+        modeKey = 'pathModeAMSL';
+    }
+    
+    currentPathModeValueEl.textContent = translate(modeKey); // Usa la funzione di traduzione
+    currentPathModeValueEl.setAttribute('data-i18n-key', modeKey); // Aggiorna anche la chiave per cambi di lingua futuri
+}
+
 function updateSingleWaypointEditControls() {
     console.log("uiUpdater.js - updateSingleWaypointEditControls: Inizio. selectedWaypoint:", selectedWaypoint ? `ID ${selectedWaypoint.id}` : 'null'); 
     if (!selectedWaypoint || !waypointControlsDiv || !waypointAltitudeSlider || !hoverTimeSlider || !gimbalPitchSlider || !headingControlSelect || !fixedHeadingSlider || !cameraActionSelect) {
