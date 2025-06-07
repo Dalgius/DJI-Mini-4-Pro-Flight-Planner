@@ -107,7 +107,6 @@ function updateWaypointList() {
             aglText = `${(amslWaypoint - wp.terrainElevationMSL).toFixed(1)} m`;
         }
         
-        // Aggiungi il gimbal pitch alla visualizzazione nella lista
         const gimbalPitchInfo = ` | Gimbal: ${wp.gimbalPitch}°`;
 
         return `
@@ -122,7 +121,7 @@ function updateWaypointList() {
                     <div class="waypoint-header" style="margin-bottom: 2px;"><span class="waypoint-name">Waypoint ${wp.id}</span></div>
                     <div class="waypoint-coords" style="margin-bottom: 4px; font-size: 0.95em; color: #b0bec5;">Lat: ${wp.latlng.lat.toFixed(4)}, Lng: ${wp.latlng.lng.toFixed(4)}</div>
                     <div class="waypoint-altitudes" style="margin-bottom: 3px; color: #dfe6e9;">
-                        Alt. Volo (Rel): <strong>${altitudeRelToHome}m</strong>${hoverText}${gimbalPitchInfo}<br> {/* IL COMMENTO ERA QUI E VA RIMOSSO */}
+                        Alt. Volo (Rel): <strong>${altitudeRelToHome}m</strong>${hoverText}${gimbalPitchInfo}<br> 
                         Alt. AMSL: ${amslText}<br>
                         Alt. AGL: ${aglText}<br>
                         Elev. Terreno: ${terrainElevText}
