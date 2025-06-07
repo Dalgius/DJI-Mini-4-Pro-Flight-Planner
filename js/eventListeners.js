@@ -8,24 +8,23 @@ function setupEventListeners() {
     if (defaultAltitudeSlider) {
         defaultAltitudeSlider.addEventListener('input', () => {
             if (defaultAltitudeValueEl) defaultAltitudeValueEl.textContent = defaultAltitudeSlider.value + 'm';
-            // Se un waypoint è selezionato e in POI_TRACK, e la sua altitudine relativa al decollo
-            // è quella di default, allora il suo AMSL cambia e quindi il gimbal va ricalcolato.
-            // Tuttavia, questo è gestito meglio quando l'altitudine del waypoint viene modificata specificamente.
+            // Cambiare l'altitudine di default non dovrebbe impattare il gimbal dei WP esistenti
+            // a meno che non si applichi questa altitudine a un WP selezionato che è in poi_track.
+            // Questo è gestito quando si cambia l'altitudine del singolo waypoint.
         });
     }
     if (flightSpeedSlider) {
         flightSpeedSlider.addEventListener('input', () => {
             if (flightSpeedValueEl) flightSpeedValueEl.textContent = flightSpeedSlider.value + ' m/s';
             updateFlightStatistics(); 
-            // La velocità di volo non influisce direttamente sul gimbal pitch o sull'orientamento visivo dei marker
+            // La velocità non impatta direttamente il gimbal pitch
         });
     }
     if (pathTypeSelect) {
         pathTypeSelect.addEventListener('change', () => {
             updateFlightPath();
-            // Il tipo di percorso (curvo/dritto) non influisce sul calcolo del gimbal,
-            // ma potrebbe influenzare l'heading 'auto' se lo visualizzassimo diversamente.
-            // L'aggiornamento di tutti i marker qui è una misura di sicurezza.
+            // Il tipo di percorso non impatta direttamente il gimbal pitch per poi_track
+            // ma aggiorna l'aspetto delle frecce di heading 'auto'
             waypoints.forEach(wp => updateMarkerIconStyle(wp));
         });
     }
@@ -37,9 +36,8 @@ function setupEventListeners() {
             waypointAltitudeValueEl.textContent = waypointAltitudeSlider.value + 'm';
             selectedWaypoint.altitude = parseInt(waypointAltitudeSlider.value);
             updateWaypointList(); 
-            // Se il waypoint selezionato è in POI_TRACK, il cambio di altitudine WP ne influenza il gimbal
             if (selectedWaypoint.headingControl === 'poi_track') {
-                updateGimbalForPoiTrack(selectedWaypoint, true); // true per forzare update UI
+                updateGimbalForPoiTrack(selectedWaypoint, true); 
             }
         });
     }
@@ -56,12 +54,9 @@ function setupEventListeners() {
         gimbalPitchSlider.addEventListener('input', function() {
             if (!selectedWaypoint || !gimbalPitchValueEl) return;
             gimbalPitchValueEl.textContent = this.value + '°';
-            // Se l'utente imposta manualmente il gimbal, questo sovrascrive il calcolo automatico
-            // per la modalità POI_TRACK. Il calcolo automatico avviene solo quando
-            // si SELEZIONA POI_TRACK o si cambia il target/altitudini.
             selectedWaypoint.gimbalPitch = parseInt(this.value);
-            // Non chiamare updateGimbalForPoiTrack qui, altrimenti entrerebbe in loop
-            // o annullerebbe l'input manuale se headingControl è già 'poi_track'.
+            // L'input manuale del gimbal sovrascrive il calcolo automatico.
+            // Non chiamare updateGimbalForPoiTrack qui per evitare loop.
         });
     }
     if (fixedHeadingSlider) {
@@ -85,7 +80,7 @@ function setupEventListeners() {
 
             if (selectedValue === 'poi_track') {
                 populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Seleziona POI per Heading --");
-                updateGimbalForPoiTrack(selectedWaypoint, true); // Calcola gimbal quando si passa a POI_TRACK
+                updateGimbalForPoiTrack(selectedWaypoint, true); 
             } else {
                 selectedWaypoint.targetPoiId = null; 
             }
@@ -156,12 +151,13 @@ function setupEventListeners() {
             }
 
             if (poiToFetchFor) {
-                fetchAndUpdatePoiTerrainElevation(poiToFetchFor);
+                fetchAndUpdatePoiTerrainElevation(poiToFetchFor); // è async
             } else {
-                showCustomAlert("Nessun POI disponibile o selezionato per recuperare l'elevazione del terreno.", "Info");
+                showCustomAlert("Nessun POI per cui recuperare l'elevazione.", "Info");
             }
         });
     }
+
 
     // --- Multi-Waypoint Edit Panel ---
     if (selectAllWaypointsCheckboxEl) {
@@ -214,8 +210,32 @@ function setupEventListeners() {
     }
 
     // --- Terrain & Orbit Tools ---
-    if (getHomeElevationBtn) { getHomeElevationBtn.addEventListener('click', getHomeElevationFromFirstWaypoint); }
-    if (adaptToAGLBtnEl) { adaptToAGLBtnEl.addEventListener('click', adaptAltitudesToAGL); }
+    if (homeElevationMslInput) { // NUOVO LISTENER per il cambio manuale dell'elevazione di decollo
+        homeElevationMslInput.addEventListener('change', () => { 
+            console.log("Home Elevation MSL Input CAMBIATO manualmente. Ricalcolo gimbal per waypoint POI_TRACK.");
+            waypoints.forEach(wp => {
+                if (wp.headingControl === 'poi_track' && wp.targetPoiId !== null) {
+                    updateGimbalForPoiTrack(wp, (selectedWaypoint && selectedWaypoint.id === wp.id));
+                }
+            });
+            updateWaypointList(); 
+            if (selectedWaypoint) { 
+                updateSingleWaypointEditControls();
+            }
+        });
+    }
+    if (getHomeElevationBtn) { 
+        getHomeElevationBtn.addEventListener('click', () => { // Non c'è bisogno di 'async' qui
+            getHomeElevationFromFirstWaypoint(); // La funzione chiamata è async e gestirà il suo flusso.
+                                                 // getHomeElevationFromFirstWaypoint ora chiama i ricalcoli necessari.
+        }); 
+    }
+    if (adaptToAGLBtnEl) { 
+        adaptToAGLBtnEl.addEventListener('click', () => { // Non c'è bisogno di 'async' qui
+            adaptAltitudesToAGL(); // La funzione chiamata è async e gestirà il suo flusso.
+                                   // adaptAltitudesToAGL ora ricalcola i gimbal necessari.
+        }); 
+    }
     if (createOrbitBtn) { createOrbitBtn.addEventListener('click', showOrbitDialog); }
 
     // --- Survey Grid Modal ---
