@@ -2,14 +2,13 @@
 
 // Global dependencies (expected from other files):
 // waypoints, pois, flightSpeedSlider, pathTypeSelect, homeElevationMslInput,
-// waypointCounter, poiCounter, actionGroupCounter, actionCounter (from config.js)
+// waypointCounter, poiCounter, actionGroupCounter, actionCounter, lastAltitudeAdaptationMode (from config.js)
 // fileInputEl, poiNameInput, poiObjectHeightInputEl, poiTerrainElevationInputEl (from domCache.js)
 // showCustomAlert, getCameraActionText, haversineDistance, calculateBearing, toRad (from utils.js or global)
 // addWaypoint, addPOI, updateGimbalForPoiTrack (from waypointManager.js, poiManager.js)
 // JSZip (libreria esterna)
 // map (per POI import, se necessario)
 
-// Fallback per getCameraActionText se non definita globalmente
 if (typeof getCameraActionText === 'undefined') {
     function getCameraActionText(action) {
         switch (action) {
@@ -48,11 +47,11 @@ function handleFileImport(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = async (e) => { // Make onload async to await loadFlightPlan
+    reader.onload = async (e) => { 
         try {
             const importedPlan = JSON.parse(e.target.result);
             if(typeof loadFlightPlan === 'function') {
-                await loadFlightPlan(importedPlan); // Await if loadFlightPlan is async
+                await loadFlightPlan(importedPlan); 
             }
         } catch (err) {
             if(typeof showCustomAlert === 'function') showCustomAlert("Errore nel parsing del file del piano di volo: " + err.message, "Errore Import"); 
@@ -64,12 +63,9 @@ function handleFileImport(event) {
 }
 
 async function loadFlightPlan(plan) {
-    if(typeof clearWaypoints === 'function') clearWaypoints(); 
-    // clearWaypoints dovrebbe anche chiamare una funzione clearPOIs che resetta poiCounter
-    // Altrimenti, se clearWaypoints non gestisce i POI:
-    // if (pois) pois.forEach(p => { if (p.marker) map.removeLayer(p.marker); });
-    // pois = []; 
-    // poiCounter = 1;
+    if(typeof clearWaypoints === 'function') {
+        clearWaypoints(); 
+    }
 
     let maxImportedPoiId = 0;
     let maxImportedWaypointId = 0;
@@ -80,10 +76,15 @@ async function loadFlightPlan(plan) {
         if (flightSpeedSlider) flightSpeedSlider.value = plan.settings.flightSpeed || 8;
         if (flightSpeedValueEl) flightSpeedValueEl.textContent = flightSpeedSlider.value + ' m/s';
         if (pathTypeSelect) pathTypeSelect.value = plan.settings.pathType || 'straight';
-        // Non impostare waypointCounter e poiCounter qui, lo faremo alla fine
         if (homeElevationMslInput && typeof plan.settings.homeElevationMsl === 'number') {
             homeElevationMslInput.value = plan.settings.homeElevationMsl;
         }
+        lastAltitudeAdaptationMode = plan.settings.lastAltitudeAdaptationMode || 'relative';
+        if(desiredAGLInput && plan.settings.desiredAGL) desiredAGLInput.value = plan.settings.desiredAGL;
+        if(desiredAMSLInputEl && plan.settings.desiredAMSL) desiredAMSLInputEl.value = plan.settings.desiredAMSL;
+
+    } else {
+        lastAltitudeAdaptationMode = 'relative'; 
     }
 
     if (plan.pois && Array.isArray(plan.pois)) {
@@ -106,11 +107,15 @@ async function loadFlightPlan(plan) {
          plan.waypoints.forEach(wpData => { 
             const waypointOptions = {
                 id: wpData.id, 
-                altitude: wpData.altitude, hoverTime: wpData.hoverTime, gimbalPitch: wpData.gimbalPitch,
-                headingControl: wpData.headingControl, fixedHeading: wpData.fixedHeading,
+                altitude: wpData.altitude, 
+                hoverTime: wpData.hoverTime, 
+                gimbalPitch: wpData.gimbalPitch !== undefined ? wpData.gimbalPitch : 0, 
+                headingControl: wpData.headingControl, 
+                fixedHeading: wpData.fixedHeading,
                 cameraAction: wpData.cameraAction || 'none',
                 targetPoiId: wpData.targetPoiId === undefined ? null : wpData.targetPoiId,
-                terrainElevationMSL: wpData.terrainElevationMSL !== undefined ? wpData.terrainElevationMSL : null
+                terrainElevationMSL: wpData.terrainElevationMSL !== undefined ? wpData.terrainElevationMSL : null,
+                calledFromLoad: true 
             };
             if(typeof addWaypoint === 'function') addWaypoint(L.latLng(wpData.lat, wpData.lng), waypointOptions);
             if (wpData.id > maxImportedWaypointId) maxImportedWaypointId = wpData.id;
@@ -126,12 +131,17 @@ async function loadFlightPlan(plan) {
         poiTerrainElevationInputEl.value = '0';
         poiTerrainElevationInputEl.readOnly = true; 
     }
+    if(typeof updatePoiFinalAltitudeDisplay === "function") updatePoiFinalAltitudeDisplay(); 
+    lastActivePoiForTerrainFetch = null; 
+
 
     if(typeof updatePOIList === 'function') updatePOIList();
     if(typeof updateWaypointList === 'function') updateWaypointList();
-    if(typeof updateFlightPath === 'function') updateFlightPath();
+    if(typeof updateFlightPath === 'function') updateFlightPath(); 
     if(typeof updateFlightStatistics === 'function') updateFlightStatistics();
     if(typeof fitMapToWaypoints === 'function') fitMapToWaypoints();
+    if(typeof updatePathModeDisplay === "function") updatePathModeDisplay(); 
+
 
     if (waypoints.length > 0 && typeof selectWaypoint === 'function') {
         selectWaypoint(waypoints[0]); 
@@ -153,7 +163,7 @@ async function loadFlightPlan(plan) {
         updatePoiFinalAltitudeDisplay(); 
     }
 
-    console.log("LOADFLIGHTPLAN: Tentativo di ricalcolo gimbal per tutti i waypoint POI_TRACK...");
+    console.log("LOADFLIGHTPLAN: Ricalcolo finale gimbal per tutti i waypoint POI_TRACK...");
     waypoints.forEach(wp => {
         if (wp.headingControl === 'poi_track' && wp.targetPoiId !== null) {
             if (typeof updateGimbalForPoiTrack === "function") {
@@ -165,7 +175,6 @@ async function loadFlightPlan(plan) {
         updateSingleWaypointEditControls();
     }
     if (typeof updateWaypointList === "function") updateWaypointList(); 
-
 
     if(typeof showCustomAlert === 'function') showCustomAlert("Piano di volo importato con successo!", "Import Successo"); 
 }
@@ -198,8 +207,11 @@ function exportFlightPlanToJson() {
             flightSpeed: flightSpeedSlider ? parseFloat(flightSpeedSlider.value) : 5,
             pathType: pathTypeSelect ? pathTypeSelect.value : 'straight',
             nextWaypointId: waypointCounter, 
-            nextPoiId: poiCounter,       // Salva i contatori aggiornati
-            homeElevationMsl: homeElevationMslInput ? parseFloat(homeElevationMslInput.value) : 0
+            nextPoiId: poiCounter,       
+            homeElevationMsl: homeElevationMslInput ? parseFloat(homeElevationMslInput.value) : 0,
+            lastAltitudeAdaptationMode: lastAltitudeAdaptationMode, // Salva la modalità
+            desiredAGL: desiredAGLInput ? parseInt(desiredAGLInput.value) : 50, // Salva AGL target
+            desiredAMSL: desiredAMSLInputEl ? parseInt(desiredAMSLInputEl.value) : 100 // Salva AMSL target
         }
     };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(plan, null, 2));
@@ -274,14 +286,14 @@ function exportToDjiWpmlKmz() {
     let templateKmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
 <Document>
-  <wpml:author>fly</wpml:author>
+  <wpml:author>FlightPlanner</wpml:author> 
   <wpml:createTime>${createTimeMillis}</wpml:createTime>
   <wpml:updateTime>${createTimeMillis}</wpml:updateTime>
   <wpml:missionConfig>
     <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
     <wpml:finishAction>goHome</wpml:finishAction> 
     <wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>
-    <wpml:executeRCLostAction>hover</wpml:executeRCLostAction> 
+    <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction> 
     <wpml:globalTransitionalSpeed>${missionFlightSpeed.toFixed(1)}</wpml:globalTransitionalSpeed>
     <wpml:droneInfo><wpml:droneEnumValue>68</wpml:droneEnumValue><wpml:droneSubEnumValue>0</wpml:droneSubEnumValue></wpml:droneInfo>
     <wpml:payloadInfo><wpml:payloadEnumValue>0</wpml:payloadEnumValue><wpml:payloadSubEnumValue>0</wpml:payloadSubEnumValue><wpml:payloadPositionIndex>0</wpml:payloadPositionIndex></wpml:payloadInfo>
@@ -295,7 +307,7 @@ function exportToDjiWpmlKmz() {
     <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
     <wpml:finishAction>goHome</wpml:finishAction>
     <wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>
-    <wpml:executeRCLostAction>hover</wpml:executeRCLostAction>
+    <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction> 
     <wpml:globalTransitionalSpeed>${missionFlightSpeed.toFixed(1)}</wpml:globalTransitionalSpeed>
     <wpml:droneInfo><wpml:droneEnumValue>68</wpml:droneEnumValue><wpml:droneSubEnumValue>0</wpml:droneSubEnumValue></wpml:droneInfo>
   </wpml:missionConfig>
@@ -321,18 +333,23 @@ function exportToDjiWpmlKmz() {
         let poiPointXml = `          <wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>\n`;
 
         if (wp.headingControl === 'fixed' && typeof wp.fixedHeading === 'number') {
-            headingMode = 'smoothTransition'; 
+            headingMode = 'lockCourse'; 
             headingAngle = wp.fixedHeading;
-            if (headingAngle > 180) headingAngle -= 360; 
             headingAngleEnable = 1; 
             headingPathMode = 'followBadArc'; 
         } else if (wp.headingControl === 'poi_track' && wp.targetPoiId != null) {
             const targetPoi = pois.find(p => p.id === wp.targetPoiId);
             if (targetPoi) {
-                headingMode = 'towardPOI'; headingAngleEnable = 1; headingPathMode = 'followBadArc';
+                headingMode = 'towardPOI'; 
+                headingAngleEnable = (index === 0 || index === waypoints.length - 1 || waypoints[index-1]?.targetPoiId !== wp.targetPoiId || (index + 1 < waypoints.length && waypoints[index+1]?.targetPoiId !== wp.targetPoiId) ) ? 1 : 0;
+                headingPathMode = 'followBadArc';
                 let poiAltMSL = targetPoi.altitude; 
                 poiPointXml = `          <wpml:waypointPoiPoint>${targetPoi.latlng.lat.toFixed(6)},${targetPoi.latlng.lng.toFixed(6)},${parseFloat(poiAltMSL).toFixed(1)}</wpml:waypointPoiPoint>\n`; 
-            } else { headingMode = 'followWayline'; headingPathMode = 'followBadArc'; headingAngleEnable = 0;} 
+            } else { 
+                headingMode = 'followWayline'; 
+                headingPathMode = 'followBadArc'; 
+                headingAngleEnable = 0;
+            } 
         } else { 
             headingMode = 'followWayline'; 
             headingPathMode = 'followBadArc';
@@ -342,7 +359,6 @@ function exportToDjiWpmlKmz() {
             } else if (index > 0 && typeof calculateBearing === 'function') {
                  headingAngle = calculateBearing(waypoints[index-1].latlng, wp.latlng);
             } else { headingAngle = 0; }
-            if (headingAngle > 180) headingAngle -= 360;
         }
 
         waylinesWpmlContent += `          <wpml:waypointHeadingMode>${headingMode}</wpml:waypointHeadingMode>\n`;
@@ -353,24 +369,31 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `          <wpml:waypointHeadingPoiIndex>0</wpml:waypointHeadingPoiIndex>\n`; 
         waylinesWpmlContent += `        </wpml:waypointHeadingParam>\n`;
 
-        let turnMode, useStraight;
-        if (wp.headingControl === 'fixed' || missionPathType === 'straight') {
-            useStraight = '1';
-            turnMode = 'toPointAndStopWithDiscontinuityCurvature'; 
+        let turnMode;
+        if (index === 0 || index === waypoints.length - 1 || wp.headingControl === 'fixed' || missionPathType === 'straight') {
+            turnMode = (missionPathType === 'curved' && wp.headingControl !== 'fixed') ? 'toPointAndStopWithContinuityCurvature' : 'toPointAndStopWithDiscontinuityCurvature';
         } else { 
-            useStraight = '0';
-            turnMode = (index === 0 || index === waypoints.length - 1) ? 
-                       'toPointAndStopWithContinuityCurvature' : 
-                       'toPointAndPassWithContinuityCurvature';
+            turnMode = 'toPointAndPassWithContinuityCurvature';
         }
+        const useStraight = (missionPathType === 'straight' || wp.headingControl === 'fixed') ? '1' : '0';
+
         waylinesWpmlContent += `        <wpml:waypointTurnParam>\n`;
         waylinesWpmlContent += `          <wpml:waypointTurnMode>${turnMode}</wpml:waypointTurnMode>\n`;
         waylinesWpmlContent += `          <wpml:waypointTurnDampingDist>0.0</wpml:waypointTurnDampingDist>\n`;
         waylinesWpmlContent += `        </wpml:waypointTurnParam>\n`;
         waylinesWpmlContent += `        <wpml:useStraightLine>${useStraight}</wpml:useStraightLine>\n`;
 
+        let gimbalPitchForParam = 0; 
+        if(wp.headingControl !== 'poi_track' && typeof wp.gimbalPitch === 'number') {
+            gimbalPitchForParam = wp.gimbalPitch;
+        }
+        waylinesWpmlContent += `        <wpml:waypointGimbalHeadingParam>\n`;
+        waylinesWpmlContent += `          <wpml:waypointGimbalPitchAngle>${gimbalPitchForParam}</wpml:waypointGimbalPitchAngle>\n`;
+        waylinesWpmlContent += `          <wpml:waypointGimbalYawAngle>0</wpml:waypointGimbalYawAngle>\n`; 
+        waylinesWpmlContent += `        </wpml:waypointGimbalHeadingParam>\n`;
+
         let actionsXmlBlock = "";
-        if (typeof wp.gimbalPitch === 'number') {
+        if (typeof wp.gimbalPitch === 'number' && wp.headingControl !== 'poi_track') {
             actionsXmlBlock += `          <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId><wpml:actionActuatorFunc>gimbalRotate</wpml:actionActuatorFunc><wpml:actionActuatorFuncParam>`;
             actionsXmlBlock += `<wpml:gimbalPitchRotateEnable>1</wpml:gimbalPitchRotateEnable><wpml:gimbalPitchRotateAngle>${parseFloat(wp.gimbalPitch).toFixed(1)}</wpml:gimbalPitchRotateAngle>`;
             actionsXmlBlock += `<wpml:payloadPositionIndex>0</wpml:payloadPositionIndex><wpml:gimbalHeadingYawBase>aircraft</wpml:gimbalHeadingYawBase><wpml:gimbalRotateMode>absoluteAngle</wpml:gimbalRotateMode>`;
@@ -398,7 +421,7 @@ function exportToDjiWpmlKmz() {
         if (actionsXmlBlock) {
             waylinesWpmlContent += `        <wpml:actionGroup><wpml:actionGroupId>${actionGroupCounter++}</wpml:actionGroupId>`;
             waylinesWpmlContent += `<wpml:actionGroupStartIndex>${index}</wpml:actionGroupStartIndex><wpml:actionGroupEndIndex>${index}</wpml:actionGroupEndIndex>`;
-            waylinesWpmlContent += `<wpml:actionGroupMode>sequence</wpml:actionGroupMode>`;
+            waylinesWpmlContent += `<wpml:actionGroupMode>sequence</wpml:actionGroupMode>`; 
             waylinesWpmlContent += `<wpml:actionTrigger><wpml:actionTriggerType>reachPoint</wpml:actionTriggerType></wpml:actionTrigger>\n`;
             waylinesWpmlContent += actionsXmlBlock;
             waylinesWpmlContent += `        </wpml:actionGroup>\n`;
