@@ -1,11 +1,7 @@
 // File: uiUpdater.js
 
-// Depends on: config.js, utils.js, waypointManager.js, mapManager.js
+// Depends on: config.js, utils.js, waypointManager.js (for selectWaypoint, toggleMultiSelectWaypoint), mapManager.js (for updateMarkerIconStyle)
 
-// ... (updateFlightStatistics, populatePoiSelectDropdown, updateWaypointList - la parte di Waypoint non cambia) ...
-// (updateSingleWaypointEditControls, multiWaypointEditControlsDivIsVisible, ecc. non cambiano)
-
-// Copio le funzioni non modificate per completezza
 function updateFlightStatistics() {
     if (!totalDistanceEl || !flightTimeEl || !waypointCountEl || !poiCountEl || !flightSpeedSlider || !pathTypeSelect) return;
     let totalDist = 0;
@@ -51,7 +47,6 @@ function populatePoiSelectDropdown(selectElement, selectedPoiId = null, addDefau
     pois.forEach(poi => {
         const option = document.createElement('option');
         option.value = poi.id;
-        // MODIFIED: Show final AMSL altitude in dropdown
         option.textContent = `${poi.name} (ID: ${poi.id}, Alt.MSL: ${poi.altitude.toFixed(0)}m)`; 
         if (selectedPoiId !== null && poi.id === parseInt(selectedPoiId)) {
             option.selected = true;
@@ -103,6 +98,9 @@ function updateWaypointList() {
             const amslWaypoint = homeElevation + altitudeRelToHome;
             aglText = `${(amslWaypoint - wp.terrainElevationMSL).toFixed(1)} m`;
         }
+        // Aggiungi il gimbal pitch alla visualizzazione nella lista
+        const gimbalPitchInfo = ` | Gimbal: ${wp.gimbalPitch}°`;
+
         return `
         <div class="${itemClasses}" onclick="handleWaypointListItemClick(${wp.id})">
             <div style="display: flex; align-items: flex-start;"> 
@@ -115,7 +113,7 @@ function updateWaypointList() {
                     <div class="waypoint-header" style="margin-bottom: 2px;"><span class="waypoint-name">Waypoint ${wp.id}</span></div>
                     <div class="waypoint-coords" style="margin-bottom: 4px; font-size: 0.95em; color: #b0bec5;">Lat: ${wp.latlng.lat.toFixed(4)}, Lng: ${wp.latlng.lng.toFixed(4)}</div>
                     <div class="waypoint-altitudes" style="margin-bottom: 3px; color: #dfe6e9;">
-                        Alt. Volo (Rel): <strong>${altitudeRelToHome}m</strong>${hoverText}<br>
+                        Alt. Volo (Rel): <strong>${altitudeRelToHome}m</strong>${hoverText}${gimbalPitchInfo}<br> {/* Aggiunto gimbalPitchInfo */}
                         Alt. AMSL: ${amslText}<br>
                         Alt. AGL: ${aglText}<br>
                         Elev. Terreno: ${terrainElevText}
@@ -137,40 +135,33 @@ function multiWaypointEditControlsDivIsVisible() {
 function handleWaypointListItemClick(wpId) {
     const wp = waypoints.find(w => w.id === wpId);
     if (wp) {
+        console.log(`handleWaypointListItemClick: Selecting WP ${wpId}`);
         selectWaypoint(wp); 
     }
 }
 
 function handleWaypointListCheckboxChange(waypointId, isChecked) {
+    console.log(`handleWaypointListCheckboxChange: WP ID=${waypointId}, checked=${isChecked}`);
     toggleMultiSelectWaypoint(waypointId, isChecked); 
 }
 
-/**
- * Updates the display of the POI list in the sidebar.
- * Now includes inputs for POI Object Height and Terrain Elevation.
- */
 function updatePOIList() {
     if (!poiListEl) return;
     const noPoiAvailableText = "Nessun POI disponibile"; 
-
     if (pois.length === 0) {
         poiListEl.innerHTML = '<div style="text-align: center; color: #95a5a6; font-size: 12px; padding: 10px;">Nessun POI aggiunto</div>'; 
-        // ... (disabilitazione dropdown come prima) ...
         if (targetPoiSelect) { targetPoiSelect.disabled = true; targetPoiSelect.innerHTML = `<option value="">${noPoiAvailableText}</option>`;}
         if (multiTargetPoiSelect) { multiTargetPoiSelect.disabled = true; multiTargetPoiSelect.innerHTML = `<option value="">${noPoiAvailableText}</option>`;}
         if (orbitPoiSelectEl) { orbitPoiSelectEl.disabled = true; orbitPoiSelectEl.innerHTML = `<option value="">${noPoiAvailableText}</option>`;}
         return;
     }
-
     if (targetPoiSelect) targetPoiSelect.disabled = false;
     if (multiTargetPoiSelect) multiTargetPoiSelect.disabled = false;
     if (orbitPoiSelectEl) orbitPoiSelectEl.disabled = false;
-
     poiListEl.innerHTML = pois.map(poi => {
         const terrainElevDisplay = poi.terrainElevationMSL !== null ? poi.terrainElevationMSL.toFixed(1) : "N/A";
         const objectHeightDisplay = poi.objectHeightAboveGround !== null ? poi.objectHeightAboveGround.toFixed(1) : "0";
         const finalAMSLDisplay = poi.altitude.toFixed(1);
-
         return `
         <div class="poi-item" style="flex-direction: column; align-items: stretch; padding: 8px; margin-bottom: 6px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
@@ -184,15 +175,13 @@ function updatePOIList() {
                        onchange="handlePoiObjectHeightChange(${poi.id}, this.value)"
                        oninput="this.style.borderColor=''; this.title='';" 
                        title="Altezza dell'oggetto POI sopra il suo terreno di base">
-
                 <label for="poi_terrain_elev_${poi.id}" class="control-label" style="margin-bottom:0; white-space:nowrap;">Elev. Terreno (MSL):</label>
                 <input type="number" id="poi_terrain_elev_${poi.id}" class="control-input-small" 
                        value="${terrainElevDisplay === "N/A" ? "" : terrainElevDisplay}" step="1" style="width: 100%; padding: 2px 4px; font-size:10px; margin-left:0;"
                        onchange="handlePoiTerrainElevationChange(${poi.id}, this.value)"
                        oninput="this.style.borderColor=''; this.title='';"
-                       placeholder="${terrainElevDisplay === "N/A" ? "N/A (Modifica per impostare)" : ""}"
+                       placeholder="${terrainElevDisplay === "N/A" ? "N/A (Modifica)" : ""}"
                        title="Elevazione del terreno MSL alla base del POI.">
-                
                 <span class="control-label" style="margin-bottom:0; white-space:nowrap;">Alt. Finale (MSL):</span>
                 <strong style="color: #3498db; padding: 2px 4px;">${finalAMSLDisplay} m</strong>
             </div>
@@ -200,9 +189,6 @@ function updatePOIList() {
     }).join('');
 }
 
-/**
- * Handles changes to a POI's Object Height from the input field in the list.
- */
 function handlePoiObjectHeightChange(poiId, newHeightStr) {
     const poi = pois.find(p => p.id === poiId);
     const inputElement = document.getElementById(`poi_obj_h_${poiId}`);
@@ -210,17 +196,14 @@ function handlePoiObjectHeightChange(poiId, newHeightStr) {
         const heightValue = parseFloat(newHeightStr);
         if (!isNaN(heightValue) && heightValue >= 0) {
             poi.objectHeightAboveGround = heightValue;
-            poi.recalculateFinalAltitude(); // This updates poi.altitude and calls updateAllPoiDependentElements
-            updatePOIList(); // Ridisegna la lista per aggiornare l'AMSL finale e il valore dell'input
+            poi.recalculateFinalAltitude(); 
+            updatePOIList(); 
             inputElement.style.borderColor = '';
             inputElement.title = "Altezza dell'oggetto POI sopra il suo terreno di base";
-
-            // Se questo POI era l'ultimo attivo, aggiorna anche i campi nella sidebar principale
              if (lastActivePoiForTerrainFetch && lastActivePoiForTerrainFetch.id === poi.id) {
                 if (poiObjectHeightInputEl) poiObjectHeightInputEl.value = poi.objectHeightAboveGround;
                 updatePoiFinalAltitudeDisplay();
             }
-
         } else {
             inputElement.value = poi.objectHeightAboveGround; 
             inputElement.style.borderColor = 'red';
@@ -230,9 +213,6 @@ function handlePoiObjectHeightChange(poiId, newHeightStr) {
     }
 }
 
-/**
- * Handles changes to a POI's Terrain Elevation from the input field in the list.
- */
 function handlePoiTerrainElevationChange(poiId, newTerrainElevStr) {
     const poi = pois.find(p => p.id === poiId);
     const inputElement = document.getElementById(`poi_terrain_elev_${poiId}`);
@@ -244,13 +224,10 @@ function handlePoiTerrainElevationChange(poiId, newTerrainElevStr) {
             updatePOIList();
             inputElement.style.borderColor = '';
             inputElement.title = "Elevazione del terreno MSL alla base del POI.";
-
-            // Se questo POI era l'ultimo attivo, aggiorna anche i campi nella sidebar principale
             if (lastActivePoiForTerrainFetch && lastActivePoiForTerrainFetch.id === poi.id) {
                 if (poiTerrainElevationInputEl) poiTerrainElevationInputEl.value = poi.terrainElevationMSL;
                  updatePoiFinalAltitudeDisplay();
             }
-
         } else {
             inputElement.value = poi.terrainElevationMSL !== null ? poi.terrainElevationMSL : ""; 
             inputElement.style.borderColor = 'red';
@@ -262,49 +239,3 @@ function handlePoiTerrainElevationChange(poiId, newTerrainElevStr) {
 
 function updateMultiEditPanelVisibility() { /* ... come prima ... */ }
 function updateSingleWaypointEditControls() { /* ... come prima ... */ }
-// Copia il resto delle funzioni non modificate da uiUpdater.js
-function updateMultiEditPanelVisibility() {
-    if (!multiWaypointEditControlsDiv || !selectedWaypointsCountEl || !waypointControlsDiv) return;
-    const count = selectedForMultiEdit.size;
-    if (count > 0) {
-        multiWaypointEditControlsDiv.style.display = 'block';
-        selectedWaypointsCountEl.textContent = count;
-        waypointControlsDiv.style.display = 'none'; 
-        if (multiHeadingControlSelect && multiHeadingControlSelect.value === 'poi_track') {
-            populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Seleziona POI per tutti --"); 
-            if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'block';
-        } else {
-            if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'none';
-        }
-    } else {
-        multiWaypointEditControlsDiv.style.display = 'none';
-        if (selectedWaypoint) {
-            waypointControlsDiv.style.display = 'block';
-        } else {
-            waypointControlsDiv.style.display = 'none';
-        }
-    }
-}
-function updateSingleWaypointEditControls() {
-    if (!selectedWaypoint || !waypointControlsDiv || !waypointAltitudeSlider || !hoverTimeSlider || !gimbalPitchSlider || !headingControlSelect || !fixedHeadingSlider || !cameraActionSelect) {
-        if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
-        return;
-    }
-    waypointAltitudeSlider.value = selectedWaypoint.altitude;
-    if (waypointAltitudeValueEl) waypointAltitudeValueEl.textContent = selectedWaypoint.altitude + 'm';
-    hoverTimeSlider.value = selectedWaypoint.hoverTime;
-    if (hoverTimeValueEl) hoverTimeValueEl.textContent = selectedWaypoint.hoverTime + 's';
-    gimbalPitchSlider.value = selectedWaypoint.gimbalPitch;
-    if (gimbalPitchValueEl) gimbalPitchValueEl.textContent = selectedWaypoint.gimbalPitch + '°';
-    headingControlSelect.value = selectedWaypoint.headingControl;
-    fixedHeadingSlider.value = selectedWaypoint.fixedHeading;
-    if (fixedHeadingValueEl) fixedHeadingValueEl.textContent = selectedWaypoint.fixedHeading + '°';
-    cameraActionSelect.value = selectedWaypoint.cameraAction || 'none';
-    if (fixedHeadingGroupDiv) fixedHeadingGroupDiv.style.display = selectedWaypoint.headingControl === 'fixed' ? 'block' : 'none';
-    const showPoiSelect = selectedWaypoint.headingControl === 'poi_track';
-    if (targetPoiForHeadingGroupDiv) targetPoiForHeadingGroupDiv.style.display = showPoiSelect ? 'block' : 'none';
-    if (showPoiSelect) {
-        populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Seleziona POI per Heading --"); 
-    }
-    waypointControlsDiv.style.display = 'block';
-}
