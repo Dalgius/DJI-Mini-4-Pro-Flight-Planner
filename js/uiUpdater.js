@@ -57,6 +57,7 @@ function populatePoiSelectDropdown(selectElement, selectedPoiId = null, addDefau
 
 function updateWaypointList() {
     if (!waypointListEl || !selectAllWaypointsCheckboxEl) return;
+
     if (waypoints.length === 0) {
         waypointListEl.innerHTML = '<div style="text-align: center; color: #95a5a6; font-size: 12px; padding: 20px;">Clicca sulla mappa per aggiungere waypoint</div>';
         selectAllWaypointsCheckboxEl.checked = false;
@@ -65,11 +66,13 @@ function updateWaypointList() {
         return;
     }
     selectAllWaypointsCheckboxEl.disabled = false;
+
     let homeElevation = 0;
     if (homeElevationMslInput && homeElevationMslInput.value !== "") {
         homeElevation = parseFloat(homeElevationMslInput.value);
         if (isNaN(homeElevation)) homeElevation = 0; 
     }
+
     waypointListEl.innerHTML = waypoints.map(wp => {
         let actionText = getCameraActionText(wp.cameraAction);
         let hoverText = wp.hoverTime > 0 ? ` | Hover: ${wp.hoverTime}s` : '';
@@ -79,25 +82,31 @@ function updateWaypointList() {
             poiTargetText = target ? ` | Target: ${target.name}` : ` | Target: POI ID ${wp.targetPoiId} (not found)`;
         }
         let actionInfo = actionText ? `<div class="waypoint-action-info" style="margin-top:3px;">Azione: ${actionText}${poiTargetText}</div>` : (poiTargetText ? `<div class="waypoint-action-info" style="margin-top:3px;">${poiTargetText.substring(3)}</div>` : '');
+
         const isSelectedForMulti = selectedForMultiEdit.has(wp.id);
         let itemClasses = "waypoint-item";
+
         if (selectedWaypoint && wp.id === selectedWaypoint.id && waypointControlsDiv && waypointControlsDiv.style.display === 'block' && !multiWaypointEditControlsDivIsVisible()) {
              itemClasses += " selected";
         }
         if (isSelectedForMulti) {
             itemClasses += " multi-selected-item";
         }
+
         const altitudeRelToHome = wp.altitude; 
         const terrainElevText = wp.terrainElevationMSL !== null ? `${wp.terrainElevationMSL.toFixed(1)} m` : "N/A";
         let amslText = "N/A";
         let aglText = "N/A";
+
         if (typeof homeElevation === 'number') {
             amslText = `${(homeElevation + altitudeRelToHome).toFixed(1)} m`;
         }
+
         if (wp.terrainElevationMSL !== null && typeof homeElevation === 'number') {
             const amslWaypoint = homeElevation + altitudeRelToHome;
             aglText = `${(amslWaypoint - wp.terrainElevationMSL).toFixed(1)} m`;
         }
+        
         // Aggiungi il gimbal pitch alla visualizzazione nella lista
         const gimbalPitchInfo = ` | Gimbal: ${wp.gimbalPitch}°`;
 
@@ -113,7 +122,7 @@ function updateWaypointList() {
                     <div class="waypoint-header" style="margin-bottom: 2px;"><span class="waypoint-name">Waypoint ${wp.id}</span></div>
                     <div class="waypoint-coords" style="margin-bottom: 4px; font-size: 0.95em; color: #b0bec5;">Lat: ${wp.latlng.lat.toFixed(4)}, Lng: ${wp.latlng.lng.toFixed(4)}</div>
                     <div class="waypoint-altitudes" style="margin-bottom: 3px; color: #dfe6e9;">
-                        Alt. Volo (Rel): <strong>${altitudeRelToHome}m</strong>${hoverText}${gimbalPitchInfo}<br> {/* Aggiunto gimbalPitchInfo */}
+                        Alt. Volo (Rel): <strong>${altitudeRelToHome}m</strong>${hoverText}${gimbalPitchInfo}<br> {/* IL COMMENTO ERA QUI E VA RIMOSSO */}
                         Alt. AMSL: ${amslText}<br>
                         Alt. AGL: ${aglText}<br>
                         Elev. Terreno: ${terrainElevText}
@@ -123,10 +132,12 @@ function updateWaypointList() {
             </div>
         </div>`;
     }).join('');
+
     if (waypoints.length === 0 && selectedForMultiEdit.size === 0) {
         updateMultiEditPanelVisibility();
     }
 }
+
 
 function multiWaypointEditControlsDivIsVisible() {
     return multiWaypointEditControlsDiv && multiWaypointEditControlsDiv.style.display === 'block';
