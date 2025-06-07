@@ -2,6 +2,10 @@
 
 // Depends on: config.js (for variable declarations)
 
+// Variabile globale per memorizzare il riferimento iniziale al pulsante,
+// per verificare se viene ricreato dinamicamente.
+let initialApplyMultiEditBtnReference = null; 
+
 function cacheDOMElements() {
     // Sidebar Controls - Flight Settings
     defaultAltitudeSlider = document.getElementById('defaultAltitude');
@@ -61,8 +65,11 @@ function cacheDOMElements() {
     multiChangeHoverTimeCheckbox = document.getElementById('multiChangeHoverTimeCheckbox');
     multiHoverTimeSlider = document.getElementById('multiHoverTime');
     multiHoverTimeValueEl = document.getElementById('multiHoverTimeValue');
+    
     applyMultiEditBtn = document.getElementById('applyMultiEditBtn');
-    console.log("DEBUG domCache: applyMultiEditBtn =", applyMultiEditBtn);
+    initialApplyMultiEditBtnReference = applyMultiEditBtn; // Memorizza il riferimento iniziale
+    console.log("DEBUG domCache: applyMultiEditBtn =", applyMultiEditBtn); 
+    
     clearMultiSelectionBtn = document.getElementById('clearMultiSelectionBtn');
 
     // Sidebar Controls - Terrain & Orbit Tools
@@ -73,8 +80,8 @@ function cacheDOMElements() {
     adaptToAMSLBtnEl = document.getElementById('adaptToAMSLBtn');   
     getHomeElevationBtn = document.getElementById('getHomeElevationBtn');
     createOrbitBtn = document.getElementById('createOrbitBtn');
-    currentPathModeInfoEl = document.getElementById('currentPathModeInfo'); // Per visualizzare la modalità altitudine
-    currentPathModeValueEl = document.getElementById('currentPathModeValue'); // Per visualizzare la modalità altitudine
+    currentPathModeInfoEl = document.getElementById('currentPathModeInfo'); 
+    currentPathModeValueEl = document.getElementById('currentPathModeValue'); 
 
 
     // Sidebar Controls - Import/Export
@@ -128,11 +135,11 @@ function cacheDOMElements() {
     if (multiHoverTimeSlider && multiHoverTimeValueEl) multiHoverTimeValueEl.textContent = multiHoverTimeSlider.value + 's';
     if (gimbalPitchSlider && gimbalPitchValueEl) gimbalPitchValueEl.textContent = gimbalPitchSlider.value + '°';
     if (poiFinalAltitudeDisplayEl) poiFinalAltitudeDisplayEl.textContent = "0.0 m";
-    if (currentPathModeValueEl && typeof translate === "function") currentPathModeValueEl.textContent = translate('pathModeRelative'); // Inizializza testo modalità percorso
+    
     if (currentPathModeValueEl && typeof translate === "function") {
-    currentPathModeValueEl.textContent = translate('pathModeRelative'); 
-    currentPathModeValueEl.setAttribute('data-i18n-key', 'pathModeRelative');
-} else if (currentPathModeValueEl) { // Fallback se translate non è ancora pronto
-    currentPathModeValueEl.textContent = "Relative to Takeoff"; 
-}
+        currentPathModeValueEl.textContent = translate('pathModeRelative'); 
+        currentPathModeValueEl.setAttribute('data-i18n-key', 'pathModeRelative');
+    } else if (currentPathModeValueEl) { 
+        currentPathModeValueEl.textContent = "Relative to Takeoff"; 
+    }
 }
