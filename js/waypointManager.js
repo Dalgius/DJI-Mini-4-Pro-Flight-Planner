@@ -1,15 +1,18 @@
 // File: waypointManager.js
 
 // Depends on: config.js, utils.js (calculateRequiredGimbalPitch, haversineDistance), 
-// uiUpdater.js, mapManager.js, flightPathManager.js
+// uiUpdater.js, mapManager.js, flightPathManager.js, terrainManager.js (getElevationsBatch)
 
 /**
  * Adds a new waypoint to the map and list.
+ * If it's the first waypoint, attempts to set the home elevation.
  * @param {L.LatLng} latlng - The latitude and longitude for the new waypoint.
  * @param {object} [options={}] - Optional parameters {id, altitude, gimbalPitch, headingControl, targetPoiId, etc.}.
  */
-function addWaypoint(latlng, options = {}) {
+async function addWaypoint(latlng, options = {}) { // Made async to await terrain fetch for WP1
     if (!map || !defaultAltitudeSlider || !gimbalPitchSlider) return;
+
+    const isFirstWaypoint = waypoints.length === 0 && (options.id === undefined || options.id === 1); // True if it's the very first WP being added
 
     const newWaypoint = {
         id: options.id !== undefined ? options.id : waypointCounter++, 
@@ -24,21 +27,20 @@ function addWaypoint(latlng, options = {}) {
         terrainElevationMSL: options.terrainElevationMSL !== undefined ? options.terrainElevationMSL : null, 
         marker: null 
     };
-    // waypointCounter è già gestito sopra o in loadFlightPlan per l'import
     
     waypoints.push(newWaypoint);
 
-    const isHome = waypoints.length > 0 && newWaypoint.id === waypoints[0].id;
+    const isHomeForIcon = waypoints.length > 0 && newWaypoint.id === waypoints[0].id; // For styling the icon
     const marker = L.marker(newWaypoint.latlng, {
         draggable: true,
-        icon: createWaypointIcon(newWaypoint, false, false, isHome) 
+        icon: createWaypointIcon(newWaypoint, false, false, isHomeForIcon) 
     }).addTo(map);
 
     marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e); 
         selectWaypoint(newWaypoint);
     });
-    marker.on('dragend', () => {
+    marker.on('dragend', async () => { // dragend can be async for terrain fetch if WP1 moves
         newWaypoint.latlng = marker.getLatLng();
         updateFlightPath(); 
         updateFlightStatistics();
@@ -48,7 +50,29 @@ function addWaypoint(latlng, options = {}) {
         if (wpIndex > 0 && waypoints[wpIndex-1].headingControl === 'auto') { 
             updateMarkerIconStyle(waypoints[wpIndex-1]);
         }
-        if (newWaypoint.headingControl === 'poi_track') {
+
+        // If WP1 was dragged, re-fetch its terrain and update home elevation
+        if (newWaypoint.id === waypoints[0].id && typeof getElevationsBatch === "function" && homeElevationMslInput) {
+            console.log(`WP1 (ID: ${newWaypoint.id}) dragged. Attempting to update home elevation.`);
+            loadingOverlayEl.style.display = 'flex';
+            loadingOverlayEl.textContent = "Aggiornamento elevazione decollo da WP1...";
+            const elevations = await getElevationsBatch([{ lat: newWaypoint.latlng.lat, lng: newWaypoint.latlng.lng }]);
+            loadingOverlayEl.style.display = 'none';
+            if (elevations && elevations.length > 0 && elevations[0] !== null) {
+                homeElevationMslInput.value = Math.round(elevations[0]);
+                console.log(`Home elevation updated to ${homeElevationMslInput.value}m MSL from dragged WP1.`);
+                // Ricalcola gimbal per tutti i waypoint POI_TRACK perché home elevation è cambiata
+                waypoints.forEach(wp => {
+                    if (wp.headingControl === 'poi_track') {
+                        updateGimbalForPoiTrack(wp, selectedWaypoint && selectedWaypoint.id === wp.id);
+                    }
+                });
+                updateWaypointList(); // Aggiorna AGL/AMSL nella lista
+                if(selectedWaypoint) updateSingleWaypointEditControls();
+            } else {
+                console.warn("Failed to update home elevation after dragging WP1.");
+            }
+        } else if (newWaypoint.headingControl === 'poi_track') {
             updateGimbalForPoiTrack(newWaypoint, true); 
         }
     });
@@ -65,6 +89,7 @@ function addWaypoint(latlng, options = {}) {
     });
 
     marker.on('mouseover', function (e) {
+        // ... (codice popup come prima) ...
         let homeElevation = 0;
         if (homeElevationMslInput && homeElevationMslInput.value !== "") {
             homeElevation = parseFloat(homeElevationMslInput.value);
@@ -92,21 +117,41 @@ function addWaypoint(latlng, options = {}) {
             Gimbal: ${newWaypoint.gimbalPitch}° | Hover: ${newWaypoint.hoverTime}s
             </div>
         `;
-        if (!this.getPopup()) {
-            this.bindPopup(popupContent).openPopup();
-        } else {
-            this.setPopupContent(popupContent).openPopup();
-        }
+        if (!this.getPopup()) { this.bindPopup(popupContent).openPopup(); } 
+        else { this.setPopupContent(popupContent).openPopup(); }
     });
     newWaypoint.marker = marker;
 
-    if (waypoints.length > 1) {
+    // Se è il primo waypoint aggiunto (e non da un import che ha già un suo ID > 1)
+    if (isFirstWaypoint && typeof getElevationsBatch === "function" && homeElevationMslInput) {
+        console.log(`Primo waypoint (ID: ${newWaypoint.id}) aggiunto. Tento di impostare l'elevazione di decollo.`);
+        loadingOverlayEl.style.display = 'flex';
+        loadingOverlayEl.textContent = "Recupero elevazione decollo da WP1...";
+        const elevations = await getElevationsBatch([{ lat: newWaypoint.latlng.lat, lng: newWaypoint.latlng.lng }]);
+        loadingOverlayEl.style.display = 'none';
+        if (elevations && elevations.length > 0 && elevations[0] !== null) {
+            homeElevationMslInput.value = Math.round(elevations[0]);
+            console.log(`Elevazione decollo impostata a ${homeElevationMslInput.value}m MSL da WP1.`);
+            // Dopo aver impostato homeElevation, ricalcola il gimbal per tutti i waypoint POI_TRACK esistenti (anche se qui ce n'è solo uno)
+            waypoints.forEach(wp => {
+                if (wp.headingControl === 'poi_track') {
+                    updateGimbalForPoiTrack(wp, selectedWaypoint && selectedWaypoint.id === wp.id);
+                }
+            });
+            updateWaypointList(); // Aggiorna AGL/AMSL nella lista
+        } else {
+            console.warn("Impossibile recuperare l'elevazione per WP1 per impostare l'elevazione di decollo.");
+        }
+    } else if (waypoints.length > 1) { // Se non è il primo, aggiorna l'heading del precedente se era 'auto'
         const prevWpIndex = waypoints.length - 2; 
         const prevWp = waypoints[prevWpIndex];
         if (prevWp && prevWp.headingControl === 'auto') { 
             updateMarkerIconStyle(prevWp);
         }
     }
+    
+    // Se il nuovo waypoint è impostato su POI_TRACK (da options), calcola il suo gimbal pitch
+    // Questo è importante per l'importazione JSON
     if (newWaypoint.headingControl === 'poi_track' && newWaypoint.targetPoiId !== null) {
         updateGimbalForPoiTrack(newWaypoint);
     }
@@ -114,39 +159,44 @@ function addWaypoint(latlng, options = {}) {
     updateWaypointList();
     updateFlightPath();
     updateFlightStatistics();
-    if (options.id === undefined || options.calledFromLoad !== true) { // Non selezionare se chiamato da loadFlightPlan finché tutto non è caricato
+    
+    if (options.calledFromLoad !== true) { 
         selectWaypoint(newWaypoint); 
     }
 }
 
+// ... (selectWaypoint, deleteSelectedWaypoint, clearWaypoints - assicurati che clearWaypoints resetti anche i campi POI e lastActivePoiForTerrainFetch)
+// ... (toggleMultiSelectWaypoint, toggleSelectAllWaypoints, clearMultiSelection - come prima)
+// ... (updateGimbalForPoiTrack - come prima, con i log)
+// ... (applyMultiEdit - come prima, con il setTimeout e la logica di ricalcolo gimbal)
+
+// Per completezza, incollo il resto delle funzioni come le avevamo definite/corrette precedentemente.
+// Assicurati che queste siano le versioni che funzionano per te.
+
 function selectWaypoint(waypoint) {
     if (!waypoint) return;
     const previouslySelectedSingleId = selectedWaypoint ? selectedWaypoint.id : null;
-    
-    // Se si sta selezionando un singolo waypoint, e la modalità multi-selezione è attiva,
-    // si esce dalla modalità multi-selezione.
     if (selectedForMultiEdit.size > 0) {
         console.log("selectWaypoint: Uscita dalla modalità multi-selezione per selezionare un singolo waypoint.");
         clearMultiSelection(); 
     }
-
     selectedWaypoint = waypoint;
     if (previouslySelectedSingleId && previouslySelectedSingleId !== waypoint.id) {
         const prevWp = waypoints.find(wp => wp.id === previouslySelectedSingleId);
         if (prevWp) updateMarkerIconStyle(prevWp);
     }
     updateMarkerIconStyle(selectedWaypoint); 
-    waypoints.forEach(wp => { // Assicura che solo il selezionato abbia lo stile "selected"
-        if (wp.id !== selectedWaypoint.id && !selectedForMultiEdit.has(wp.id)) { // Non toccare quelli in multi-selezione (anche se non dovrebbe accadere qui)
+    waypoints.forEach(wp => { 
+        if (wp.id !== selectedWaypoint.id && !selectedForMultiEdit.has(wp.id)) { 
             updateMarkerIconStyle(wp); 
         }
     });
     updateSingleWaypointEditControls(); 
-    updateWaypointList(); // Aggiorna la lista per evidenziare il selezionato
+    updateWaypointList(); 
     if (selectedWaypoint.marker) {
         map.panTo(selectedWaypoint.latlng); 
     }
-    updateMultiEditPanelVisibility(); // Nasconde il pannello multi-edit, mostra quello singolo
+    updateMultiEditPanelVisibility(); 
 }
 
 function deleteSelectedWaypoint() {
@@ -162,7 +212,7 @@ function deleteSelectedWaypoint() {
     }
     waypoints = waypoints.filter(wp => wp.id !== deletedWaypointId);
 
-    if (selectedForMultiEdit.has(deletedWaypointId)) { // Rimuovi anche dalla multi-selezione se presente
+    if (selectedForMultiEdit.has(deletedWaypointId)) { 
         selectedForMultiEdit.delete(deletedWaypointId);
     }
     selectedWaypoint = null;
@@ -190,10 +240,10 @@ function clearWaypoints() {
     waypointCounter = 1; 
     actionGroupCounter = 1; 
     actionCounter = 1;    
-    clearMultiSelection(); // Questo svuota selectedForMultiEdit e aggiorna la UI del pannello multi-edit
+    clearMultiSelection(); 
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
     
-    if (typeof clearPOIs === "function") { // Se hai una funzione dedicata per i POI
+    if (typeof clearPOIs === "function") { 
         clearPOIs(); 
     } else { 
         if(pois) pois.forEach(p => { if(p.marker) map.removeLayer(p.marker); });
@@ -209,110 +259,79 @@ function clearWaypoints() {
         if(typeof updatePoiFinalAltitudeDisplay === "function") updatePoiFinalAltitudeDisplay();
         lastActivePoiForTerrainFetch = null;
     }
-    updateWaypointList(); // Aggiorna lista (mostrerà "nessun waypoint")
+    updateWaypointList();
     updateFlightPath();
     updateFlightStatistics();
 }
 
-/**
- * Toggles the multi-selection state of a single waypoint.
- * @param {number} waypointId - The ID of the waypoint to toggle.
- * @param {boolean} isChecked - The new checked state from the checkbox.
- */
 function toggleMultiSelectWaypoint(waypointId, isChecked) {
     const waypoint = waypoints.find(wp => wp.id === waypointId);
     if (!waypoint) {
         console.error(`toggleMultiSelectWaypoint: Waypoint con ID ${waypointId} non trovato.`);
         return;
     }
-
     console.log(`toggleMultiSelectWaypoint: WP ID=${waypointId}, checked=${isChecked}`);
-
     if (isChecked) {
         selectedForMultiEdit.add(waypointId);
-        // Se un singolo waypoint era selezionato, deselezionalo perché stiamo entrando in modalità multi-selezione
         if (selectedWaypoint) {
             console.log(`toggleMultiSelectWaypoint: Deseleziono WP singolo ${selectedWaypoint.id} perché inizia multi-selezione.`);
-            const oldSelectedWpObject = selectedWaypoint; // Salva l'oggetto
-            selectedWaypoint = null; // Rimuovi la selezione singola
-            if (waypointControlsDiv) waypointControlsDiv.style.display = 'none'; // Nascondi pannello modifica singola
-            updateMarkerIconStyle(oldSelectedWpObject); // Aggiorna lo stile del marker precedentemente selezionato
+            const oldSelectedWpObject = selectedWaypoint; 
+            selectedWaypoint = null; 
+            if (waypointControlsDiv) waypointControlsDiv.style.display = 'none'; 
+            updateMarkerIconStyle(oldSelectedWpObject); 
         }
     } else {
         selectedForMultiEdit.delete(waypointId);
     }
-
-    updateMarkerIconStyle(waypoint); // Aggiorna lo stile del marker del waypoint (de)selezionato
-
-    // Aggiorna lo stato della checkbox "Select/Deselect All"
+    updateMarkerIconStyle(waypoint); 
     if (selectAllWaypointsCheckboxEl) {
         const allCurrentlySelected = waypoints.length > 0 && waypoints.every(wp => selectedForMultiEdit.has(wp.id));
         selectAllWaypointsCheckboxEl.checked = allCurrentlySelected;
     }
-
-    updateWaypointList(); // Ridisegna la lista per riflettere gli stili di selezione
-    updateMultiEditPanelVisibility(); // Mostra/nascondi o aggiorna il pannello di modifica multipla
+    updateWaypointList(); 
+    updateMultiEditPanelVisibility(); 
     console.log("toggleMultiSelectWaypoint: selectedForMultiEdit Set:", Array.from(selectedForMultiEdit));
 }
 
-/**
- * Toggles the selection state of all waypoints for multi-editing.
- * @param {boolean} isChecked - True to select all, false to deselect all.
- */
 function toggleSelectAllWaypoints(isChecked) {
     console.log("toggleSelectAllWaypoints chiamata con isChecked:", isChecked);
-    
-    if (selectedWaypoint) { // Se c'era una selezione singola, annullala
+    if (selectedWaypoint) { 
         const oldSelectedWpObject = selectedWaypoint;
         selectedWaypoint = null;
         if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
-        updateMarkerIconStyle(oldSelectedWpObject); // Rimuovi lo stile di selezione singola dal marker
+        updateMarkerIconStyle(oldSelectedWpObject); 
     }
-    
-    selectedForMultiEdit.clear(); // Svuota sempre prima, poi ripopola se isChecked è true
+    selectedForMultiEdit.clear(); 
     if (isChecked && waypoints.length > 0) {
         waypoints.forEach(wp => selectedForMultiEdit.add(wp.id));
     }
-
-    waypoints.forEach(wp => updateMarkerIconStyle(wp)); // Aggiorna lo stile di tutti i marker
+    waypoints.forEach(wp => updateMarkerIconStyle(wp)); 
     updateWaypointList(); 
     updateMultiEditPanelVisibility(); 
     console.log("toggleSelectAllWaypoints: selectedForMultiEdit Set dopo operazione:", Array.from(selectedForMultiEdit));
 }
 
-/**
- * Clears the current multi-selection of waypoints.
- */
 function clearMultiSelection() {
     console.log("clearMultiSelection chiamata.");
-    const previouslyMultiSelectedIds = new Set(selectedForMultiEdit); // Copia per iterare
+    const previouslyMultiSelectedIds = new Set(selectedForMultiEdit); 
     selectedForMultiEdit.clear();
-
     if (selectAllWaypointsCheckboxEl) selectAllWaypointsCheckboxEl.checked = false;
-
     previouslyMultiSelectedIds.forEach(id => {
         const waypoint = waypoints.find(wp => wp.id === id);
         if (waypoint) updateMarkerIconStyle(waypoint); 
     });
-
     updateWaypointList(); 
     updateMultiEditPanelVisibility(); 
     console.log("clearMultiSelection: selectedForMultiEdit Set svuotato.");
 }
 
-/**
- * Updates the gimbal pitch of a waypoint if it is in POI_TRACK mode.
- * @param {object} waypoint - The waypoint object to update.
- * @param {boolean} [forceUpdateUI=false] - If true, forces update of single waypoint edit controls if this is the selected waypoint.
- */
 function updateGimbalForPoiTrack(waypoint, forceUpdateUI = false) {
-    // ... (funzione updateGimbalForPoiTrack come nella tua ultima versione corretta, con i log) ...
     if (!waypoint || waypoint.headingControl !== 'poi_track' || waypoint.targetPoiId === null) {
         return; 
     }
     const targetPoi = pois.find(p => p.id === waypoint.targetPoiId);
     if (!targetPoi) {
-        console.warn(`POI target ID ${waypoint.targetPoiId} non trovato per WP ${waypoint.id} durante calcolo gimbal.`);
+        // console.warn(`POI target ID ${waypoint.targetPoiId} non trovato per WP ${waypoint.id} durante calcolo gimbal.`);
         return; 
     }
     const homeElevation = parseFloat(homeElevationMslInput.value) || 0;
@@ -339,9 +358,7 @@ function updateGimbalForPoiTrack(waypoint, forceUpdateUI = false) {
     console.log(`--- updateGimbalForPoiTrack FINE per WP ${waypoint.id} (Gimbal ora è ${waypoint.gimbalPitch}°) ---`);
 }
 
-
 function applyMultiEdit() {
-    // ... (funzione applyMultiEdit come nella tua ultima versione corretta, con il setTimeout) ...
     if (selectedForMultiEdit.size === 0) { /* ... */ }
     if (!multiHeadingControlSelect /* ... */) { /* ... */ }
     const changeGimbalCheckboxState = multiChangeGimbalPitchCheckbox.checked;
