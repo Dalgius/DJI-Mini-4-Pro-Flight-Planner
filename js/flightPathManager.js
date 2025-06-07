@@ -1,10 +1,14 @@
 // File: flightPathManager.js
 
-// Depends on: config.js, utils.js, uiUpdater.js (for updateFlightStatistics), waypointManager.js 
-// Depends on: mapManager.js (for createWaypointIcon, updateMarkerIconStyle)
+// Depends on: config.js (map, pathTypeSelect, waypoints, flightPath, lastAltitudeAdaptationMode), 
+// utils.js (createSmoothPath, haversineDistance), 
+// uiUpdater.js (for updateFlightStatistics), 
+// waypointManager.js (addWaypoint - indiretto via handlePathClick, selectWaypoint - indiretto)
+// mapManager.js (createWaypointIcon - indiretto via handlePathClick)
 
 /**
  * Updates or redraws the flight path on the map based on current waypoints and path type.
+ * Also updates path color based on lastAltitudeAdaptationMode.
  */
 function updateFlightPath() {
     if (!map || !pathTypeSelect) return;
@@ -30,22 +34,30 @@ function updateFlightPath() {
         displayPathCoords = latlngsArrays; 
     }
 
+    // Determina il colore del percorso in base alla modalità di altitudine
+    let pathColor = '#3498db'; // Blu di default (per 'relative')
+    let pathDashArray = currentPathType === 'curved' ? null : '5, 5';
+
+    if (lastAltitudeAdaptationMode === 'agl') {
+        pathColor = '#27ae60'; // Verde più scuro per AGL
+        // pathDashArray = '10, 5'; // Esempio: tratteggio diverso per AGL
+    } else if (lastAltitudeAdaptationMode === 'amsl') {
+        pathColor = '#e67e22'; // Arancione più scuro per AMSL
+        // pathDashArray = '15, 7, 5, 7'; // Esempio: tratteggio diverso per AMSL
+    }
+    // Per 'relative', rimane il blu di default e il tratteggio basato su curved/straight.
+
     flightPath = L.polyline(displayPathCoords, {
-        color: '#3498db',
+        color: pathColor, 
         weight: 5, 
         opacity: 0.8,
-        dashArray: currentPathType === 'curved' ? null : '5, 5' 
+        dashArray: pathDashArray 
     }).addTo(map);
 
     flightPath.on('click', handlePathClick);
 
     updateFlightStatistics();
-    // Path changes can affect 'auto' headings, so update all waypoint markers
-    // This is a broad update; more targeted updates are in waypointManager for specific actions.
-    // Consider if this is too frequent or if specific actions cover it well enough.
-    // For now, specific actions in waypointManager and eventListeners should cover most cases.
-    // If issues persist, uncommenting this is an option:
-    // waypoints.forEach(wp => updateMarkerIconStyle(wp)); 
+    if(typeof updatePathModeDisplay === "function") updatePathModeDisplay(); // Assicura che il testo sia aggiornato
 }
 
 /**
@@ -60,7 +72,7 @@ function handlePathClick(e) {
 
     let insertAfterWaypointIndex = -1;
     let minDistanceToProjectedPoint = Infinity;
-    let insertionPointLatLng = clickedLatLng; // Default to actual click
+    let insertionPointLatLng = clickedLatLng; 
 
     for (let i = 0; i < waypoints.length - 1; i++) {
         const p1 = waypoints[i].latlng;
@@ -68,19 +80,19 @@ function handlePathClick(e) {
         let dist;
         if (L.GeometryUtil && typeof L.GeometryUtil.closestOnSegment === 'function') {
             const closestPointOnSegment = L.GeometryUtil.closestOnSegment(map, L.polyline([p1,p2]), clickedLatLng);
-            dist = clickedLatLng.distanceTo(closestPointOnSegment);
+            dist = clickedLatLng.distanceTo(closestPointOnSegment); // Distanza dal click al punto proiettato
             if (dist < minDistanceToProjectedPoint) {
                  minDistanceToProjectedPoint = dist;
                  insertAfterWaypointIndex = i;
-                 insertionPointLatLng = closestPointOnSegment; // Use the projected point
+                 insertionPointLatLng = closestPointOnSegment; 
             }
-        } else { // Fallback if GeometryUtil is not available or for simpler logic
+        } else { 
             const midPoint = L.latLng((p1.lat + p2.lat) / 2, (p1.lng + p2.lng) / 2);
             dist = clickedLatLng.distanceTo(midPoint);
              if (dist < minDistanceToProjectedPoint) {
                 minDistanceToProjectedPoint = dist;
                 insertAfterWaypointIndex = i;
-                insertionPointLatLng = clickedLatLng; // Use original click if no projection
+                insertionPointLatLng = clickedLatLng; 
             }
         }
     }
@@ -99,75 +111,95 @@ function handlePathClick(e) {
             }
         }
         newWpAltitude = Math.round(Math.max(5, newWpAltitude)); 
-
-        // Create the new waypoint object (will be fully setup by addWaypoint logic)
-        const newWaypointOptions = {
-            altitude: newWpAltitude,
-            // gimbalPitch, hoverTime etc. will use defaults from addWaypoint
-        };
         
-        // We need to manually create the waypoint object and marker here
-        // because addWaypoint pushes to the end.
-        const newWpId = waypointCounter++;
-        const newWaypoint = {
-            id: newWpId,
-            latlng: insertionPointLatLng,
+        const newWpId = waypointCounter; // Non incrementare qui, addWaypoint lo farà se options.id non è fornito
+
+        const newWaypointOptions = {
+            // id: newWpId, // L'ID sarà gestito da addWaypoint
             altitude: newWpAltitude,
             hoverTime: 0, 
             gimbalPitch: parseInt(gimbalPitchSlider ? gimbalPitchSlider.value : 0), 
+            headingControl: 'auto', // Default per waypoint inseriti
+            // terrainElevationMSL sarà null di default
+        };
+        
+        // Inserisci il nuovo waypoint nell'array waypoints PRIMA di chiamare addWaypoint,
+        // poi rimuovilo e lascia che addWaypoint lo aggiunga correttamente.
+        // O meglio, modifica addWaypoint per inserire a un indice specifico.
+        // Per ora, lo aggiungiamo e poi lo spostiamo, oppure modifichiamo addWaypoint
+        // Per semplicità, lo aggiungiamo e poi l'utente può spostarlo se necessario,
+        // oppure, se la logica di inserimento è complessa, andrebbe rivista.
+        // L'attuale `addWaypoint` aggiunge alla fine.
+        // Per inserire:
+        const tempNewWpObject = { // Creiamo un oggetto temporaneo solo per l'inserimento nell'array
+            id: newWpId, // Usiamo il contatore attuale per l'ID
+            latlng: insertionPointLatLng,
+            altitude: newWpAltitude,
+            hoverTime: 0,
+            gimbalPitch: parseInt(gimbalPitchSlider ? gimbalPitchSlider.value : 0),
             headingControl: 'auto',
             fixedHeading: 0,
             cameraAction: 'none',
             targetPoiId: null,
-            marker: null
+            terrainElevationMSL: null,
+            marker: null // Il marker sarà creato da addWaypoint
         };
-
-        waypoints.splice(insertAfterWaypointIndex + 1, 0, newWaypoint);
-
-        // Create marker after inserting into array so 'auto' heading can find neighbors
-        const isHome = waypoints.length > 0 && newWaypoint.id === waypoints[0].id; // Check if it became the home point
-        const marker = L.marker(newWaypoint.latlng, {
-            draggable: true,
-            icon: createWaypointIcon(newWaypoint, false, false, isHome)
-        }).addTo(map);
         
-        marker.on('click', (ev) => { L.DomEvent.stopPropagation(ev); selectWaypoint(newWaypoint); });
+        // Logica di inserimento manuale nell'array (più controllo)
+        // Incrementa il contatore DOPO averlo usato per il nuovo ID
+        waypointCounter++; 
+        waypoints.splice(insertAfterWaypointIndex + 1, 0, tempNewWpObject);
+        
+        // Crea il marker e aggiungilo all'oggetto
+        const isHome = waypoints.length > 0 && tempNewWpObject.id === waypoints[0].id;
+        const marker = L.marker(tempNewWpObject.latlng, {
+            draggable: true,
+            icon: createWaypointIcon(tempNewWpObject, false, false, isHome)
+        }).addTo(map);
+
+        marker.on('click', (ev) => { L.DomEvent.stopPropagation(ev); selectWaypoint(tempNewWpObject); });
         marker.on('dragend', () => {
-            newWaypoint.latlng = marker.getLatLng();
+            tempNewWpObject.latlng = marker.getLatLng();
             updateFlightPath();
             updateFlightStatistics();
             updateWaypointList();
-            updateMarkerIconStyle(newWaypoint); // Update self
-            const currentIndex = waypoints.findIndex(wp => wp.id === newWaypoint.id);
-            if (currentIndex > 0 && waypoints[currentIndex-1].headingControl === 'auto') {
-                updateMarkerIconStyle(waypoints[currentIndex-1]); // Update previous
+            updateMarkerIconStyle(tempNewWpObject);
+            const wpIndex = waypoints.findIndex(wp => wp.id === tempNewWpObject.id);
+            if (wpIndex > 0 && waypoints[wpIndex-1].headingControl === 'auto') {
+                updateMarkerIconStyle(waypoints[wpIndex-1]);
             }
-            if (currentIndex < waypoints.length - 1 && waypoints[currentIndex+1].headingControl === 'auto') {
-                // Next waypoint's auto heading doesn't change based on *this* one moving, but its *own* next.
-                // However, if this current one is the one *before* the next, this marker update is sufficient.
-            }
+            if (tempNewWpObject.headingControl === 'poi_track') updateGimbalForPoiTrack(tempNewWpObject, true);
         });
-        marker.on('drag', () => {
-            newWaypoint.latlng = marker.getLatLng();
+         marker.on('drag', () => { 
+            tempNewWpObject.latlng = marker.getLatLng();
             updateFlightPath(); 
+            if(tempNewWpObject.headingControl === 'poi_track'){ 
+                 updateGimbalForPoiTrack(tempNewWpObject);
+                 if(selectedWaypoint && selectedWaypoint.id === tempNewWpObject.id && gimbalPitchSlider && gimbalPitchValueEl){ 
+                    gimbalPitchSlider.value = tempNewWpObject.gimbalPitch;
+                    gimbalPitchValueEl.textContent = tempNewWpObject.gimbalPitch + '°';
+                 }
+            }
         });
-        newWaypoint.marker = marker;
+        tempNewWpObject.marker = marker;
 
-        // Update heading of the waypoint BEFORE the newly inserted one if it's 'auto'
+        // Aggiorna heading dei vicini
         if (insertAfterWaypointIndex >= 0 && waypoints[insertAfterWaypointIndex].headingControl === 'auto') {
             updateMarkerIconStyle(waypoints[insertAfterWaypointIndex]);
         }
-        // The new waypoint itself will be updated by selectWaypoint call.
-        // The waypoint AFTER the newly inserted one (if 'auto') does not need its heading updated
-        // as its "next" waypoint hasn't changed relative to itself.
+        if (insertAfterWaypointIndex + 2 < waypoints.length && waypoints[insertAfterWaypointIndex + 2].headingControl === 'auto') { // Waypoint dopo quello inserito
+             updateMarkerIconStyle(waypoints[insertAfterWaypointIndex + 2]);
+        }
+         updateMarkerIconStyle(tempNewWpObject); // Aggiorna il nuovo
+
 
         updateWaypointList();
         updateFlightPath(); 
         updateFlightStatistics();
-        selectWaypoint(newWaypoint); 
+        selectWaypoint(tempNewWpObject); 
 
-        showCustomAlert(`Waypoint ${newWaypoint.id} inserted.`, "Info");
+        showCustomAlert(`Waypoint ${tempNewWpObject.id} inserito nel percorso.`, "Info");
     } else {
-        showCustomAlert("Could not determine insertion point on the path.", "Error");
+        showCustomAlert("Impossibile determinare il punto di inserimento sul percorso.", "Errore");
     }
 }
