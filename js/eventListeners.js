@@ -7,7 +7,6 @@
 
 function setupEventListeners() {
     // --- Language Selector ---
-    // The `langSelect` element is cached in domCache.js
     if (typeof langSelect !== 'undefined' && langSelect) {
         langSelect.addEventListener('change', (e) => setLanguage(e.target.value));
     }
@@ -211,7 +210,6 @@ function setupEventListeners() {
         if (typeof initialApplyMultiEditBtnReference !== 'undefined' && applyMultiEditBtn !== initialApplyMultiEditBtnReference && initialApplyMultiEditBtnReference !== null) {
             console.error("DEBUG eventListeners: ERRORE GRAVE - applyMultiEditBtn è stato ricreato dopo domCache!");
         }
-
         applyMultiEditBtn.addEventListener('click', applyMultiEdit); 
     } else {
          console.error("DEBUG eventListeners: ERRORE - applyMultiEditBtn non trovato durante setupEventListeners!");
@@ -223,7 +221,6 @@ function setupEventListeners() {
     // --- Terrain & Orbit Tools ---
     if (homeElevationMslInput) { 
         homeElevationMslInput.addEventListener('change', () => { 
-            console.log("Home Elevation MSL Input CAMBIATO manualmente. Ricalcolo gimbal per waypoint POI_TRACK e default AMSL target.");
             if (typeof updateDefaultDesiredAMSLTarget === "function") { 
                 updateDefaultDesiredAMSLTarget();
             }
