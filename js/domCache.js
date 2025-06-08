@@ -36,6 +36,9 @@ function cacheDOMElements() {
     poiTerrainElevationInputEl = document.getElementById('poiTerrainElevation');
     poiFinalAltitudeDisplayEl = document.getElementById('poiFinalAltitudeDisplay');
     refetchPoiTerrainBtnEl = document.getElementById('refetchPoiTerrainBtn');
+    
+    // Language selector
+    langSelect = document.getElementById('langSelect');
 
     // Sidebar Display - Lists
     waypointListEl = document.getElementById('waypointList');
@@ -49,7 +52,7 @@ function cacheDOMElements() {
 
     // Sidebar Controls - Multi-Waypoint Edit
     multiWaypointEditControlsDiv = document.getElementById('multiWaypointEditControls');
-    selectedWaypointsCountEl = document.getElementById('selectedWaypointsCount');
+    // selectedWaypointsCountEl no longer exists, title is built dynamically
     selectAllWaypointsCheckboxEl = document.getElementById('selectAllWaypointsCheckbox');
     multiHeadingControlSelect = document.getElementById('multiHeadingControl');
     multiFixedHeadingGroupDiv = document.getElementById('multiFixedHeadingGroup');
@@ -67,7 +70,6 @@ function cacheDOMElements() {
     
     applyMultiEditBtn = document.getElementById('applyMultiEditBtn');
     initialApplyMultiEditBtnReference = applyMultiEditBtn; 
-    // console.log("DEBUG domCache: applyMultiEditBtn =", applyMultiEditBtn); 
     
     clearMultiSelectionBtn = document.getElementById('clearMultiSelectionBtn');
 
@@ -134,13 +136,10 @@ function cacheDOMElements() {
     if (gimbalPitchSlider && gimbalPitchValueEl) gimbalPitchValueEl.textContent = gimbalPitchSlider.value + '°';
     if (poiFinalAltitudeDisplayEl) poiFinalAltitudeDisplayEl.textContent = "0.0 m";
     
-    // Imposta il valore iniziale per desiredAMSLInputEl e testo modalità percorso
     if (typeof updateDefaultDesiredAMSLTarget === "function") { 
         updateDefaultDesiredAMSLTarget();
     }
     if (typeof updatePathModeDisplay === "function") {
         updatePathModeDisplay();
-    } else if (currentPathModeValueEl) { // Fallback se translate/updatePathModeDisplay non sono pronti
-        currentPathModeValueEl.textContent = "Relative to Takeoff"; 
     }
 }
