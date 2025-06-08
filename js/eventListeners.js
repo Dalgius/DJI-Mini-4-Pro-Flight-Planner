@@ -3,12 +3,16 @@
 // Depends on: config.js (for DOM element vars, initialApplyMultiEditBtnReference), 
 // domCache.js (to ensure elements are cached)
 // Depends on: All manager modules for their respective functions called by event handlers
+// Depends on: i18n.js (per la funzione translate)
 
 function setupEventListeners() {
     // --- Flight Settings Panel ---
     if (defaultAltitudeSlider) {
         defaultAltitudeSlider.addEventListener('input', () => {
             if (defaultAltitudeValueEl) defaultAltitudeValueEl.textContent = defaultAltitudeSlider.value + 'm';
+            if (typeof updateDefaultDesiredAMSLTarget === "function") { 
+                updateDefaultDesiredAMSLTarget();
+            }
         });
     }
     if (flightSpeedSlider) {
@@ -34,7 +38,7 @@ function setupEventListeners() {
             waypointAltitudeValueEl.textContent = waypointAltitudeSlider.value + 'm';
             selectedWaypoint.altitude = parseInt(waypointAltitudeSlider.value);
             updateWaypointList(); 
-            if (selectedWaypoint.headingControl === 'poi_track') {
+            if (selectedWaypoint.headingControl === 'poi_track' && typeof updateGimbalForPoiTrack === "function") {
                 updateGimbalForPoiTrack(selectedWaypoint, true); 
             }
         });
@@ -75,8 +79,8 @@ function setupEventListeners() {
             targetPoiForHeadingGroupDiv.style.display = selectedValue === 'poi_track' ? 'block' : 'none';
 
             if (selectedValue === 'poi_track') {
-                populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, "-- Seleziona POI per Heading --");
-                updateGimbalForPoiTrack(selectedWaypoint, true); 
+                populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, translate('selectPoiForHeadingDropdown'));
+                if (typeof updateGimbalForPoiTrack === "function") updateGimbalForPoiTrack(selectedWaypoint, true); 
             } else {
                 selectedWaypoint.targetPoiId = null; 
             }
@@ -91,7 +95,7 @@ function setupEventListeners() {
                 updateWaypointList(); 
                 if (selectedWaypoint.headingControl === 'poi_track') {
                     updateMarkerIconStyle(selectedWaypoint); 
-                    updateGimbalForPoiTrack(selectedWaypoint, true); 
+                    if (typeof updateGimbalForPoiTrack === "function") updateGimbalForPoiTrack(selectedWaypoint, true); 
                 }
             }
         });
@@ -146,14 +150,13 @@ function setupEventListeners() {
                 poiToFetchFor = pois[pois.length - 1]; 
             }
 
-            if (poiToFetchFor) {
+            if (poiToFetchFor && typeof fetchAndUpdatePoiTerrainElevation === "function") {
                 fetchAndUpdatePoiTerrainElevation(poiToFetchFor); 
             } else {
-                showCustomAlert("Nessun POI per cui recuperare l'elevazione.", "Info");
+                showCustomAlert(translate('alert_noPoiForTerrainFetch'), translate('infoTitle'));
             }
         });
     }
-
 
     // --- Multi-Waypoint Edit Panel ---
     if (selectAllWaypointsCheckboxEl) {
@@ -167,7 +170,7 @@ function setupEventListeners() {
             multiFixedHeadingGroupDiv.style.display = showFixed ? 'block' : 'none';
             multiTargetPoiForHeadingGroupDiv.style.display = showPoiTarget ? 'block' : 'none';
             if (showPoiTarget) {
-                populatePoiSelectDropdown(multiTargetPoiSelect, null, true, "-- Seleziona POI per tutti --"); 
+                populatePoiSelectDropdown(multiTargetPoiSelect, null, true, translate('multiEditSelectPoiDropdown')); 
             }
         });
     }
@@ -198,39 +201,18 @@ function setupEventListeners() {
             if (multiHoverTimeValueEl) multiHoverTimeValueEl.textContent = this.value + 's'; 
         });
     }
-
-    // Listener per applyMultiEditBtn con controllo sulla referenza
-    if (applyMultiEditBtn) {
-        if (typeof initialApplyMultiEditBtnReference !== 'undefined' && applyMultiEditBtn !== initialApplyMultiEditBtnReference) {
-            console.error("DEBUG eventListeners: ERRORE GRAVE - applyMultiEditBtn è stato ricreato dopo domCache! Il listener potrebbe non funzionare o essere attaccato all'elemento sbagliato.");
-        } else {
-            console.log("DEBUG eventListeners: Trovato applyMultiEditBtn (riferimento iniziale OK), aggiungo listener.");
+    if (applyMultiEditBtn) { 
+        // Controllo sulla referenza del pulsante
+        if (typeof initialApplyMultiEditBtnReference !== 'undefined' && applyMultiEditBtn !== initialApplyMultiEditBtnReference && initialApplyMultiEditBtnReference !== null) {
+            console.error("DEBUG eventListeners: ERRORE GRAVE - applyMultiEditBtn è stato ricreato dopo domCache!");
+        } else if (initialApplyMultiEditBtnReference === null && applyMultiEditBtn) {
+             // console.log("DEBUG eventListeners: applyMultiEditBtn trovato, initialApplyMultiEditBtnReference era null (ok al primo giro).");
         }
-        
-        applyMultiEditBtn.addEventListener('click', function() {
-            console.log("Pulsante 'Apply to Selected' CLICCATO! Chiamata a applyMultiEdit in corso...");
-            applyMultiEdit();
-        });
-    } else {
-        console.error("DEBUG eventListeners: ERRORE - applyMultiEditBtn non trovato durante setupEventListeners!");
-    }
-    
-    /*
-    // OPZIONE ALTERNATIVA: DELEGA DEGLI EVENTI
-    const multiEditControlsPanel = document.getElementById('multiWaypointEditControls');
-    if (multiEditControlsPanel) {
-        console.log("DEBUG eventListeners: Aggiungo listener DELEGATO a multiEditControlsPanel per applyMultiEditBtn");
-        multiEditControlsPanel.addEventListener('click', function(event) {
-            if (event.target.closest('#applyMultiEditBtn')) { 
-                console.log("Pulsante 'Apply to Selected' CLICCATO (via delega)! Chiamata a applyMultiEdit in corso...");
-                applyMultiEdit();
-            }
-        });
-    } else {
-        console.error("DEBUG eventListeners: ERRORE - multiEditControlsPanel non trovato per la delega degli eventi!");
-    }
-    */
 
+        applyMultiEditBtn.addEventListener('click', applyMultiEdit); 
+    } else {
+         console.error("DEBUG eventListeners: ERRORE - applyMultiEditBtn non trovato durante setupEventListeners!");
+    }
     if (clearMultiSelectionBtn) { 
         clearMultiSelectionBtn.addEventListener('click', clearMultiSelection); 
     }
@@ -238,31 +220,34 @@ function setupEventListeners() {
     // --- Terrain & Orbit Tools ---
     if (homeElevationMslInput) { 
         homeElevationMslInput.addEventListener('change', () => { 
-            console.log("Home Elevation MSL Input CAMBIATO manualmente. Ricalcolo gimbal per waypoint POI_TRACK.");
+            console.log("Home Elevation MSL Input CAMBIATO manualmente. Ricalcolo gimbal per waypoint POI_TRACK e default AMSL target.");
+            if (typeof updateDefaultDesiredAMSLTarget === "function") { 
+                updateDefaultDesiredAMSLTarget();
+            }
             waypoints.forEach(wp => {
-                if (wp.headingControl === 'poi_track' && wp.targetPoiId !== null) {
+                if (wp.headingControl === 'poi_track' && wp.targetPoiId !== null && typeof updateGimbalForPoiTrack === "function") {
                     updateGimbalForPoiTrack(wp, (selectedWaypoint && selectedWaypoint.id === wp.id));
                 }
             });
             updateWaypointList(); 
-            if (selectedWaypoint) { 
+            if (selectedWaypoint && typeof updateSingleWaypointEditControls === "function") { 
                 updateSingleWaypointEditControls();
             }
         });
     }
     if (getHomeElevationBtn) { 
         getHomeElevationBtn.addEventListener('click', () => { 
-            getHomeElevationFromFirstWaypoint(); 
+            if(typeof getHomeElevationFromFirstWaypoint === "function") getHomeElevationFromFirstWaypoint(); 
         }); 
     }
     if (adaptToAGLBtnEl) { 
         adaptToAGLBtnEl.addEventListener('click', () => { 
-            adaptAltitudesToAGL(); 
+            if(typeof adaptAltitudesToAGL === "function") adaptAltitudesToAGL(); 
         }); 
     }
     if (adaptToAMSLBtnEl) {
         adaptToAMSLBtnEl.addEventListener('click', () => {
-            adaptAltitudesToAMSL(); 
+            if(typeof adaptAltitudesToAMSL === "function") adaptAltitudesToAMSL(); 
         });
     }
     if (createOrbitBtn) { createOrbitBtn.addEventListener('click', showOrbitDialog); }
