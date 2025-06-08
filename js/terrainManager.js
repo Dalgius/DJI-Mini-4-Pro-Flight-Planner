@@ -150,7 +150,6 @@ async function adaptAltitudesToAGL() {
     if(typeof updatePathModeDisplay === "function") updatePathModeDisplay();
     updateFlightPath(); 
 
-    console.log("ADAPT_AGL: Tentativo di ricalcolo gimbal per tutti i waypoint POI_TRACK dopo adattamento AGL...");
     waypoints.forEach(wp => {
         if (wp.headingControl === 'poi_track' && wp.targetPoiId !== null) {
             if (typeof updateGimbalForPoiTrack === "function") {
@@ -226,7 +225,6 @@ async function adaptAltitudesToAMSL() {
     if(typeof updatePathModeDisplay === "function") updatePathModeDisplay();
     updateFlightPath(); 
 
-    console.log("ADAPT_AMSL: Tentativo di ricalcolo gimbal per tutti i waypoint POI_TRACK dopo adattamento AMSL...");
     waypoints.forEach(wp => {
         if (wp.headingControl === 'poi_track' && wp.targetPoiId !== null) {
             if (typeof updateGimbalForPoiTrack === "function") {
