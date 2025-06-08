@@ -29,7 +29,7 @@ const translations = {
         "clearAllWaypointsBtn": "Clear All Waypoints",
         "clickMapToAddWaypoints": "Click on the map to add waypoints.",
         // Multi-Edit
-        "multiEditTitle": "⚙️ Edit Selected Waypoints",
+        "multiEditTitle": "Edit Selected Waypoints",
         "multiEditTitleText": "⚙️ Edit {count} Selected Waypoints",
         "multiEditHeadingLabel": "New Heading Control",
         "multiEditNoChange": "-- Do Not Change --",
@@ -207,7 +207,7 @@ const translations = {
         "clearAllWaypointsBtn": "Cancella Tutti i Waypoint",
         "clickMapToAddWaypoints": "Clicca sulla mappa per aggiungere waypoint.",
         // Multi-Edit
-        "multiEditTitle": "⚙️ Modifica Waypoint Selezionati",
+        "multiEditTitle": "Modifica Waypoint Selezionati",
         "multiEditTitleText": "⚙️ Modifica {count} Waypoint Selezionati",
         "multiEditHeadingLabel": "Nuovo Controllo Rotta",
         "multiEditNoChange": "-- Non Modificare --",
@@ -366,16 +366,19 @@ function setLanguage(lang) {
         currentLang = lang;
         localStorage.setItem('flightPlannerLang', lang); // Save preference
         document.documentElement.lang = lang;
-        if (typeof langSelect !== 'undefined' && langSelect) langSelect.value = lang;
+        if (typeof langSelect !== 'undefined' && langSelect) {
+             langSelect.value = lang;
+        }
         applyTranslations();
     }
 }
 
 function translate(key, options = {}) {
     let text = (translations[currentLang] && translations[currentLang][key])
-               || (translations['en'] && translations['en][key])
-               || `[${key}]`;
+               || (translations['en'] && translations['en'][key]) // Fallback to English
+               || `[${key}]`; // Fallback to key name if not found anywhere
 
+    // Replace placeholders like {count}
     for (const placeholder in options) {
         text = text.replace(new RegExp(`{${placeholder}}`, 'g'), options[placeholder]);
     }
@@ -385,42 +388,42 @@ function translate(key, options = {}) {
 function applyTranslations() {
     if (!document.body) return;
     
+    // Translate elements with data-i18n-key
     document.querySelectorAll('[data-i18n-key]').forEach(element => {
         const key = element.getAttribute('data-i18n-key');
         if (!key) return;
+        
         const translation = translate(key);
         
         if (element.tagName === 'INPUT' && element.hasAttribute('placeholder')) {
              element.placeholder = translation;
         } else if (element.hasAttribute('data-i18n-html')) {
+            // Use innerHTML for elements that contain HTML tags in their translation
             element.innerHTML = translation;
-        } else if (element.hasAttribute('data-i18n-target-text')) {
-             // For buttons like "📡 Satellite" where only text part changes
-            const textNode = element.lastChild;
-            if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-                textNode.nodeValue = ' ' + translation;
-            } else {
-                 element.textContent = translation; // Fallback
-            }
         } else {
              element.textContent = translation;
         }
     });
+
+    // Translate tooltips
      document.querySelectorAll('[data-i18n-title-key]').forEach(element => {
         const key = element.getAttribute('data-i18n-title-key');
-        if (key) element.title = translate(key);
+        if (key) {
+            element.title = translate(key);
+        }
     });
 
+    // Refresh dynamic UI parts that depend on translated text
     if (typeof updateWaypointList === 'function') updateWaypointList();
     if (typeof updatePOIList === 'function') updatePOIList();
     if (typeof updatePathModeDisplay === 'function') updatePathModeDisplay();
     if (typeof updateSingleWaypointEditControls === 'function') updateSingleWaypointEditControls();
-    
-    // updateMultiEditPanelVisibility also handles the title text construction now
     if (typeof updateMultiEditPanelVisibility === 'function') updateMultiEditPanelVisibility();
 
+    // Special handling for satellite toggle button text
     if (typeof satelliteToggleBtn !== 'undefined' && satelliteToggleBtn && typeof satelliteView !== 'undefined') {
         const key = satelliteView ? 'mapBtnMap' : 'mapBtnSatellite';
+        // The text content is complex, let's just set the whole thing
         satelliteToggleBtn.textContent = translate(key);
     }
 }
