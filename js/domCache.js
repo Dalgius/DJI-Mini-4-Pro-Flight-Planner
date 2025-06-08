@@ -1,9 +1,8 @@
 // File: domCache.js
 
 // Depends on: config.js (for variable declarations)
+// Depends on: i18n.js (per la funzione translate all'inizializzazione)
 
-// Variabile globale per memorizzare il riferimento iniziale al pulsante,
-// per verificare se viene ricreato dinamicamente.
 let initialApplyMultiEditBtnReference = null; 
 
 function cacheDOMElements() {
@@ -67,8 +66,8 @@ function cacheDOMElements() {
     multiHoverTimeValueEl = document.getElementById('multiHoverTimeValue');
     
     applyMultiEditBtn = document.getElementById('applyMultiEditBtn');
-    initialApplyMultiEditBtnReference = applyMultiEditBtn; // Memorizza il riferimento iniziale
-    console.log("DEBUG domCache: applyMultiEditBtn =", applyMultiEditBtn); 
+    initialApplyMultiEditBtnReference = applyMultiEditBtn; 
+    // console.log("DEBUG domCache: applyMultiEditBtn =", applyMultiEditBtn); 
     
     clearMultiSelectionBtn = document.getElementById('clearMultiSelectionBtn');
 
@@ -82,7 +81,6 @@ function cacheDOMElements() {
     createOrbitBtn = document.getElementById('createOrbitBtn');
     currentPathModeInfoEl = document.getElementById('currentPathModeInfo'); 
     currentPathModeValueEl = document.getElementById('currentPathModeValue'); 
-
 
     // Sidebar Controls - Import/Export
     importJsonBtn = document.getElementById('importJsonBtn');
@@ -136,10 +134,13 @@ function cacheDOMElements() {
     if (gimbalPitchSlider && gimbalPitchValueEl) gimbalPitchValueEl.textContent = gimbalPitchSlider.value + '°';
     if (poiFinalAltitudeDisplayEl) poiFinalAltitudeDisplayEl.textContent = "0.0 m";
     
-    if (currentPathModeValueEl && typeof translate === "function") {
-        currentPathModeValueEl.textContent = translate('pathModeRelative'); 
-        currentPathModeValueEl.setAttribute('data-i18n-key', 'pathModeRelative');
-    } else if (currentPathModeValueEl) { 
+    // Imposta il valore iniziale per desiredAMSLInputEl e testo modalità percorso
+    if (typeof updateDefaultDesiredAMSLTarget === "function") { 
+        updateDefaultDesiredAMSLTarget();
+    }
+    if (typeof updatePathModeDisplay === "function") {
+        updatePathModeDisplay();
+    } else if (currentPathModeValueEl) { // Fallback se translate/updatePathModeDisplay non sono pronti
         currentPathModeValueEl.textContent = "Relative to Takeoff"; 
     }
 }
