@@ -366,27 +366,29 @@ function exportToDjiWpmlKmz() {
         
         // Heading
         waylinesWpmlContent += `      <wpml:waypointHeadingParam>\n`;
-        let headingMode = 'followWayline', headingAngle = 0, headingAngleEnable = 0, headingPathMode = 'followBadArc';
+        let headingMode = 'followWayline';
+        let headingAngle = 0;
+        let headingAngleEnable = 0; // Di default, l'angolo non è abilitato.
         let poiPointXml = `        <wpml:waypointPoiPoint>0.0,0.0,0.0</wpml:waypointPoiPoint>\n`;
+
         if (wp.headingControl === 'fixed') {
             headingMode = 'lockCourse'; 
             headingAngle = wp.fixedHeading;
-            headingAngleEnable = 1;
+            headingAngleEnable = 1; // Abilita l'angolo solo per questa modalità.
         } else if (wp.headingControl === 'poi_track' && wp.targetPoiId != null) {
             const targetPoi = pois.find(p => p.id === wp.targetPoiId);
             if (targetPoi) {
                 headingMode = 'towardPOI';
                 poiPointXml = `        <wpml:waypointPoiPoint>${targetPoi.latlng.lng.toFixed(6)},${targetPoi.latlng.lat.toFixed(6)},${targetPoi.altitude.toFixed(1)}</wpml:waypointPoiPoint>\n`; 
             }
-        } else {
-             if (index < waypoints.length - 1) { headingAngle = calculateBearing(wp.latlng, waypoints[index+1].latlng); } 
-             else if (index > 0) { headingAngle = calculateBearing(waypoints[index-1].latlng, wp.latlng); }
         }
+        // Per 'followWayline', non viene fatto nulla, lasciando headingAngle e headingAngleEnable a 0.
+        
         waylinesWpmlContent += `        <wpml:waypointHeadingMode>${headingMode}</wpml:waypointHeadingMode>\n`;
         waylinesWpmlContent += `        <wpml:waypointHeadingAngle>${Math.round(headingAngle)}</wpml:waypointHeadingAngle>\n`;
         waylinesWpmlContent += poiPointXml;
         waylinesWpmlContent += `        <wpml:waypointHeadingAngleEnable>${headingAngleEnable}</wpml:waypointHeadingAngleEnable>\n`;
-        waylinesWpmlContent += `        <wpml:waypointHeadingPathMode>${headingPathMode}</wpml:waypointHeadingPathMode>\n`;
+        waylinesWpmlContent += `        <wpml:waypointHeadingPathMode>followBadArc</wpml:waypointHeadingPathMode>\n`;
         waylinesWpmlContent += `        <wpml:waypointHeadingPoiIndex>0</wpml:waypointHeadingPoiIndex>\n`; 
         waylinesWpmlContent += `      </wpml:waypointHeadingParam>\n`;
 
