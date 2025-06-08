@@ -377,7 +377,7 @@ function exportToDjiWpmlKmz() {
             } else {
                 waylinesWpmlContent += `        <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>\n`;
             }
-        } else { // 'followWayline'
+        } else {
             waylinesWpmlContent += `        <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>\n`;
         }
         waylinesWpmlContent += `        <wpml:waypointHeadingPathMode>followBadArc</wpml:waypointHeadingPathMode>\n`;
