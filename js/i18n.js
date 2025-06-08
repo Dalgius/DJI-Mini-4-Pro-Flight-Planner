@@ -193,7 +193,17 @@ const translations = {
         "alert_surveyGridInvalidInput_sidelap": "Invalid Sidelap % (10-95).",
         "alert_surveyGridInvalidInput_frontlap": "Invalid Frontlap % (10-95).",
         "alert_surveyGridInvalidInput_angle": "Invalid grid angle.",
-        "alert_surveyGridInvalidInput_speed": "Invalid flight speed."
+        "alert_surveyGridInvalidInput_speed": "Invalid flight speed.",
+        "error_min_waypoints": "At least 2 waypoints are required for a mission.",
+        "error_invalid_coordinates": "Invalid coordinates.",
+        "error_altitude_range": "Altitude out of range (2-500m).",
+        "error_gimbal_range": "Gimbal pitch out of range (-90° to +60°).",
+        "import_success": "Flight plan imported successfully!",
+        "nothing_to_export": "Nothing to export.",
+        "export_json_success": "Flight plan exported as JSON.",
+        "export_ge_success": "Exported for Google Earth.",
+        "export_dji_success": "DJI WPML KMZ exported.",
+        "jszip_not_loaded": "JSZip library not loaded."
     },
     it: {
         // General & Titles
@@ -387,7 +397,17 @@ const translations = {
         "alert_surveyGridInvalidInput_sidelap": "Sidelap % non valido (10-95).",
         "alert_surveyGridInvalidInput_frontlap": "Frontlap % non valido (10-95).",
         "alert_surveyGridInvalidInput_angle": "Angolo griglia non valido.",
-        "alert_surveyGridInvalidInput_speed": "Velocità di volo non valida."
+        "alert_surveyGridInvalidInput_speed": "Velocità di volo non valida.",
+        "error_min_waypoints": "Sono necessari almeno 2 waypoint per una missione.",
+        "error_invalid_coordinates": "Coordinate non valide.",
+        "error_altitude_range": "Altitudine fuori range (2-500m).",
+        "error_gimbal_range": "Pitch del gimbal fuori range (-90° a +60°).",
+        "import_success": "Piano di volo importato con successo!",
+        "nothing_to_export": "Niente da esportare.",
+        "export_json_success": "Piano di volo esportato come JSON.",
+        "export_ge_success": "Esportato per Google Earth.",
+        "export_dji_success": "DJI WPML KMZ esportato.",
+        "jszip_not_loaded": "Libreria JSZip non caricata."
     }
 };
 
@@ -410,7 +430,6 @@ function translate(key, options = {}) {
                || (translations['en'] && translations['en'][key]) // Fallback to English
                || `[${key}]`; // Fallback to key name if not found anywhere
 
-    // Replace placeholders like {count}
     for (const placeholder in options) {
         text = text.replace(new RegExp(`{${placeholder}}`, 'g'), options[placeholder]);
     }
