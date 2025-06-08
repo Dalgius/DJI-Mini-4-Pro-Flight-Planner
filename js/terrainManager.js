@@ -25,7 +25,7 @@ async function getElevationsBatch(locationsArray) {
             const responseText = await response.text(); 
             if (!response.ok) {
                 console.error(`Elevation API Error (via proxy): Status ${response.status}. Response: ${responseText.substring(0, 300)}...`);
-                showCustomAlert(`Elevation API Error (Batch ${Math.floor(i/batchSize) + 1}): ${response.status}. Check console.`, "API Error");
+                showCustomAlert(translate('alert_elevationApiError_batch', { batchNum: Math.floor(i/batchSize) + 1, status: response.status }), translate('apiErrorTitle'));
                 currentBatchIndices.forEach(originalIdx => allElevationsData.push({ originalIndex: originalIdx, elevation: null }));
                 continue; 
             }
@@ -40,12 +40,12 @@ async function getElevationsBatch(locationsArray) {
                 });
             } else {
                 console.warn("Elevation API response not OK or no results (via proxy):", data);
-                showCustomAlert(`Elevation API returned no valid data for batch ${Math.floor(i/batchSize) + 1}. Status: ${data.status}`, "API Warning");
+                showCustomAlert(translate('alert_elevationApiNoData_batch', { batchNum: Math.floor(i/batchSize) + 1, status: data.status }), translate('apiWarningTitle'));
                 currentBatchIndices.forEach(originalIdx => allElevationsData.push({ originalIndex: originalIdx, elevation: null }));
             }
         } catch (error) {
             console.error("Exception during batch elevation fetch/parsing (via proxy):", error);
-            showCustomAlert(`Connection or parsing error during batch elevation request for batch ${Math.floor(i/batchSize) + 1}. Check console.`, "Error");
+            showCustomAlert(translate('alert_elevationFetchError_batch', { batchNum: Math.floor(i/batchSize) + 1 }), translate('errorTitle'));
             currentBatchIndices.forEach(originalIdx => allElevationsData.push({ originalIndex: originalIdx, elevation: null }));
         }
         if (i + batchSize < locationsArray.length) {
@@ -58,13 +58,13 @@ async function getElevationsBatch(locationsArray) {
 
 async function getHomeElevationFromFirstWaypoint() {
     if (waypoints.length === 0) {
-        showCustomAlert("Aggiungi almeno un waypoint per stimare l'elevazione del punto di decollo.", "Info"); 
+        showCustomAlert(translate('alert_addWpForTakeoffElev'), translate('infoTitle')); 
         return;
     }
     if (!loadingOverlayEl || !homeElevationMslInput || !adaptToAGLBtnEl || !getHomeElevationBtn || !adaptToAMSLBtnEl) return;
     
     loadingOverlayEl.style.display = 'flex';
-    loadingOverlayEl.textContent = "Recupero elevazione WP1..."; 
+    loadingOverlayEl.textContent = translate('alert_fetchingWp1Elev'); 
     adaptToAGLBtnEl.disabled = true;
     adaptToAMSLBtnEl.disabled = true; 
     getHomeElevationBtn.disabled = true;
@@ -78,13 +78,16 @@ async function getHomeElevationFromFirstWaypoint() {
     getHomeElevationBtn.disabled = false;
 
     if (elevations && elevations.length > 0 && elevations[0] !== null) {
-        homeElevationMslInput.value = Math.round(elevations[0]);
-        showCustomAlert(`Elevazione del terreno di Waypoint 1 (${Math.round(elevations[0])}m MSL) impostata come elevazione di decollo.`, "Successo"); 
+        const roundedElev = Math.round(elevations[0]);
+        homeElevationMslInput.value = roundedElev;
+        showCustomAlert(translate('alert_takeoffElevFromWp1Set', { elev: roundedElev }), translate('successTitle')); 
         
-        // Dopo aver cambiato homeElevation, ricalcola AGL/AMSL e gimbal
-        lastAltitudeAdaptationMode = 'relative'; // L'impostazione di Home Elev non è un adattamento di percorso
-        updatePathModeDisplay(); // Aggiorna il testo della modalità percorso
-        updateFlightPath();      // Ridisegna il percorso con il colore di default ('relative')
+        if (typeof updateDefaultDesiredAMSLTarget === "function") {
+            updateDefaultDesiredAMSLTarget();
+        }
+        lastAltitudeAdaptationMode = 'relative'; 
+        if(typeof updatePathModeDisplay === "function") updatePathModeDisplay();
+        updateFlightPath();      
         
         waypoints.forEach(wp => {
             if (wp.headingControl === 'poi_track' && typeof updateGimbalForPoiTrack === "function") {
@@ -94,7 +97,7 @@ async function getHomeElevationFromFirstWaypoint() {
         updateWaypointList(); 
         if (selectedWaypoint) updateSingleWaypointEditControls(); 
     } else {
-        showCustomAlert("Impossibile recuperare l'elevazione del terreno per Waypoint 1.", "Errore"); 
+        showCustomAlert(translate('alert_takeoffElevFromWp1Fail'), translate('errorTitle')); 
     }
 }
 
@@ -103,20 +106,20 @@ async function adaptAltitudesToAGL() {
     const aglDesired = parseInt(desiredAGLInput.value);
     let homeElevationMSL = parseFloat(homeElevationMslInput.value);
     if (isNaN(aglDesired) || aglDesired < 1) { 
-        showCustomAlert("AGL desiderato non valido. Deve essere un numero positivo (es. min 5m).", "Errore Input"); 
+        showCustomAlert(translate('alert_invalidDesiredAGL'), translate('inputErrorTitle')); 
         return; 
     }
     if (isNaN(homeElevationMSL)) { 
-        showCustomAlert("Elevazione del punto decollo (MSL) non valida. Usa 'Usa Elev. WP1' o inserisci manualmente.", "Errore Input");
+        showCustomAlert(translate('alert_invalidTakeoffElev'), translate('inputErrorTitle'));
         return; 
     }
     if (waypoints.length === 0) { 
-        showCustomAlert("Nessun waypoint per cui adattare le altitudini.", "Info");
+        showCustomAlert(translate('alert_noWaypointsToAdapt'), translate('infoTitle'));
         return; 
     }
 
     loadingOverlayEl.style.display = 'flex';
-    loadingOverlayEl.textContent = "Adattamento altitudini AGL..."; 
+    loadingOverlayEl.textContent = translate('alert_fetchingTerrainForAllWp'); 
     adaptToAGLBtnEl.disabled = true;
     adaptToAMSLBtnEl.disabled = true;
     getHomeElevationBtn.disabled = true;
@@ -127,7 +130,7 @@ async function adaptAltitudesToAGL() {
     if (groundElevations && groundElevations.length === waypoints.length) {
         waypoints.forEach((wp, index) => {
             const groundElevationAtWaypoint = groundElevations[index];
-            if (loadingOverlayEl) loadingOverlayEl.textContent = `Adattamento altitudini AGL... (WP ${wp.id} - ${index + 1}/${waypoints.length})`;
+            if (loadingOverlayEl) loadingOverlayEl.textContent = translate('alert_adaptingAglAlts_wp', {wpId: wp.id, current: index + 1, total: waypoints.length});
             if (groundElevationAtWaypoint !== null) {
                 wp.terrainElevationMSL = parseFloat(groundElevationAtWaypoint.toFixed(1)); 
                 const targetMSLForWaypoint = groundElevationAtWaypoint + aglDesired;
@@ -143,9 +146,9 @@ async function adaptAltitudesToAGL() {
         console.error("Errore nel recupero delle elevazioni del terreno o discrepanza di lunghezza.");
     }
 
-    lastAltitudeAdaptationMode = 'agl'; // IMPOSTA LA MODALITA'
-    updatePathModeDisplay();
-    updateFlightPath(); // Ridisegna con nuovo colore
+    lastAltitudeAdaptationMode = 'agl'; 
+    if(typeof updatePathModeDisplay === "function") updatePathModeDisplay();
+    updateFlightPath(); 
 
     console.log("ADAPT_AGL: Tentativo di ricalcolo gimbal per tutti i waypoint POI_TRACK dopo adattamento AGL...");
     waypoints.forEach(wp => {
@@ -166,11 +169,11 @@ async function adaptAltitudesToAGL() {
     adaptToAMSLBtnEl.disabled = false;
     getHomeElevationBtn.disabled = false;
     if (successCount === waypoints.length && waypoints.length > 0) { 
-        showCustomAlert("Adattamento altitudine AGL completato per tutti i waypoint!", "Successo");
+        showCustomAlert(translate('alert_adaptAglSuccess'), translate('successTitle'));
     } else if (successCount > 0) {
-         showCustomAlert(`Adattamento altitudine AGL completato per ${successCount} su ${waypoints.length} waypoint.`, "Successo Parziale");
+         showCustomAlert(translate('alert_adaptAglPartial', {count: successCount, total: waypoints.length }), translate('partialSuccessTitle'));
     } else if (waypoints.length > 0) {
-         showCustomAlert("Adattamento altitudine AGL fallito. Controlla la console.", "Errore");
+         showCustomAlert(translate('alert_adaptAglFail'), translate('errorTitle'));
     }
 }
 
@@ -181,20 +184,20 @@ async function adaptAltitudesToAMSL() {
     let homeElevationMSL = parseFloat(homeElevationMslInput.value);
 
     if (isNaN(amslTarget)) {
-        showCustomAlert("AMSL target non valido. Inserisci un numero.", "Errore Input");
+        showCustomAlert(translate('alert_invalidDesiredAMSL'), translate('inputErrorTitle'));
         return;
     }
     if (isNaN(homeElevationMSL)) {
-        showCustomAlert("Elevazione del punto decollo (MSL) non valida.", "Errore Input");
+        showCustomAlert(translate('alert_invalidTakeoffElev'), translate('inputErrorTitle'));
         return;
     }
     if (waypoints.length === 0) {
-        showCustomAlert("Nessun waypoint per cui adattare le altitudini.", "Info");
+        showCustomAlert(translate('alert_noWaypointsToAdapt'), translate('infoTitle'));
         return;
     }
 
     loadingOverlayEl.style.display = 'flex';
-    loadingOverlayEl.textContent = "Adattamento altitudini a AMSL costante...";
+    loadingOverlayEl.textContent = translate('alert_adaptingAmslAlts');
     adaptToAGLBtnEl.disabled = true; 
     adaptToAMSLBtnEl.disabled = true;
     getHomeElevationBtn.disabled = true;
@@ -219,9 +222,9 @@ async function adaptAltitudesToAMSL() {
         }
     });
 
-    lastAltitudeAdaptationMode = 'amsl'; // IMPOSTA LA MODALITA'
-    updatePathModeDisplay();
-    updateFlightPath(); // Ridisegna con nuovo colore
+    lastAltitudeAdaptationMode = 'amsl'; 
+    if(typeof updatePathModeDisplay === "function") updatePathModeDisplay();
+    updateFlightPath(); 
 
     console.log("ADAPT_AMSL: Tentativo di ricalcolo gimbal per tutti i waypoint POI_TRACK dopo adattamento AMSL...");
     waypoints.forEach(wp => {
@@ -244,5 +247,5 @@ async function adaptAltitudesToAMSL() {
     adaptToAMSLBtnEl.disabled = false;
     getHomeElevationBtn.disabled = false;
 
-    showCustomAlert(`Altitudini dei waypoint adattate a ${amslTarget.toFixed(1)}m AMSL costante. Controlla l'AGL risultante per ogni waypoint.`, "Successo");
+    showCustomAlert(translate('alert_adaptAmslSuccess', {amslTarget: amslTarget.toFixed(1)}), translate('successTitle'));
 }
