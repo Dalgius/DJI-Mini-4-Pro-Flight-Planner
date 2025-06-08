@@ -53,7 +53,6 @@ async function addWaypoint(latlng, options = {}) {
                 homeElevationMslInput.value = terrainElev;
                 newWaypoint.terrainElevationMSL = terrainElev;
                 
-                // --- PUNTO CHIAVE DELLA CORREZIONE ---
                 if (typeof updateDefaultDesiredAMSLTarget === "function") {
                     updateDefaultDesiredAMSLTarget();
                 }
@@ -102,9 +101,9 @@ async function addWaypoint(latlng, options = {}) {
             if (isNaN(homeElevation)) homeElevation = 0;
         }
         const altitudeRelToHome = newWaypoint.altitude;
-        const terrainElevText = newWaypoint.terrainElevationMSL !== null ? `${newWaypoint.terrainElevationMSL.toFixed(1)} m` : "N/A";
-        let amslText = "N/A";
-        let aglText = "N/A";
+        const terrainElevText = newWaypoint.terrainElevationMSL !== null ? `${newWaypoint.terrainElevationMSL.toFixed(1)} m` : translate('NA');
+        let amslText = translate('NA');
+        let aglText = translate('NA');
         if (typeof homeElevation === 'number') {
             amslText = `${(homeElevation + altitudeRelToHome).toFixed(1)} m`;
         }
@@ -112,17 +111,21 @@ async function addWaypoint(latlng, options = {}) {
             const amslWaypoint = homeElevation + altitudeRelToHome;
             aglText = `${(amslWaypoint - newWaypoint.terrainElevationMSL).toFixed(1)} m`;
         }
+        
+        // --- INIZIO CORREZIONE PER TRADUZIONE POPUP ---
         const popupContent = `
-            <strong>Waypoint ${newWaypoint.id}</strong><br>
+            <strong>${translate('waypointLabel')} ${newWaypoint.id}</strong><br>
             <div style="font-size:0.9em; line-height:1.3;">
             Lat: ${newWaypoint.latlng.lat.toFixed(5)}, Lng: ${newWaypoint.latlng.lng.toFixed(5)}<br>
-            Alt. Volo (Rel): ${altitudeRelToHome} m<br>
-            Alt. AMSL: ${amslText}<br>
-            Alt. AGL: ${aglText}<br>
-            Elev. Terreno: ${terrainElevText}<br>
-            Gimbal: ${newWaypoint.gimbalPitch}° | Hover: ${newWaypoint.hoverTime}s
+            ${translate('flightAltRelLabel')}: ${altitudeRelToHome} m<br>
+            ${translate('amslAltLabel')}: ${amslText}<br>
+            ${translate('aglAltLabel')}: ${aglText}<br>
+            ${translate('terrainElevLabel')}: ${terrainElevText}<br>
+            ${translate('gimbalLabel')}: ${newWaypoint.gimbalPitch}° | ${translate('hoverLabel')}: ${newWaypoint.hoverTime}s
             </div>
         `;
+        // --- FINE CORREZIONE PER TRADUZIONE POPUP ---
+
         if (!this.getPopup()) { this.bindPopup(popupContent).openPopup(); } 
         else { this.setPopupContent(popupContent).openPopup(); }
     });
@@ -143,8 +146,7 @@ async function addWaypoint(latlng, options = {}) {
             newWaypoint.terrainElevationMSL = terrainElev; 
             
             console.log(`Elevazione decollo impostata a ${homeElevationMslInput.value}m MSL. WP1.terrainElevationMSL: ${newWaypoint.terrainElevationMSL}m.`);
-
-            // --- PUNTO CHIAVE DELLA CORREZIONE ---
+            
             if (typeof updateDefaultDesiredAMSLTarget === "function") {
                 updateDefaultDesiredAMSLTarget();
             }
