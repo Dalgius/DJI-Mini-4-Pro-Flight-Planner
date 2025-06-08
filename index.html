@@ -316,9 +316,11 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     
+    <!-- Script Modularizzati -->
     <script src="js/config.js"></script>
+    <script src="js/utils.js"></script> 
+    <script src="js/i18n.js"></script>   <!-- << I18N PRIMA DEGLI ALTRI CHE LO USANO -->
     <script src="js/domCache.js"></script>
-    <script src="js/utils.js"></script>
     <script src="js/mapManager.js"></script>
     <script src="js/uiUpdater.js"></script>
     <script src="js/flightPathManager.js"></script>
@@ -329,7 +331,6 @@
     <script src="js/surveyGridManager.js"></script> 
     <script src="js/importExportManager.js"></script>
     <script src="js/eventListeners.js"></script>
-    <!-- <script src="js/i18n.js"></script> Se hai un file separato per i18n -->
     <script src="js/app.js"></script>
 </body>
 </html>
