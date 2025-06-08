@@ -106,21 +106,6 @@ function createSmoothPath(points) {
 }
 
 /**
- * Gets the display text for a camera action code.
- * @param {string} action - The camera action code (e.g., 'takePhoto').
- * @returns {string} The display text (e.g., 'Photo').
- */
-function getCameraActionText(action) {
-    switch (action) {
-        case 'takePhoto': return 'Foto';
-        case 'startRecord': return 'Avvia Reg.';
-        case 'stopRecord': return 'Ferma Reg.';
-        default: return ''; 
-    }
-}
-
-
-/**
  * Calculates the bearing from point 1 to point 2.
  * @param {L.LatLng} point1LatLng - The starting L.LatLng point.
  * @param {L.LatLng} point2LatLng - The ending L.LatLng point.
@@ -175,23 +160,16 @@ function destinationPoint(startLatLng, bearingDeg, distanceMeters) {
  */
 function calculateRequiredGimbalPitch(observerAMSL, targetAMSL, horizontalDistance) {
     if (horizontalDistance <= 0.1) { // Avoid division by zero or very small distances
-        // If directly above or below, or very close horizontally:
-        if (targetAMSL < observerAMSL) return -90; // Target is below, look straight down
-        if (targetAMSL > observerAMSL) return 60;  // Target is above, look max up (or 0 if straight up is not desired/possible)
-        return 0; // Target is at the same height and very close, look horizontal
+        if (targetAMSL < observerAMSL) return -90; 
+        if (targetAMSL > observerAMSL) return 60;  
+        return 0;
     }
 
-    const deltaAltitude = targetAMSL - observerAMSL; // Positive if target is higher, negative if target is lower
+    const deltaAltitude = targetAMSL - observerAMSL;
 
-    // Math.atan2(y, x) is generally preferred for angle calculations as it handles quadrants.
-    // Here, atan(opposite/adjacent) is atan(deltaAltitude / horizontalDistance)
-    // If target is lower (deltaAltitude < 0), angle is negative (look down).
-    // If target is higher (deltaAltitude > 0), angle is positive (look up).
-    // This directly matches DJI gimbal convention: negative for down, positive for up.
     let pitchAngleRad = Math.atan2(deltaAltitude, horizontalDistance);
     let pitchAngleDeg = pitchAngleRad * (180 / Math.PI);
 
-    // Clamp to typical gimbal limits (e.g., Mini 4 Pro: -90 to +60, though often +30 practical for upward)
     pitchAngleDeg = Math.max(-90, Math.min(60, pitchAngleDeg));
     
     return Math.round(pitchAngleDeg);
