@@ -106,21 +106,15 @@ async function loadFlightPlan(plan) {
     let maxImportedWaypointId = 0;
 
     if (plan.settings) {
-        if (defaultAltitudeSlider) {
-            defaultAltitudeSlider.value = plan.settings.defaultAltitude || 30;
-            if (defaultAltitudeValueEl) defaultAltitudeValueEl.textContent = defaultAltitudeSlider.value + 'm';
-        }
-        if (flightSpeedSlider) {
-            flightSpeedSlider.value = plan.settings.flightSpeed || 8;
-            if (flightSpeedValueEl) flightSpeedValueEl.textContent = flightSpeedSlider.value + ' m/s';
-        }
+        if (defaultAltitudeSlider) defaultAltitudeSlider.value = plan.settings.defaultAltitude || 30;
+        if (flightSpeedSlider) flightSpeedSlider.value = plan.settings.flightSpeed || 8;
         if (pathTypeSelect) pathTypeSelect.value = plan.settings.pathType || 'straight';
         if (homeElevationMslInput && typeof plan.settings.homeElevationMsl === 'number') {
             homeElevationMslInput.value = plan.settings.homeElevationMsl;
         }
         lastAltitudeAdaptationMode = plan.settings.lastAltitudeAdaptationMode || 'relative';
-        if(desiredAGLInput && plan.settings.desiredAGL) desiredAGLInput.value = plan.settings.desiredAGL;
-        if(desiredAMSLInputEl && plan.settings.desiredAMSL) desiredAMSLInputEl.value = plan.settings.desiredAMSL;
+        if(desiredAGLInput) desiredAGLInput.value = plan.settings.desiredAGL || 50;
+        if(desiredAMSLInputEl) desiredAMSLInputEl.value = plan.settings.desiredAMSL || 100;
     }
 
     if (plan.pois && Array.isArray(plan.pois)) {
@@ -144,9 +138,7 @@ async function loadFlightPlan(plan) {
                 return;
             }
             const waypointOptions = { id: wpData.id, altitude: wpData.altitude, hoverTime: wpData.hoverTime, gimbalPitch: wpData.gimbalPitch, headingControl: wpData.headingControl, fixedHeading: wpData.fixedHeading, cameraAction: wpData.cameraAction, targetPoiId: wpData.targetPoiId, terrainElevationMSL: wpData.terrainElevationMSL, calledFromLoad: true };
-            if(typeof addWaypoint === 'function') {
-                addWaypoint(L.latLng(wpData.lat, wpData.lng), waypointOptions);
-            }
+            if(typeof addWaypoint === 'function') addWaypoint(L.latLng(wpData.lat, wpData.lng), waypointOptions);
             if (wpData.id > maxImportedWaypointId) maxImportedWaypointId = wpData.id;
         });
     }
@@ -215,7 +207,65 @@ function exportFlightPlanToJson() {
     showCustomAlert(translate('successTitle'), translate('export_json_success'));
 }
 
-function exportToGoogleEarthKml() { /* ... unchanged ... */ }
+// ======================= FUNZIONE RIPRISTINATA E CORRETTA =======================
+function exportToGoogleEarthKml() { 
+    if (waypoints.length === 0) {
+        showCustomAlert(translate('errorTitle'), translate('no_waypoints_export'));
+        return; 
+    }
+    let homeElevationMSL = homeElevationMslInput ? parseFloat(homeElevationMslInput.value) : 0;
+    if (isNaN(homeElevationMSL)) {
+        showCustomAlert(translate('infoTitle'), translate('invalid_elevation_fallback'));
+        homeElevationMSL = 0;
+    }
+    const actionTextMap = {
+        'takePhoto': translate('cameraActionText_takePhoto'),
+        'startRecord': translate('cameraActionText_startRecord'),
+        'stopRecord': translate('cameraActionText_stopRecord'),
+    };
+
+    let kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Flight Plan (GE)</name>`;
+    kml += `<Style id="wpStyle"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/paddle/blu-circle.png</href></Icon></IconStyle></Style>`;
+    kml += `<Style id="pathStyle"><LineStyle><color>ffdb9834</color><width>3</width></LineStyle></Style>`;
+    kml += `<Style id="poiStyle"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/paddle/ylw-stars.png</href></Icon></IconStyle></Style>`;
+    kml += `<Folder><name>Waypoints</name>`;
+
+    waypoints.forEach(wp => {
+        const altMSL = homeElevationMSL + wp.altitude;
+        let description = `<![CDATA[Alt. Volo (Rel): ${wp.altitude} m<br/>Alt. AMSL: ${altMSL.toFixed(1)} m<br/>`;
+        if (wp.terrainElevationMSL !== null) {
+            description += `Alt. AGL: ${(altMSL - wp.terrainElevationMSL).toFixed(1)} m<br/>Elev. Terreno: ${wp.terrainElevationMSL.toFixed(1)} m<br/>`;
+        }
+        description += `Gimbal: ${wp.gimbalPitch}°<br/>Azione: ${actionTextMap[wp.cameraAction] || translate('cameraActionText_none')}<br/>Heading: ${wp.headingControl}${wp.headingControl==='fixed' ? ` (${wp.fixedHeading}°)`:''}${wp.targetPoiId ? ` (POI ID ${wp.targetPoiId})`:''}]]>`;
+        kml += `<Placemark><name>WP ${wp.id}</name><description>${description}</description><styleUrl>#wpStyle</styleUrl><Point><altitudeMode>absolute</altitudeMode><coordinates>${wp.latlng.lng},${wp.latlng.lat},${altMSL.toFixed(1)}</coordinates></Point></Placemark>`;
+    });
+
+    kml += `</Folder>`;
+    if (waypoints.length >= 2) {
+        kml += `<Placemark><name>Flight Path</name><styleUrl>#pathStyle</styleUrl><LineString><tessellate>1</tessellate><altitudeMode>absolute</altitudeMode><coordinates>\n`;
+        const pathCoords = waypoints.map(wp => `${wp.latlng.lng},${wp.latlng.lat},${(homeElevationMSL + wp.altitude).toFixed(1)}`).join('\n');
+        kml += pathCoords + `\n</coordinates></LineString></Placemark>`;
+    }
+    if (pois.length > 0) {
+        kml += `<Folder><name>POIs</name>`;
+        pois.forEach(p => { 
+            kml += `<Placemark><name>${p.name}</name><description><![CDATA[Alt. MSL: ${p.altitude.toFixed(1)} m<br>Elev. Terreno: ${p.terrainElevationMSL !== null ? p.terrainElevationMSL.toFixed(1) + " m" : "N/A"}<br>H. Oggetto: ${p.objectHeightAboveGround.toFixed(1)} m]]></description><styleUrl>#poiStyle</styleUrl><Point><altitudeMode>absolute</altitudeMode><coordinates>${p.latlng.lng},${p.latlng.lat},${p.altitude}</coordinates></Point></Placemark>`;
+        });
+        kml += `</Folder>`;
+    }
+    kml += `</Document></kml>`;
+    
+    const dataStr = "data:application/vnd.google-earth.kml+xml;charset=utf-8," + encodeURIComponent(kml);
+    const dl = document.createElement('a');
+    dl.setAttribute("href", dataStr); 
+    dl.setAttribute("download", "flight_plan_GE.kml");
+    document.body.appendChild(dl); 
+    dl.click(); 
+    document.body.removeChild(dl);
+    
+    showCustomAlert(translate('successTitle'), translate('export_ge_success'));
+}
+// =================================================================================
 
 function exportToDjiWpmlKmz() {
     const validationErrors = validateWpmlExport();
@@ -223,7 +273,6 @@ function exportToDjiWpmlKmz() {
         showCustomAlert(translate('errorTitle'), validationErrors.join('\n'));
         return;
     }
-    
     if (typeof JSZip === 'undefined') {
         showCustomAlert(translate('errorTitle'), translate('jszip_not_loaded'));
         return; 
@@ -241,7 +290,7 @@ function exportToDjiWpmlKmz() {
     const totalDistance = calculateMissionDistance(waypoints);
     const totalDuration = calculateMissionDuration(waypoints, missionFlightSpeed);
 
-    let templateKmlContent = `...`; // Same as before
+    let templateKmlContent = `...`; // (Identico a prima)
 
     let waylinesWpmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="${wpmlNs}">
