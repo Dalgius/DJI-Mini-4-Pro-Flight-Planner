@@ -319,9 +319,43 @@ function exportToDjiWpmlKmz() {
     const totalDistance = calculateMissionDistance(waypoints);
     const totalDuration = calculateMissionDuration(waypoints, missionFlightSpeed);
 
-    let templateKmlContent = `...`; // Identico a prima
+    let templateKmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="${wpmlNs}">
+<Document>
+  <wpml:author>FlightPlanner</wpml:author> 
+  <wpml:createTime>${createTimeMillis}</wpml:createTime>
+  <wpml:updateTime>${createTimeMillis}</wpml:updateTime>
+  <wpml:missionConfig>
+    <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
+    <wpml:finishAction>goHome</wpml:finishAction> 
+    <wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>
+    <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction> 
+    <wpml:globalTransitionalSpeed>${missionFlightSpeed}</wpml:globalTransitionalSpeed>
+    <wpml:droneInfo><wpml:droneEnumValue>68</wpml:droneEnumValue><wpml:droneSubEnumValue>0</wpml:droneSubEnumValue></wpml:droneInfo>
+    <wpml:payloadInfo><wpml:payloadEnumValue>0</wpml:payloadEnumValue><wpml:payloadSubEnumValue>0</wpml:payloadSubEnumValue><wpml:payloadPositionIndex>0</wpml:payloadPositionIndex></wpml:payloadInfo>
+  </wpml:missionConfig>
+</Document></kml>`;
 
-    let waylinesWpmlContent = `...`; // Identico a prima fino al ciclo
+    let waylinesWpmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="${wpmlNs}">
+<Document>
+  <wpml:missionConfig>
+    <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
+    <wpml:finishAction>goHome</wpml:finishAction>
+    <wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>
+    <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction> 
+    <wpml:globalTransitionalSpeed>${missionFlightSpeed}</wpml:globalTransitionalSpeed>
+    <wpml:droneInfo><wpml:droneEnumValue>68</wpml:droneEnumValue><wpml:droneSubEnumValue>0</wpml:droneSubEnumValue></wpml:droneInfo>
+  </wpml:missionConfig>
+  <Folder>
+    <name>Wayline Mission ${waylineIdInt}</name>
+    <wpml:templateId>0</wpml:templateId>
+    <wpml:executeHeightMode>relativeToStartPoint</wpml:executeHeightMode> 
+    <wpml:waylineId>0</wpml:waylineId> 
+    <wpml:distance>${Math.round(totalDistance)}</wpml:distance> 
+    <wpml:duration>${Math.round(totalDuration)}</wpml:duration> 
+    <wpml:autoFlightSpeed>${missionFlightSpeed}</wpml:autoFlightSpeed>
+`;
 
     waypoints.forEach((wp, index) => {
         waylinesWpmlContent += `    <Placemark>\n`;
@@ -330,9 +364,7 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `      <wpml:executeHeight>${wp.altitude.toFixed(1)}</wpml:executeHeight>\n`;
         waylinesWpmlContent += `      <wpml:waypointSpeed>${missionFlightSpeed}</wpml:waypointSpeed>\n`;
         
-        // ======================= INIZIO BLOCCO HEADING CORRETTO E DEFINITIVO =======================
         waylinesWpmlContent += `      <wpml:waypointHeadingParam>\n`;
-        
         if (wp.headingControl === 'fixed') {
             waylinesWpmlContent += `        <wpml:waypointHeadingMode>lockCourse</wpml:waypointHeadingMode>\n`;
             waylinesWpmlContent += `        <wpml:waypointHeadingAngle>${wp.fixedHeading}</wpml:waypointHeadingAngle>\n`;
@@ -342,25 +374,22 @@ function exportToDjiWpmlKmz() {
             if (targetPoi) {
                 waylinesWpmlContent += `        <wpml:waypointHeadingMode>towardPOI</wpml:waypointHeadingMode>\n`;
                 waylinesWpmlContent += `        <wpml:waypointPoiPoint>${targetPoi.latlng.lng.toFixed(6)},${targetPoi.latlng.lat.toFixed(6)},${targetPoi.altitude.toFixed(1)}</wpml:waypointPoiPoint>\n`;
-            } else { // Fallback se il POI non viene trovato
+            } else {
                 waylinesWpmlContent += `        <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>\n`;
             }
         } else { // 'followWayline'
             waylinesWpmlContent += `        <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>\n`;
         }
-        
         waylinesWpmlContent += `        <wpml:waypointHeadingPathMode>followBadArc</wpml:waypointHeadingPathMode>\n`;
         waylinesWpmlContent += `      </wpml:waypointHeadingParam>\n`;
-        // ======================= FINE BLOCCO HEADING CORRETTO E DEFINITIVO =======================
 
-        // Turn Mode Logic (invariata, ma corretta precedentemente)
         let turnMode;
         if (wp.hoverTime > 0) {
             turnMode = 'toPointAndStopWithDiscontinuityCurvature';
         } else {
             if (missionPathType === 'straight') {
                 turnMode = 'toPointAndStopWithDiscontinuityCurvature';
-            } else { // missionPathType === 'curved'
+            } else {
                 if (index === 0 || index === waypoints.length - 1) {
                     turnMode = 'toPointAndStopWithContinuityCurvature';
                 } else {
@@ -374,7 +403,6 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `        <wpml:waypointTurnDampingDist>0.2</wpml:waypointTurnDampingDist>\n`;
         waylinesWpmlContent += `      </wpml:waypointTurnParam>\n`;
 
-        // Actions
         let actionsXmlBlock = "";
         if (wp.hoverTime > 0) {
             actionsXmlBlock += `        <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId><wpml:actionActuatorFunc>HOVER</wpml:actionActuatorFunc><wpml:actionActuatorFuncParam><wpml:hoverTime>${wp.hoverTime}</wpml:hoverTime></wpml:actionActuatorFuncParam></wpml:action>\n`;
