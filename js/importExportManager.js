@@ -1,9 +1,33 @@
 // File: importExportManager.js
 
-// Dipendenze globali e funzioni di utilità...
+// Global dependencies (expected from other files):
+// waypoints, pois, flightSpeedSlider, pathTypeSelect, homeElevationMslInput,
+// waypointCounter, poiCounter, actionGroupCounter, actionCounter, lastAltitudeAdaptationMode (from config.js)
+// fileInputEl, poiNameInput, poiObjectHeightInputEl, poiTerrainElevationInputEl (from domCache.js)
+// showCustomAlert, haversineDistance, calculateBearing, toRad (from utils.js or global)
+// addWaypoint, addPOI, updateGimbalForPoiTrack (from waypointManager.js, poiManager.js)
+// JSZip (external library)
+// map (for POI import, if needed)
+// translate (from i18n.js)
+
+if (typeof calculateBearing === 'undefined') {
+    function calculateBearing(point1LatLng, point2LatLng) {
+        const toRadFn = typeof toRad === 'function' ? toRad : (deg => deg * Math.PI / 180);
+        const lat1 = toRadFn(point1LatLng.lat); const lon1 = toRadFn(point1LatLng.lng);
+        const lat2 = toRadFn(point2LatLng.lat); const lon2 = toRadFn(point2LatLng.lng);
+        const dLon = lon2 - lon1;
+        const y = Math.sin(dLon) * Math.cos(lat2);
+        const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+        let brng = Math.atan2(y, x) * 180 / Math.PI;
+        return (brng + 360) % 360;
+    }
+}
+if (typeof toRad === 'undefined') {
+    function toRad(degrees) { return degrees * Math.PI / 180; }
+}
 
 // =============================================================================
-// FUNZIONI DI VALIDAZIONE E CALCOLO
+// VALIDATION & CALCULATION FUNCTIONS
 // =============================================================================
 
 function validateCoordinates(lat, lng) {
@@ -62,7 +86,7 @@ function calculateMissionDuration(missionWaypoints, speed) {
 
 
 // =============================================================================
-// FUNZIONI DI IMPORT
+// IMPORT FUNCTIONS
 // =============================================================================
 
 function triggerImport() {
@@ -106,15 +130,21 @@ async function loadFlightPlan(plan) {
     let maxImportedWaypointId = 0;
 
     if (plan.settings) {
-        if (defaultAltitudeSlider) defaultAltitudeSlider.value = plan.settings.defaultAltitude || 30;
-        if (flightSpeedSlider) flightSpeedSlider.value = plan.settings.flightSpeed || 8;
+        if (defaultAltitudeSlider) {
+            defaultAltitudeSlider.value = plan.settings.defaultAltitude || 30;
+            if (defaultAltitudeValueEl) defaultAltitudeValueEl.textContent = defaultAltitudeSlider.value + 'm';
+        }
+        if (flightSpeedSlider) {
+            flightSpeedSlider.value = plan.settings.flightSpeed || 8;
+            if (flightSpeedValueEl) flightSpeedValueEl.textContent = flightSpeedSlider.value + ' m/s';
+        }
         if (pathTypeSelect) pathTypeSelect.value = plan.settings.pathType || 'straight';
         if (homeElevationMslInput && typeof plan.settings.homeElevationMsl === 'number') {
             homeElevationMslInput.value = plan.settings.homeElevationMsl;
         }
         lastAltitudeAdaptationMode = plan.settings.lastAltitudeAdaptationMode || 'relative';
-        if(desiredAGLInput) desiredAGLInput.value = plan.settings.desiredAGL || 50;
-        if(desiredAMSLInputEl) desiredAMSLInputEl.value = plan.settings.desiredAMSL || 100;
+        if(desiredAGLInput && plan.settings.desiredAGL) desiredAGLInput.value = plan.settings.desiredAGL;
+        if(desiredAMSLInputEl && plan.settings.desiredAMSL) desiredAMSLInputEl.value = plan.settings.desiredAMSL;
     }
 
     if (plan.pois && Array.isArray(plan.pois)) {
@@ -162,7 +192,7 @@ async function loadFlightPlan(plan) {
 }
 
 // =============================================================================
-// FUNZIONI DI EXPORT
+// EXPORT FUNCTIONS
 // =============================================================================
 
 function exportFlightPlanToJson() {
@@ -207,7 +237,6 @@ function exportFlightPlanToJson() {
     showCustomAlert(translate('successTitle'), translate('export_json_success'));
 }
 
-// ======================= FUNZIONE RIPRISTINATA E CORRETTA =======================
 function exportToGoogleEarthKml() { 
     if (waypoints.length === 0) {
         showCustomAlert(translate('errorTitle'), translate('no_waypoints_export'));
@@ -265,7 +294,6 @@ function exportToGoogleEarthKml() {
     
     showCustomAlert(translate('successTitle'), translate('export_ge_success'));
 }
-// =================================================================================
 
 function exportToDjiWpmlKmz() {
     const validationErrors = validateWpmlExport();
@@ -273,6 +301,7 @@ function exportToDjiWpmlKmz() {
         showCustomAlert(translate('errorTitle'), validationErrors.join('\n'));
         return;
     }
+    
     if (typeof JSZip === 'undefined') {
         showCustomAlert(translate('errorTitle'), translate('jszip_not_loaded'));
         return; 
@@ -290,7 +319,22 @@ function exportToDjiWpmlKmz() {
     const totalDistance = calculateMissionDistance(waypoints);
     const totalDuration = calculateMissionDuration(waypoints, missionFlightSpeed);
 
-    let templateKmlContent = `...`; // (Identico a prima)
+    let templateKmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="${wpmlNs}">
+<Document>
+  <wpml:author>FlightPlanner</wpml:author> 
+  <wpml:createTime>${createTimeMillis}</wpml:createTime>
+  <wpml:updateTime>${createTimeMillis}</wpml:updateTime>
+  <wpml:missionConfig>
+    <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
+    <wpml:finishAction>goHome</wpml:finishAction> 
+    <wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>
+    <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction> 
+    <wpml:globalTransitionalSpeed>${missionFlightSpeed}</wpml:globalTransitionalSpeed>
+    <wpml:droneInfo><wpml:droneEnumValue>68</wpml:droneEnumValue><wpml:droneSubEnumValue>0</wpml:droneSubEnumValue></wpml:droneInfo>
+    <wpml:payloadInfo><wpml:payloadEnumValue>0</wpml:payloadEnumValue><wpml:payloadSubEnumValue>0</wpml:payloadSubEnumValue><wpml:payloadPositionIndex>0</wpml:payloadPositionIndex></wpml:payloadInfo>
+  </wpml:missionConfig>
+</Document></kml>`;
 
     let waylinesWpmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="${wpmlNs}">
@@ -320,6 +364,7 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `      <wpml:executeHeight>${wp.altitude.toFixed(1)}</wpml:executeHeight>\n`;
         waylinesWpmlContent += `      <wpml:waypointSpeed>${missionFlightSpeed}</wpml:waypointSpeed>\n`;
         
+        // Heading
         waylinesWpmlContent += `      <wpml:waypointHeadingParam>\n`;
         let headingMode = 'followWayline', headingAngle = 0, headingAngleEnable = 0, headingPathMode = 'followBadArc';
         let poiPointXml = `        <wpml:waypointPoiPoint>0.0,0.0,0.0</wpml:waypointPoiPoint>\n`;
@@ -345,17 +390,28 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `        <wpml:waypointHeadingPoiIndex>0</wpml:waypointHeadingPoiIndex>\n`; 
         waylinesWpmlContent += `      </wpml:waypointHeadingParam>\n`;
 
+        // Turn Mode Logic
         let turnMode;
-        if (index === 0 || index === waypoints.length - 1 || wp.hoverTime > 0) {
-            turnMode = 'toPointAndStopWithContinuityCurvature';
+        if (wp.hoverTime > 0) {
+            turnMode = 'toPointAndStopWithDiscontinuityCurvature';
         } else {
-            turnMode = (missionPathType === 'curved') ? 'toPointAndPassWithContinuityCurvature' : 'toPointAndStopWithContinuityCurvature';
+            if (missionPathType === 'straight') {
+                turnMode = 'toPointAndStopWithDiscontinuityCurvature';
+            } else { // missionPathType === 'curved'
+                if (index === 0 || index === waypoints.length - 1) {
+                    turnMode = 'toPointAndStopWithContinuityCurvature';
+                } else {
+                    turnMode = 'toPointAndPassWithContinuityCurvature';
+                }
+            }
         }
+        
         waylinesWpmlContent += `      <wpml:waypointTurnParam>\n`;
         waylinesWpmlContent += `        <wpml:waypointTurnMode>${turnMode}</wpml:waypointTurnMode>\n`;
         waylinesWpmlContent += `        <wpml:waypointTurnDampingDist>0.2</wpml:waypointTurnDampingDist>\n`;
         waylinesWpmlContent += `      </wpml:waypointTurnParam>\n`;
 
+        // Actions
         let actionsXmlBlock = "";
         if (wp.hoverTime > 0) {
             actionsXmlBlock += `        <wpml:action><wpml:actionId>${actionCounter++}</wpml:actionId><wpml:actionActuatorFunc>HOVER</wpml:actionActuatorFunc><wpml:actionActuatorFuncParam><wpml:hoverTime>${wp.hoverTime}</wpml:hoverTime></wpml:actionActuatorFuncParam></wpml:action>\n`;
