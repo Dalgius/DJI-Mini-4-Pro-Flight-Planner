@@ -1,5 +1,4 @@
 // File: surveyGridManager.js
-// Logica overshoot rimossa.
 
 let currentPolygonPoints = [];
 let tempPolygonLayer = null;
@@ -14,21 +13,38 @@ const FIXED_CAMERA_PARAMS = {
     focalLength_mm: 6.88
 };
 
-// === FUNZIONI HELPER (invariate) ===
+// === HELPER FUNCTIONS ===
 function clearTemporaryDrawing() {
-    if (tempPolygonLayer) { map.removeLayer(tempPolygonLayer); tempPolygonLayer = null; }
-    tempVertexMarkers.forEach(marker => map.removeLayer(marker)); tempVertexMarkers = [];
+    if (tempPolygonLayer) {
+        map.removeLayer(tempPolygonLayer);
+        tempPolygonLayer = null;
+    }
+    tempVertexMarkers.forEach(marker => map.removeLayer(marker));
+    tempVertexMarkers = [];
 }
+
 function updateTempPolygonDisplay() {
-    clearTemporaryDrawing();
+    // Non pulire qui, altrimenti i marker dei vertici scompaiono
+    if (tempPolygonLayer) {
+        map.removeLayer(tempPolygonLayer);
+        tempPolygonLayer = null;
+    }
+
     if (currentPolygonPoints.length < 2) return;
     const opts = { color: 'rgba(0, 100, 255, 0.7)', weight: 2, fillColor: 'rgba(0, 100, 255, 0.2)', fillOpacity: 0.3 };
-    if (currentPolygonPoints.length === 2) tempPolygonLayer = L.polyline(currentPolygonPoints, opts).addTo(map);
-    else if (currentPolygonPoints.length >= MIN_POLYGON_POINTS) tempPolygonLayer = L.polygon(currentPolygonPoints, opts).addTo(map);
+    
+    if (currentPolygonPoints.length === 2) {
+        tempPolygonLayer = L.polyline(currentPolygonPoints, opts).addTo(map);
+    } else if (currentPolygonPoints.length >= 3) {
+        tempPolygonLayer = L.polygon(currentPolygonPoints, opts).addTo(map);
+    }
 }
+
 function toRad(degrees) { return degrees * Math.PI / 180; }
+
 function rotateLatLng(pointLatLng, centerLatLng, angleRadians) {
-    const cosAngle = Math.cos(angleRadians); const sinAngle = Math.sin(angleRadians);
+    const cosAngle = Math.cos(angleRadians);
+    const sinAngle = Math.sin(angleRadians);
     const dLngScaled = (pointLatLng.lng - centerLatLng.lng) * Math.cos(toRad(centerLatLng.lat));
     const dLat = pointLatLng.lat - centerLatLng.lat;
     const rotatedDLngScaled = dLngScaled * cosAngle - dLat * sinAngle;
@@ -37,8 +53,11 @@ function rotateLatLng(pointLatLng, centerLatLng, angleRadians) {
     const finalLat = centerLatLng.lat + rotatedDLat;
     return L.latLng(finalLat, finalLng);
 }
+
 function isPointInPolygon(point, polygonVertices) {
-    let isInside = false; const x = point.lng; const y = point.lat;
+    let isInside = false;
+    const x = point.lng;
+    const y = point.lat;
     for (let i = 0, j = polygonVertices.length - 1; i < polygonVertices.length; j = i++) {
         const xi = polygonVertices[i].lng, yi = polygonVertices[i].lat;
         const xj = polygonVertices[j].lng, yj = polygonVertices[j].lat;
@@ -47,17 +66,22 @@ function isPointInPolygon(point, polygonVertices) {
     }
     return isInside;
 }
+
 function calculateFootprint(altitudeAGL, cameraParams) {
-    if (!cameraParams || !cameraParams.focalLength_mm || cameraParams.focalLength_mm === 0) { return { width: 0, height: 0 }; }
+    if (!cameraParams || !cameraParams.focalLength_mm || cameraParams.focalLength_mm === 0) {
+        console.error("Invalid camera parameters for footprint calculation.");
+        return { width: 0, height: 0 };
+    }
     const footprintWidth = (cameraParams.sensorWidth_mm / cameraParams.focalLength_mm) * altitudeAGL;
     const footprintHeight = (cameraParams.sensorHeight_mm / cameraParams.focalLength_mm) * altitudeAGL;
     return { width: footprintWidth, height: footprintHeight };
 }
 
-// === GESTORI UI PRINCIPALI (aggiornati per i18n) ===
+// === UI HANDLERS ===
 function openSurveyGridModal() {
     if (!surveyGridModalOverlayEl) {
-        showCustomAlert(translate('errorTitle'), "Survey grid modal elements not found."); return;
+        showCustomAlert(translate('errorTitle'), "Survey grid modal elements not found.");
+        return;
     }
     surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value;
     if (!surveySidelapInputEl.value) surveySidelapInputEl.value = 70;
@@ -78,15 +102,16 @@ function cancelSurveyAreaDrawing() {
     const wasActive = isDrawingSurveyArea || nativeMapClickListener;
     isDrawingSurveyArea = false;
     if (map) {
-        const mapContainer = map.getContainer();
-        if (mapContainer && nativeMapClickListener) {
-            mapContainer.removeEventListener('click', nativeMapClickListener, true);
+        map.getContainer().style.cursor = '';
+        if (nativeMapClickListener) {
+            map.getContainer().removeEventListener('click', nativeMapClickListener, true);
             nativeMapClickListener = null;
         }
+        // Rimuove specificamente il listener per il disegno
         map.off('click', handleSurveyAreaMapClick);
-        map.getContainer().style.cursor = '';
-        if ((wasActive || !map.hasEventListeners('click', handleMapClick)) && typeof handleMapClick === 'function') {
-            map.on('click', handleMapClick);
+        // Riattacca il listener di default se era stato rimosso
+        if (wasActive && !map.hasEventListeners('click')) {
+             if (typeof handleMapClick === 'function') map.on('click', handleMapClick);
         }
     }
     clearTemporaryDrawing();
@@ -99,26 +124,17 @@ function cancelSurveyAreaDrawing() {
 }
 
 function handleStartDrawingSurveyArea() {
-    if (!map || !surveyGridModalOverlayEl) { return; }
-    isDrawingSurveyArea = true; currentPolygonPoints = []; clearTemporaryDrawing();
+    if (!map || !surveyGridModalOverlayEl) return;
+    isDrawingSurveyArea = true;
+    currentPolygonPoints = [];
+    clearTemporaryDrawing();
 
-    if (typeof handleMapClick === 'function') map.off('click', handleMapClick);
-    map.off('click', handleSurveyAreaMapClick);
-
-    const mapContainer = map.getContainer();
-    if (mapContainer) {
-        if (nativeMapClickListener) mapContainer.removeEventListener('click', nativeMapClickListener, true);
-        nativeMapClickListener = function(event) {
-            if (!isDrawingSurveyArea) return;
-            if (event.target && (event.target === mapContainer || event.target.closest('.leaflet-pane') || event.target.closest('.leaflet-container'))) {
-                try {
-                    const latlng = map.mouseEventToLatLng(event);
-                    handleSurveyAreaMapClick({ latlng: latlng, originalEvent: event });
-                } catch (mapError) { console.error("Native click error:", mapError); }
-            }
-        };
-        mapContainer.addEventListener('click', nativeMapClickListener, true);
+    if (typeof handleMapClick === 'function') {
+        map.off('click', handleMapClick);
     }
+    map.off('click', handleSurveyAreaMapClick); // Assicura che non ci siano listener duplicati
+    map.on('click', handleSurveyAreaMapClick); // Usa il listener di Leaflet
+
     map.getContainer().style.cursor = 'crosshair';
     surveyGridModalOverlayEl.style.display = 'none';
     showCustomAlert(translate('alert_surveyDrawingActive', {minPoints: MIN_POLYGON_POINTS}), translate('infoTitle'));
@@ -126,34 +142,50 @@ function handleStartDrawingSurveyArea() {
 
 function handleSurveyAreaMapClick(e) {
     if (!isDrawingSurveyArea) return;
+
     const clickedLatLng = e.latlng;
+    
+    // Controlla se si sta chiudendo il poligono
+    if (currentPolygonPoints.length >= MIN_POLYGON_POINTS && tempVertexMarkers.length > 0) {
+        const firstPointMarker = tempVertexMarkers[0];
+        if (firstPointMarker.getLatLng().distanceTo(clickedLatLng) < 10 * map.getZoomScale(map.getZoom(), 18)) {
+            handleFinalizeSurveyArea();
+            return;
+        }
+    }
+    
     currentPolygonPoints.push(clickedLatLng);
 
-    const vertexMarker = L.circleMarker(clickedLatLng, { radius: 6, color: 'rgba(255,0,0,0.8)', fillColor: 'rgba(255,0,0,0.5)', fillOpacity: 0.7, pane: 'markerPane' }).addTo(map);
-    if (tempVertexMarkers.length === 0) {
-        vertexMarker.on('click', (markerClickEvent) => {
-            if (isDrawingSurveyArea && currentPolygonPoints.length >= MIN_POLYGON_POINTS) {
-                L.DomEvent.stopPropagation(markerClickEvent); L.DomEvent.preventDefault(markerClickEvent);
+    const vertexMarker = L.circleMarker(clickedLatLng, { 
+        radius: 6, 
+        color: 'rgba(255,0,0,0.8)', 
+        fillColor: 'rgba(255,0,0,0.5)', 
+        fillOpacity: 0.7, 
+        pane: 'markerPane' 
+    }).addTo(map);
+
+    if (currentPolygonPoints.length === 1) {
+        vertexMarker.on('click', () => {
+             if (isDrawingSurveyArea && currentPolygonPoints.length >= MIN_POLYGON_POINTS) {
                 handleFinalizeSurveyArea();
             }
         });
     }
+
     tempVertexMarkers.push(vertexMarker);
     updateTempPolygonDisplay();
 }
 
 function handleFinalizeSurveyArea() {
     if (!isDrawingSurveyArea) return;
-    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) {
-        showCustomAlert(translate('alert_surveyAreaMinPoints', { minPoints: MIN_POLYGON_POINTS }), translate('infoTitle'));
-        return;
-    }
-    const mapContainer = map.getContainer();
-    if (mapContainer && nativeMapClickListener) {
-        mapContainer.removeEventListener('click', nativeMapClickListener, true);
-        nativeMapClickListener = null;
-    }
+    
     map.getContainer().style.cursor = '';
+    isDrawingSurveyArea = false;
+    map.off('click', handleSurveyAreaMapClick);
+    if (typeof handleMapClick === 'function' && !map.hasEventListeners('click')) {
+        map.on('click', handleMapClick);
+    }
+    
     if (surveyGridModalOverlayEl) {
         surveyGridModalOverlayEl.style.display = 'flex';
     }
@@ -161,7 +193,10 @@ function handleFinalizeSurveyArea() {
     if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false;
     if (surveyAreaStatusEl) surveyAreaStatusEl.innerHTML = translate('surveyAreaStatusDefined', { points: currentPolygonPoints.length });
     if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = translate('surveyGridInstructionsFinalized');
-    if (tempPolygonLayer) tempPolygonLayer.setStyle({ color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' });
+    
+    if (tempPolygonLayer) {
+        tempPolygonLayer.setStyle({ color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' });
+    }
     tempVertexMarkers.forEach(marker => marker.off('click'));
 }
 
@@ -189,11 +224,6 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
         return finalWaypointsData;
     }
     
-    const requiredPhotoInterval_s = actualDistanceBetweenPhotos / flightSpeed;
-    if (requiredPhotoInterval_s < 1.8 && flightSpeed > 0) {
-        // Avviso non bloccante, gestito altrove o loggato
-    }
-
     const rotationCenter = polygonLatLngs[0];
     const angleRad = toRad(gridAngleDeg);
     const rotatedPolygonLatLngs = polygonLatLngs.map(p => rotateLatLng(p, rotationCenter, -angleRad));
@@ -260,9 +290,8 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     return uniqueWaypoints;
 }
 
-
 function handleConfirmSurveyGridGeneration() {
-    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) { showCustomAlert(translate('alert_surveyGridInvalidPoly'), "Error"); return; }
+    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) { showCustomAlert(translate('alert_surveyGridInvalidPoly'), translate('errorTitle')); return; }
     
     const altitude = parseInt(surveyGridAltitudeInputEl.value);
     const sidelap = parseFloat(surveySidelapInputEl.value);
