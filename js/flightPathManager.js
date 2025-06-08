@@ -2,7 +2,7 @@
 
 // Depends on: config.js (map, pathTypeSelect, waypoints, flightPath, lastAltitudeAdaptationMode), 
 // utils.js (createSmoothPath, haversineDistance), 
-// uiUpdater.js (for updateFlightStatistics), 
+// uiUpdater.js (for updateFlightStatistics, updatePathModeDisplay), 
 // waypointManager.js (addWaypoint - indiretto via handlePathClick, selectWaypoint - indiretto)
 // mapManager.js (createWaypointIcon - indiretto via handlePathClick)
 
@@ -21,6 +21,7 @@ function updateFlightPath() {
 
     if (waypoints.length < 2) {
         updateFlightStatistics(); 
+        if(typeof updatePathModeDisplay === "function") updatePathModeDisplay(); // Assicura che il testo sia aggiornato anche se non c'è percorso
         return;
     }
 
@@ -34,18 +35,14 @@ function updateFlightPath() {
         displayPathCoords = latlngsArrays; 
     }
 
-    // Determina il colore del percorso in base alla modalità di altitudine
     let pathColor = '#3498db'; // Blu di default (per 'relative')
     let pathDashArray = currentPathType === 'curved' ? null : '5, 5';
 
     if (lastAltitudeAdaptationMode === 'agl') {
-        pathColor = '#27ae60'; // Verde più scuro per AGL
-        // pathDashArray = '10, 5'; // Esempio: tratteggio diverso per AGL
+        pathColor = '#27ae60'; 
     } else if (lastAltitudeAdaptationMode === 'amsl') {
-        pathColor = '#e67e22'; // Arancione più scuro per AMSL
-        // pathDashArray = '15, 7, 5, 7'; // Esempio: tratteggio diverso per AMSL
+        pathColor = '#e67e22'; 
     }
-    // Per 'relative', rimane il blu di default e il tratteggio basato su curved/straight.
 
     flightPath = L.polyline(displayPathCoords, {
         color: pathColor, 
@@ -57,7 +54,7 @@ function updateFlightPath() {
     flightPath.on('click', handlePathClick);
 
     updateFlightStatistics();
-    if(typeof updatePathModeDisplay === "function") updatePathModeDisplay(); // Assicura che il testo sia aggiornato
+    if(typeof updatePathModeDisplay === "function") updatePathModeDisplay(); 
 }
 
 /**
@@ -80,7 +77,7 @@ function handlePathClick(e) {
         let dist;
         if (L.GeometryUtil && typeof L.GeometryUtil.closestOnSegment === 'function') {
             const closestPointOnSegment = L.GeometryUtil.closestOnSegment(map, L.polyline([p1,p2]), clickedLatLng);
-            dist = clickedLatLng.distanceTo(closestPointOnSegment); // Distanza dal click al punto proiettato
+            dist = clickedLatLng.distanceTo(closestPointOnSegment); 
             if (dist < minDistanceToProjectedPoint) {
                  minDistanceToProjectedPoint = dist;
                  insertAfterWaypointIndex = i;
@@ -114,25 +111,8 @@ function handlePathClick(e) {
         
         const newWpId = waypointCounter; // Non incrementare qui, addWaypoint lo farà se options.id non è fornito
 
-        const newWaypointOptions = {
-            // id: newWpId, // L'ID sarà gestito da addWaypoint
-            altitude: newWpAltitude,
-            hoverTime: 0, 
-            gimbalPitch: parseInt(gimbalPitchSlider ? gimbalPitchSlider.value : 0), 
-            headingControl: 'auto', // Default per waypoint inseriti
-            // terrainElevationMSL sarà null di default
-        };
-        
-        // Inserisci il nuovo waypoint nell'array waypoints PRIMA di chiamare addWaypoint,
-        // poi rimuovilo e lascia che addWaypoint lo aggiunga correttamente.
-        // O meglio, modifica addWaypoint per inserire a un indice specifico.
-        // Per ora, lo aggiungiamo e poi lo spostiamo, oppure modifichiamo addWaypoint
-        // Per semplicità, lo aggiungiamo e poi l'utente può spostarlo se necessario,
-        // oppure, se la logica di inserimento è complessa, andrebbe rivista.
-        // L'attuale `addWaypoint` aggiunge alla fine.
-        // Per inserire:
-        const tempNewWpObject = { // Creiamo un oggetto temporaneo solo per l'inserimento nell'array
-            id: newWpId, // Usiamo il contatore attuale per l'ID
+        const tempNewWpObject = { 
+            id: newWpId, 
             latlng: insertionPointLatLng,
             altitude: newWpAltitude,
             hoverTime: 0,
@@ -142,15 +122,12 @@ function handlePathClick(e) {
             cameraAction: 'none',
             targetPoiId: null,
             terrainElevationMSL: null,
-            marker: null // Il marker sarà creato da addWaypoint
+            marker: null 
         };
         
-        // Logica di inserimento manuale nell'array (più controllo)
-        // Incrementa il contatore DOPO averlo usato per il nuovo ID
         waypointCounter++; 
         waypoints.splice(insertAfterWaypointIndex + 1, 0, tempNewWpObject);
         
-        // Crea il marker e aggiungilo all'oggetto
         const isHome = waypoints.length > 0 && tempNewWpObject.id === waypoints[0].id;
         const marker = L.marker(tempNewWpObject.latlng, {
             draggable: true,
@@ -163,17 +140,17 @@ function handlePathClick(e) {
             updateFlightPath();
             updateFlightStatistics();
             updateWaypointList();
-            updateMarkerIconStyle(tempNewWpObject);
+            updateMarkerIconStyle(tempNewWpObject); 
             const wpIndex = waypoints.findIndex(wp => wp.id === tempNewWpObject.id);
             if (wpIndex > 0 && waypoints[wpIndex-1].headingControl === 'auto') {
                 updateMarkerIconStyle(waypoints[wpIndex-1]);
             }
-            if (tempNewWpObject.headingControl === 'poi_track') updateGimbalForPoiTrack(tempNewWpObject, true);
+            if (tempNewWpObject.headingControl === 'poi_track' && typeof updateGimbalForPoiTrack === "function") updateGimbalForPoiTrack(tempNewWpObject, true);
         });
          marker.on('drag', () => { 
             tempNewWpObject.latlng = marker.getLatLng();
             updateFlightPath(); 
-            if(tempNewWpObject.headingControl === 'poi_track'){ 
+            if(tempNewWpObject.headingControl === 'poi_track' && typeof updateGimbalForPoiTrack === "function"){ 
                  updateGimbalForPoiTrack(tempNewWpObject);
                  if(selectedWaypoint && selectedWaypoint.id === tempNewWpObject.id && gimbalPitchSlider && gimbalPitchValueEl){ 
                     gimbalPitchSlider.value = tempNewWpObject.gimbalPitch;
@@ -183,14 +160,13 @@ function handlePathClick(e) {
         });
         tempNewWpObject.marker = marker;
 
-        // Aggiorna heading dei vicini
         if (insertAfterWaypointIndex >= 0 && waypoints[insertAfterWaypointIndex].headingControl === 'auto') {
             updateMarkerIconStyle(waypoints[insertAfterWaypointIndex]);
         }
-        if (insertAfterWaypointIndex + 2 < waypoints.length && waypoints[insertAfterWaypointIndex + 2].headingControl === 'auto') { // Waypoint dopo quello inserito
+        if (insertAfterWaypointIndex + 2 < waypoints.length && waypoints[insertAfterWaypointIndex + 2].headingControl === 'auto') { 
              updateMarkerIconStyle(waypoints[insertAfterWaypointIndex + 2]);
         }
-         updateMarkerIconStyle(tempNewWpObject); // Aggiorna il nuovo
+         updateMarkerIconStyle(tempNewWpObject); 
 
 
         updateWaypointList();
@@ -198,8 +174,8 @@ function handlePathClick(e) {
         updateFlightStatistics();
         selectWaypoint(tempNewWpObject); 
 
-        showCustomAlert(`Waypoint ${tempNewWpObject.id} inserito nel percorso.`, "Info");
+        showCustomAlert(translate('alert_waypointInserted', {wpId: tempNewWpObject.id}), translate('infoTitle'));
     } else {
-        showCustomAlert("Impossibile determinare il punto di inserimento sul percorso.", "Errore");
+        showCustomAlert(translate('alert_couldNotInsertWaypoint'), translate('errorTitle'));
     }
 }
