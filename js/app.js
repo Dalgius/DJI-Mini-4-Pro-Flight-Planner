@@ -13,7 +13,6 @@ function initApp() {
 
     // 2. Set initial language (before other initializations that might need translated text)
     const savedLang = localStorage.getItem('flightPlannerLang') || navigator.language.split('-')[0];
-    // setLanguage is defined in i18n.js and is now globally available
     if (typeof setLanguage === 'function') {
         setLanguage(translations[savedLang] ? savedLang : 'en');
     }
@@ -23,15 +22,18 @@ function initApp() {
 
     // 4. Set up all event listeners for UI interactions.
     setupEventListeners(); // from eventListeners.js
-
-    // 5. Initial UI state updates. Most are now handled by applyTranslations() called from setLanguage()
+    
+    // 5. Initial UI state updates.
+    if(typeof updateDefaultDesiredAMSLTarget === 'function') {
+        updateDefaultDesiredAMSLTarget(); // <-- CHIAMATA AGGIUNTA QUI
+    }
     updateWaypointList();
     updatePOIList();
     updateFlightStatistics();
     updateMultiEditPanelVisibility();
 
     // Initial state for some UI components if not handled by cacheDOMElements or specific managers
-    if (waypointControlsDiv) waypointControlsDiv.style.display = 'none'; // Hide single WP edit panel initially
+    if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
     if (multiFixedHeadingGroupDiv) multiFixedHeadingGroupDiv.style.display = 'none';
     if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'none';
     if (fixedHeadingGroupDiv) fixedHeadingGroupDiv.style.display = 'none';
