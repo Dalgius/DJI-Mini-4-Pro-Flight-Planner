@@ -3,12 +3,6 @@
 // Depends on: config.js, utils.js (calculateRequiredGimbalPitch, haversineDistance), 
 // uiUpdater.js, mapManager.js, flightPathManager.js, terrainManager.js (getElevationsBatch)
 
-/**
- * Adds a new waypoint to the map and list.
- * If it's the first waypoint, attempts to set the home elevation and its own terrain elevation.
- * @param {L.LatLng} latlng - The latitude and longitude for the new waypoint.
- * @param {object} [options={}] - Optional parameters {id, altitude, gimbalPitch, headingControl, targetPoiId, terrainElevationMSL, calledFromLoad}.
- */
 async function addWaypoint(latlng, options = {}) { 
     if (!map || !defaultAltitudeSlider || !gimbalPitchSlider) return;
 
@@ -27,7 +21,6 @@ async function addWaypoint(latlng, options = {}) {
         terrainElevationMSL: options.terrainElevationMSL !== undefined ? options.terrainElevationMSL : null, 
         marker: null 
     };
-    // Se options.id è fornito (da import), waypointCounter sarà gestito in loadFlightPlan
     
     waypoints.push(newWaypoint);
 
@@ -47,7 +40,7 @@ async function addWaypoint(latlng, options = {}) {
         updateFlightStatistics();
         
         const wpIndex = waypoints.findIndex(wp => wp.id === newWaypoint.id);
-        const isDraggedWpFirst = wpIndex === 0; // Controlla se è il primo nell'array attuale
+        const isDraggedWpFirst = wpIndex === 0;
 
         if (isDraggedWpFirst && typeof getElevationsBatch === "function" && homeElevationMslInput) {
             console.log(`WP1 (ID: ${newWaypoint.id}) trascinato. Tento di aggiornare l'elevazione di decollo e del WP1.`);
@@ -58,14 +51,18 @@ async function addWaypoint(latlng, options = {}) {
             if (elevations && elevations.length > 0 && elevations[0] !== null) {
                 const terrainElev = Math.round(elevations[0]);
                 homeElevationMslInput.value = terrainElev;
-                newWaypoint.terrainElevationMSL = terrainElev; // Aggiorna anche il terrain MSL di WP1
-                console.log(`Elevazione decollo impostata a ${homeElevationMslInput.value}m MSL e WP1.terrainElevationMSL a ${newWaypoint.terrainElevationMSL}m dal WP1 trascinato.`);
+                newWaypoint.terrainElevationMSL = terrainElev;
                 
+                // --- PUNTO CHIAVE DELLA CORREZIONE ---
+                if (typeof updateDefaultDesiredAMSLTarget === "function") {
+                    updateDefaultDesiredAMSLTarget();
+                }
+
                 lastAltitudeAdaptationMode = 'relative'; 
                 if(typeof updatePathModeDisplay === "function") updatePathModeDisplay();
                 updateFlightPath(); 
 
-                waypoints.forEach(wp_iter => { // Ricalcola per TUTTI i WP in poi_track
+                waypoints.forEach(wp_iter => {
                     if (wp_iter.headingControl === 'poi_track' && typeof updateGimbalForPoiTrack === "function") {
                         updateGimbalForPoiTrack(wp_iter, selectedWaypoint && selectedWaypoint.id === wp_iter.id);
                     }
@@ -77,11 +74,11 @@ async function addWaypoint(latlng, options = {}) {
             updateGimbalForPoiTrack(newWaypoint, true); 
         }
         
-        updateWaypointList(); // Aggiorna la lista dopo tutti i calcoli
+        updateWaypointList();
         if(selectedWaypoint && selectedWaypoint.id === newWaypoint.id && typeof updateSingleWaypointEditControls === "function"){
-             updateSingleWaypointEditControls(); // Aggiorna il pannello se il WP trascinato era quello selezionato
+             updateSingleWaypointEditControls();
         }
-        updateMarkerIconStyle(newWaypoint); // Assicura che l'icona del WP trascinato sia aggiornata
+        updateMarkerIconStyle(newWaypoint);
         if (wpIndex > 0 && waypoints[wpIndex-1].headingControl === 'auto') { 
             updateMarkerIconStyle(waypoints[wpIndex-1]);
         }
@@ -147,16 +144,20 @@ async function addWaypoint(latlng, options = {}) {
             
             console.log(`Elevazione decollo impostata a ${homeElevationMslInput.value}m MSL. WP1.terrainElevationMSL: ${newWaypoint.terrainElevationMSL}m.`);
 
+            // --- PUNTO CHIAVE DELLA CORREZIONE ---
+            if (typeof updateDefaultDesiredAMSLTarget === "function") {
+                updateDefaultDesiredAMSLTarget();
+            }
+
             lastAltitudeAdaptationMode = 'relative'; 
             if(typeof updatePathModeDisplay === "function") updatePathModeDisplay();
-            // updateFlightPath(); // Verrà chiamato da selectWaypoint o dall'aggiornamento lista
 
             if (newWaypoint.headingControl === 'poi_track' && typeof updateGimbalForPoiTrack === "function") {
                 updateGimbalForPoiTrack(newWaypoint, true); 
             }
         } else {
             console.warn("Impossibile recuperare l'elevazione per WP1. homeElevationMslInput e WP1.terrainElevationMSL non impostati automaticamente.");
-            newWaypoint.terrainElevationMSL = null; // Esplicita che è null
+            newWaypoint.terrainElevationMSL = null;
         }
     } else if (waypoints.length > 1) { 
         const prevWpIndex = waypoints.length - 2; 
@@ -167,8 +168,6 @@ async function addWaypoint(latlng, options = {}) {
     }
     
     if (newWaypoint.headingControl === 'poi_track' && newWaypoint.targetPoiId !== null && typeof updateGimbalForPoiTrack === "function") {
-        // Se è il primo waypoint, il gimbal è già stato calcolato sopra (se poi_track)
-        // Altrimenti, se è un waypoint successivo importato con poi_track, calcolalo.
         if (!isFirstWaypointBeingAdded) {
              updateGimbalForPoiTrack(newWaypoint, (options.calledFromLoad !== true && selectedWaypoint && selectedWaypoint.id === newWaypoint.id));
         }
@@ -179,9 +178,6 @@ async function addWaypoint(latlng, options = {}) {
         updateFlightPath();
         updateFlightStatistics();
         selectWaypoint(newWaypoint); 
-    } else {
-        // Per importazioni di massa, updateWaypointList e altri aggiornamenti UI
-        // sono gestiti alla fine di loadFlightPlan.
     }
 }
 
@@ -233,10 +229,7 @@ function deleteSelectedWaypoint() {
     selectedWaypoint = null;
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
     
-    if (deletedWaypointIndex === 0 && waypoints.length > 0) { // Se il primo WP è stato cancellato
-        // E ora c'è un nuovo WP1, aggiorna l'elevazione di decollo se l'utente lo desidera
-        // o semplicemente aggiorna le icone. Per ora, aggiorniamo solo le icone.
-        // Potremmo chiedere all'utente se vuole usare il nuovo WP1 per l'elevazione di decollo.
+    if (deletedWaypointIndex === 0 && waypoints.length > 0) {
         console.log("Il primo waypoint è stato eliminato. Ridisegno le icone.");
     } else if (deletedWaypointIndex > 0 && deletedWaypointIndex -1 < waypoints.length) { 
         const prevWp = waypoints[deletedWaypointIndex - 1]; 
@@ -361,15 +354,8 @@ function updateGimbalForPoiTrack(waypoint, forceUpdateUI = false) {
     const waypointAMSL = homeElevation + waypoint.altitude;
     const poiAMSL = targetPoi.altitude; 
     const horizontalDistance = haversineDistance(waypoint.latlng, targetPoi.latlng);
-    // console.log(`--- updateGimbalForPoiTrack INIZIO per WP ${waypoint.id} ---`); // Rimosso per meno verbosità
-    // console.log(`  WP ID: ${waypoint.id}, Target POI ID: ${targetPoi.id} ('${targetPoi.name}')`);
-    // console.log(`  Home Elevation MSL: ${homeElevation.toFixed(1)}m`);
-    // console.log(`  Waypoint Rel. Alt: ${waypoint.altitude}m => Waypoint AMSL: ${waypointAMSL.toFixed(1)}m`);
-    // console.log(`  POI AMSL (targetPoi.altitude): ${poiAMSL.toFixed(1)}m`);
-    // console.log(`  Distanza Orizzontale WP-POI: ${horizontalDistance.toFixed(1)}m`);
-    // console.log(`  Delta Altitudine (POI_AMSL - WP_AMSL): ${(poiAMSL - waypointAMSL).toFixed(1)}m`);
+
     const requiredPitch = calculateRequiredGimbalPitch(waypointAMSL, poiAMSL, horizontalDistance);
-    // console.log(`  Required Pitch CALCOLATO: ${requiredPitch}° (Precedente: ${waypoint.gimbalPitch}°)`);
     if (waypoint.gimbalPitch !== requiredPitch) {
         console.log(`  >>> WP ${waypoint.id}: Aggiornamento Gimbal Pitch da ${waypoint.gimbalPitch}° a ${requiredPitch}°`);
         waypoint.gimbalPitch = requiredPitch; 
@@ -378,7 +364,6 @@ function updateGimbalForPoiTrack(waypoint, forceUpdateUI = false) {
             if (gimbalPitchValueEl) gimbalPitchValueEl.textContent = waypoint.gimbalPitch + '°';
         }
     }
-    // console.log(`--- updateGimbalForPoiTrack FINE per WP ${waypoint.id} (Gimbal ora è ${waypoint.gimbalPitch}°) ---`);
 }
 
 function applyMultiEdit() {
