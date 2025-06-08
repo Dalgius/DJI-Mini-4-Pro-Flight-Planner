@@ -52,7 +52,6 @@ function cacheDOMElements() {
 
     // Sidebar Controls - Multi-Waypoint Edit
     multiWaypointEditControlsDiv = document.getElementById('multiWaypointEditControls');
-    // selectedWaypointsCountEl no longer exists, title is built dynamically
     selectAllWaypointsCheckboxEl = document.getElementById('selectAllWaypointsCheckbox');
     multiHeadingControlSelect = document.getElementById('multiHeadingControl');
     multiFixedHeadingGroupDiv = document.getElementById('multiFixedHeadingGroup');
@@ -136,10 +135,7 @@ function cacheDOMElements() {
     if (gimbalPitchSlider && gimbalPitchValueEl) gimbalPitchValueEl.textContent = gimbalPitchSlider.value + '°';
     if (poiFinalAltitudeDisplayEl) poiFinalAltitudeDisplayEl.textContent = "0.0 m";
     
-    // Imposta il valore iniziale per desiredAMSLInputEl e testo modalità percorso
-    if (typeof updateDefaultDesiredAMSLTarget === "function") { 
-        updateDefaultDesiredAMSLTarget();
-    }
+    // RIMOSSA la chiamata da qui
     if (typeof updatePathModeDisplay === "function") {
         updatePathModeDisplay();
     }
