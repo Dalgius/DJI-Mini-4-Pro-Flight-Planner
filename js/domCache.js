@@ -136,6 +136,7 @@ function cacheDOMElements() {
     if (gimbalPitchSlider && gimbalPitchValueEl) gimbalPitchValueEl.textContent = gimbalPitchSlider.value + '°';
     if (poiFinalAltitudeDisplayEl) poiFinalAltitudeDisplayEl.textContent = "0.0 m";
     
+    // Imposta il valore iniziale per desiredAMSLInputEl e testo modalità percorso
     if (typeof updateDefaultDesiredAMSLTarget === "function") { 
         updateDefaultDesiredAMSLTarget();
     }
