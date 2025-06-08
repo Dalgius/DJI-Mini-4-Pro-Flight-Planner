@@ -56,7 +56,7 @@ function populatePoiSelectDropdown(selectElement, selectedPoiId = null, addDefau
 }
 
 function updateWaypointList() {
-    if (!waypointListEl || !selectAllWaypointsCheckboxEl) return;
+    if (!waypointListEl || !selectAllWaypointsCheckboxEl || typeof translate !== 'function') return;
     if (waypoints.length === 0) {
         waypointListEl.innerHTML = `<div style="text-align: center; color: #95a5a6; font-size: 12px; padding: 20px;">${translate('clickMapToAddWaypoints')}</div>`;
         selectAllWaypointsCheckboxEl.checked = false;
@@ -74,14 +74,15 @@ function updateWaypointList() {
     }
 
     waypointListEl.innerHTML = waypoints.map(wp => {
-        let actionText = getCameraActionText(wp.cameraAction); // getCameraActionText ora dovrebbe usare translate
+        const action = wp.cameraAction || 'none';
+        let actionText = translate(`cameraActionText_${action}`);
         let hoverText = wp.hoverTime > 0 ? ` | ${translate('hoverLabel')}: ${wp.hoverTime}s` : '';
         let poiTargetText = '';
         if (wp.headingControl === 'poi_track' && wp.targetPoiId != null) {
             const target = pois.find(p => p.id === wp.targetPoiId);
-            poiTargetText = target ? ` | Target: ${target.name}` : ` | Target: POI ID ${wp.targetPoiId} (not found)`;
+            poiTargetText = target ? ` | Target: ${target.name}` : ` | Target: POI ID ${wp.targetPoiId} (${translate('NA')})`;
         }
-        let actionInfo = actionText ? `<div class="waypoint-action-info" style="margin-top:3px;">${translate('actionLabel')}: ${actionText}${poiTargetText}</div>` : (poiTargetText ? `<div class="waypoint-action-info" style="margin-top:3px;">${poiTargetText.substring(3)}</div>` : '');
+        let actionInfo = (action !== 'none') ? `<div class="waypoint-action-info" style="margin-top:3px;">${translate('actionLabel')}: ${actionText}${poiTargetText}</div>` : (poiTargetText ? `<div class="waypoint-action-info" style="margin-top:3px;">${poiTargetText.substring(3)}</div>` : '');
         const isSelectedForMulti = selectedForMultiEdit.has(wp.id);
         let itemClasses = "waypoint-item";
         if (selectedWaypoint && wp.id === selectedWaypoint.id && waypointControlsDiv && waypointControlsDiv.style.display === 'block' && !multiWaypointEditControlsDivIsVisible()) {
@@ -126,6 +127,13 @@ function updateWaypointList() {
     }).join('');
 }
 
+function updateMultiEditPanelTitle(count) {
+    const titleEl = multiWaypointEditControlsDiv.querySelector('.section-title');
+    if (titleEl) {
+        titleEl.innerHTML = translate('multiEditTitleText', {count: `<span id="selectedWaypointsCount">${count}</span>`});
+    }
+}
+
 function multiWaypointEditControlsDivIsVisible() {
     return multiWaypointEditControlsDiv && multiWaypointEditControlsDiv.style.display === 'block';
 }
@@ -133,18 +141,16 @@ function multiWaypointEditControlsDivIsVisible() {
 function handleWaypointListItemClick(wpId) {
     const wp = waypoints.find(w => w.id === wpId);
     if (wp) {
-        // console.log(`uiUpdater.js - handleWaypointListItemClick: Chiamo selectWaypoint per WP ID ${wpId}`); 
         selectWaypoint(wp); 
     }
 }
 
 function handleWaypointListCheckboxChange(waypointId, isChecked) {
-    // console.log(`uiUpdater.js - handleWaypointListCheckboxChange: WP ID=${waypointId}, checked=${isChecked}. Chiamo toggleMultiSelectWaypoint.`); 
     toggleMultiSelectWaypoint(waypointId, isChecked); 
 }
 
 function updatePOIList() {
-    if (!poiListEl) return;
+    if (!poiListEl || typeof translate !== 'function') return;
     const noPoiAvailableText = translate("noPoisAvailable"); 
     if (pois.length === 0) {
         poiListEl.innerHTML = `<div style="text-align: center; color: #95a5a6; font-size: 12px; padding: 10px;">${translate("noPoisAdded")}</div>`; 
@@ -236,13 +242,11 @@ function handlePoiTerrainElevationChange(poiId, newTerrainElevStr) {
 }
 
 function updateMultiEditPanelVisibility() {
-    if (!multiWaypointEditControlsDiv || !selectedWaypointsCountEl || !waypointControlsDiv) return;
+    if (!multiWaypointEditControlsDiv || !waypointControlsDiv) return;
     const count = selectedForMultiEdit.size;
-    // console.log("uiUpdater.js - updateMultiEditPanelVisibility: selectedForMultiEdit.size =", count); 
     if (count > 0) {
-        // console.log("uiUpdater.js - updateMultiEditPanelVisibility: Mostro pannello MULTI, nascondo pannello SINGOLO."); 
+        updateMultiEditPanelTitle(count);
         multiWaypointEditControlsDiv.style.display = 'block';
-        selectedWaypointsCountEl.textContent = count;
         waypointControlsDiv.style.display = 'none'; 
         if (multiHeadingControlSelect.value === 'poi_track') { 
             if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'block';
@@ -251,16 +255,13 @@ function updateMultiEditPanelVisibility() {
             if (multiTargetPoiForHeadingGroupDiv) multiTargetPoiForHeadingGroupDiv.style.display = 'none';
         }
     } else { 
-        // console.log("uiUpdater.js - updateMultiEditPanelVisibility: Nascondo pannello MULTI."); 
         multiWaypointEditControlsDiv.style.display = 'none';
     }
 }
 
 function updateSingleWaypointEditControls() {
-    // console.log("uiUpdater.js - updateSingleWaypointEditControls: Inizio. selectedWaypoint:", selectedWaypoint ? `ID ${selectedWaypoint.id}` : 'null'); 
     if (!selectedWaypoint || !waypointControlsDiv || !waypointAltitudeSlider || !hoverTimeSlider || !gimbalPitchSlider || !headingControlSelect || !fixedHeadingSlider || !cameraActionSelect) {
         if (waypointControlsDiv) {
-            // console.log("uiUpdater.js - updateSingleWaypointEditControls: Nascondo pannello singolo (selectedWaypoint nullo o elementi DOM mancanti)."); 
             waypointControlsDiv.style.display = 'none';
         }
         return;
@@ -281,7 +282,6 @@ function updateSingleWaypointEditControls() {
     if (showPoiSelect) {
         populatePoiSelectDropdown(targetPoiSelect, selectedWaypoint.targetPoiId, true, translate('selectPoiForHeadingDropdown')); 
     }
-    // console.log("uiUpdater.js - updateSingleWaypointEditControls: Mostro pannello singolo."); 
     waypointControlsDiv.style.display = 'block';
 }
 
@@ -290,12 +290,6 @@ function updateSingleWaypointEditControls() {
  */
 function updatePathModeDisplay() {
     if (!currentPathModeValueEl || typeof translate !== 'function') { 
-        // console.warn("Elemento currentPathModeValueEl o funzione translate non trovati per updatePathModeDisplay.");
-        if (currentPathModeValueEl) { // Fallback se translate non c'è ma l'elemento sì
-            if (lastAltitudeAdaptationMode === 'agl') currentPathModeValueEl.textContent = "Constant AGL";
-            else if (lastAltitudeAdaptationMode === 'amsl') currentPathModeValueEl.textContent = "Constant AMSL";
-            else currentPathModeValueEl.textContent = "Relative to Takeoff";
-        }
         return;
     }
     let modeKey = 'pathModeRelative'; 
@@ -320,5 +314,4 @@ function updateDefaultDesiredAMSLTarget() {
     const defaultFlightAlt = parseInt(defaultAltitudeSlider.value) || 0;
     const suggestedAMSL = homeElev + defaultFlightAlt;
     desiredAMSLInputEl.value = Math.round(suggestedAMSL);
-    // console.log(`Sugerimento AMSL Target aggiornato a: ${desiredAMSLInputEl.value}m`);
 }
