@@ -20,7 +20,6 @@ async function addWaypoint(latlng, options = {}) {
         targetPoiId: options.targetPoiId || null,
         terrainElevationMSL: options.terrainElevationMSL !== undefined ? options.terrainElevationMSL : null, 
         marker: null,
-        // NUOVA PROPRIETÀ per classificare il tipo di waypoint
         waypointType: options.waypointType || 'generic' 
     };
     
@@ -136,7 +135,9 @@ async function addWaypoint(latlng, options = {}) {
         if(loadingOverlayEl) loadingOverlayEl.style.display = 'flex';
         if(loadingOverlayEl) loadingOverlayEl.textContent = "Recupero elevazione decollo da WP1...";
         
-        const elevations = await getElevationsBatch([{ lat: newWaypoint.latlng.lat, lng: newWaypoint.lng.lng }]);
+        // ======================= INIZIO CORREZIONE =======================
+        const elevations = await getElevationsBatch([{ lat: newWaypoint.latlng.lat, lng: newWaypoint.latlng.lng }]);
+        // ======================= FINE CORREZIONE =========================
         
         if(loadingOverlayEl) loadingOverlayEl.style.display = 'none';
 
@@ -258,7 +259,7 @@ function clearWaypoints() {
         if(pois) pois.forEach(p => { if(p.marker) map.removeLayer(p.marker); });
         pois = [];
         poiCounter = 1;
-        if(typeof updatePOIList === "function") updatePOIList();
+        if(typeof updatePOIList === 'function') updatePOIList();
         if(poiNameInput) poiNameInput.value = "";
         if(poiObjectHeightInputEl) poiObjectHeightInputEl.value = "0";
         if(poiTerrainElevationInputEl) {
