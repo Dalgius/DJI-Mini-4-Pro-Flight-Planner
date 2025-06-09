@@ -208,7 +208,8 @@ function exportFlightPlanToJson() {
             headingControl: wp.headingControl, fixedHeading: wp.fixedHeading,
             cameraAction: wp.cameraAction || 'none',
             targetPoiId: wp.targetPoiId === undefined ? null : wp.targetPoiId,
-            terrainElevationMSL: wp.terrainElevationMSL 
+            terrainElevationMSL: wp.terrainElevationMSL,
+            waypointType: wp.waypointType // Exporta il tipo di waypoint
         })),
         pois: pois.map(p => ({ 
             id: p.id, name: p.name, lat: p.latlng.lat, lng: p.latlng.lng, 
@@ -365,11 +366,13 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `      <wpml:waypointSpeed>${missionFlightSpeed}</wpml:waypointSpeed>\n`;
         
         waylinesWpmlContent += `      <wpml:waypointHeadingParam>\n`;
-        if (wp.headingControl === 'fixed') {
+        let effectiveHeadingControl = wp.waypointType === 'grid' ? 'fixed' : wp.headingControl;
+        
+        if (effectiveHeadingControl === 'fixed') {
             waylinesWpmlContent += `        <wpml:waypointHeadingMode>lockCourse</wpml:waypointHeadingMode>\n`;
             waylinesWpmlContent += `        <wpml:waypointHeadingAngle>${wp.fixedHeading}</wpml:waypointHeadingAngle>\n`;
             waylinesWpmlContent += `        <wpml:waypointHeadingAngleEnable>1</wpml:waypointHeadingAngleEnable>\n`;
-        } else if (wp.headingControl === 'poi_track' && wp.targetPoiId != null) {
+        } else if (effectiveHeadingControl === 'poi_track' && wp.targetPoiId != null) {
             const targetPoi = pois.find(p => p.id === wp.targetPoiId);
             if (targetPoi) {
                 waylinesWpmlContent += `        <wpml:waypointHeadingMode>towardPOI</wpml:waypointHeadingMode>\n`;
@@ -384,17 +387,19 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `      </wpml:waypointHeadingParam>\n`;
 
         let turnMode;
-        if (wp.hoverTime > 0) {
+        if (wp.waypointType === 'grid' || wp.hoverTime > 0) {
             turnMode = 'toPointAndStopWithDiscontinuityCurvature';
+        } else if (wp.waypointType === 'orbit') {
+            turnMode = (index === 0 || index === waypoints.length - 1) 
+                       ? 'toPointAndStopWithContinuityCurvature' 
+                       : 'toPointAndPassWithContinuityCurvature';
         } else {
             if (missionPathType === 'straight') {
                 turnMode = 'toPointAndStopWithDiscontinuityCurvature';
             } else {
-                if (index === 0 || index === waypoints.length - 1) {
-                    turnMode = 'toPointAndStopWithContinuityCurvature';
-                } else {
-                    turnMode = 'toPointAndPassWithContinuityCurvature';
-                }
+                turnMode = (index === 0 || index === waypoints.length - 1)
+                           ? 'toPointAndStopWithContinuityCurvature'
+                           : 'toPointAndPassWithContinuityCurvature';
             }
         }
         
