@@ -107,9 +107,7 @@ function cancelSurveyAreaDrawing() {
             map.getContainer().removeEventListener('click', nativeMapClickListener, true);
             nativeMapClickListener = null;
         }
-        // Rimuove specificamente il listener per il disegno
         map.off('click', handleSurveyAreaMapClick);
-        // Riattacca il listener di default se era stato rimosso
         if (wasActive && !map.hasEventListeners('click')) {
              if (typeof handleMapClick === 'function') map.on('click', handleMapClick);
         }
@@ -132,8 +130,8 @@ function handleStartDrawingSurveyArea() {
     if (typeof handleMapClick === 'function') {
         map.off('click', handleMapClick);
     }
-    map.off('click', handleSurveyAreaMapClick); // Assicura che non ci siano listener duplicati
-    map.on('click', handleSurveyAreaMapClick); // Usa il listener di Leaflet
+    map.off('click', handleSurveyAreaMapClick);
+    map.on('click', handleSurveyAreaMapClick);
 
     map.getContainer().style.cursor = 'crosshair';
     surveyGridModalOverlayEl.style.display = 'none';
@@ -145,7 +143,6 @@ function handleSurveyAreaMapClick(e) {
 
     const clickedLatLng = e.latlng;
     
-    // Controlla se si sta chiudendo il poligono
     if (currentPolygonPoints.length >= MIN_POLYGON_POINTS && tempVertexMarkers.length > 0) {
         const firstPointMarker = tempVertexMarkers[0];
         if (firstPointMarker.getLatLng().distanceTo(clickedLatLng) < 10 * map.getZoomScale(map.getZoom(), 18)) {
@@ -208,40 +205,22 @@ function handleCancelSurveyGrid() {
 function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapPercent, frontlapPercent, gridAngleDeg, flightSpeed) {
     const finalWaypointsData = [];
     if (!polygonLatLngs || polygonLatLngs.length < MIN_POLYGON_POINTS) {
-        showCustomAlert(translate('alert_surveyGridInvalidPoly'), translate('errorTitle'));
-        return finalWaypointsData;
+        showCustomAlert(translate('alert_surveyGridInvalidPoly'), "Error"); return finalWaypointsData;
     }
 
     const footprint = calculateFootprint(flightAltitudeAGL, FIXED_CAMERA_PARAMS);
-    if (footprint.width <= 0 || footprint.height <= 0) {
-        showCustomAlert(translate('alert_surveyGridInvalidParams'), translate('errorTitle'));
-        return finalWaypointsData;
-    }
     const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
     const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
-    if (actualLineSpacing <= 0.1 || actualDistanceBetweenPhotos <= 0.1) {
-        showCustomAlert(translate('alert_surveyGridInvalidParams'), translate('errorTitle'));
-        return finalWaypointsData;
-    }
     
     const rotationCenter = polygonLatLngs[0];
     const angleRad = toRad(gridAngleDeg);
     const rotatedPolygonLatLngs = polygonLatLngs.map(p => rotateLatLng(p, rotationCenter, -angleRad));
     const rotatedBounds = L.latLngBounds(rotatedPolygonLatLngs);
     const rNE = rotatedBounds.getNorthEast(); const rSW = rotatedBounds.getSouthWest();
-    if (rSW.lat >= rNE.lat - 1e-7 || rSW.lng >= rNE.lng - 1e-7) {
-        showCustomAlert(translate('alert_surveyGridInvalidPoly'), translate('errorTitle'));
-        return finalWaypointsData;
-    }
-
     const earthR = (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000;
     const lineSpacingRotLat = (actualLineSpacing / earthR) * (180 / Math.PI);
     const photoSpacingRotLng = (actualDistanceBetweenPhotos / (earthR * Math.cos(toRad(rotationCenter.lat)))) * (180 / Math.PI);
-    if (lineSpacingRotLat <= 1e-9 || photoSpacingRotLng <= 1e-9) {
-        showCustomAlert(translate('alert_surveyGridInvalidParams'), translate('errorTitle'));
-        return finalWaypointsData;
-    }
-
+    
     let currentRotLat = rSW.lat;
     let scanDir = 1; let lines = 0;
 
@@ -257,7 +236,14 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
         }
 
         let intendedLineBearing = (gridAngleDeg + (scanDir === 1 ? 0 : 180)) % 360;
-        const wpOptions = { altitude: flightAltitudeAGL, cameraAction: 'takePhoto', headingControl: 'fixed', fixedHeading: Math.round(intendedLineBearing) };
+        
+        const wpOptions = { 
+            altitude: flightAltitudeAGL, 
+            cameraAction: 'takePhoto', 
+            headingControl: 'fixed', 
+            fixedHeading: Math.round(intendedLineBearing),
+            waypointType: 'grid'
+        };
 
         lineCandRot.forEach(rotPt => {
             const actualGeoPt = rotateLatLng(rotPt, rotationCenter, angleRad);
@@ -267,10 +253,6 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
         });
         
         currentRotLat += lineSpacingRotLat;
-        if (lines > 2000) {
-            showCustomAlert(translate('alert_surveyGridTooManyLines'), translate('errorTitle'));
-            break;
-        }
         scanDir *= -1;
     }
     
@@ -284,15 +266,13 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
         }
     }
     
-    if (uniqueWaypoints.length === 0 && polygonLatLngs.length >= MIN_POLYGON_POINTS && lines > 0) {
+    if (uniqueWaypoints.length === 0 && polygonLatLngs.length >= MIN_POLYGON_POINTS) {
         showCustomAlert(translate('alert_surveyGridNoWps'), translate('infoTitle'));
     }
     return uniqueWaypoints;
 }
 
 function handleConfirmSurveyGridGeneration() {
-    if (currentPolygonPoints.length < MIN_POLYGON_POINTS) { showCustomAlert(translate('alert_surveyGridInvalidPoly'), translate('errorTitle')); return; }
-    
     const altitude = parseInt(surveyGridAltitudeInputEl.value);
     const sidelap = parseFloat(surveySidelapInputEl.value);
     const frontlap = parseFloat(surveyFrontlapInputEl.value);
@@ -305,18 +285,12 @@ function handleConfirmSurveyGridGeneration() {
     if (isNaN(angle)) { showCustomAlert(translate('alert_surveyGridInvalidInput_angle'), translate('inputErrorTitle')); return; }
     if (isNaN(speed) || speed <= 0) {showCustomAlert(translate('alert_surveyGridInvalidInput_speed'), translate('inputErrorTitle')); return; }
 
-    if (surveyGridInstructionsEl) surveyGridInstructionsEl.textContent = "Generating grid waypoints...";
-    
     const surveyWaypoints = generateSurveyGridWaypoints(currentPolygonPoints, altitude, sidelap, frontlap, angle, speed);
 
     if (surveyWaypoints && surveyWaypoints.length > 0) {
        surveyWaypoints.forEach(wpData => addWaypoint(wpData.latlng, wpData.options));
        updateWaypointList(); updateFlightPath(); updateFlightStatistics(); fitMapToWaypoints();
        showCustomAlert(translate('alert_surveyGridSuccess', { count: surveyWaypoints.length }), translate('successTitle'));
-    } else if (surveyWaypoints && surveyWaypoints.length === 0 ) {
-        // L'avviso viene già mostrato da generateSurveyGridWaypoints
-    } else if (!surveyWaypoints) {
-        showCustomAlert(translate('alert_surveyGridError'), translate('errorTitle'));
-    }
+    } 
     handleCancelSurveyGrid();
 }
