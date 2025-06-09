@@ -204,10 +204,6 @@ function handlePoiObjectHeightChange(poiId, newHeightStr) {
             updatePOIList(); 
             inputElement.style.borderColor = '';
             inputElement.title = translate('poiObjectHeightTitle');
-             if (lastActivePoiForTerrainFetch && lastActivePoiForTerrainFetch.id === poi.id) {
-                if (poiObjectHeightInputEl) poiObjectHeightInputEl.value = poi.objectHeightAboveGround;
-                updatePoiFinalAltitudeDisplay();
-            }
         } else {
             inputElement.value = poi.objectHeightAboveGround; 
             inputElement.style.borderColor = 'red';
@@ -228,10 +224,6 @@ function handlePoiTerrainElevationChange(poiId, newTerrainElevStr) {
             updatePOIList();
             inputElement.style.borderColor = '';
             inputElement.title = translate('poiTerrainElevTitle');
-            if (lastActivePoiForTerrainFetch && lastActivePoiForTerrainFetch.id === poi.id) {
-                if (poiTerrainElevationInputEl) poiTerrainElevationInputEl.value = poi.terrainElevationMSL;
-                 updatePoiFinalAltitudeDisplay();
-            }
         } else {
             inputElement.value = poi.terrainElevationMSL !== null ? poi.terrainElevationMSL : ""; 
             inputElement.style.borderColor = 'red';
