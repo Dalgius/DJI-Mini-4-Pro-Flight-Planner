@@ -373,7 +373,7 @@ function exportToDjiWpmlKmz() {
             const targetPoi = pois.find(p => p.id === wp.targetPoiId);
             if (targetPoi) {
                 waylinesWpmlContent += `        <wpml:waypointHeadingMode>towardPOI</wpml:waypointHeadingMode>\n`;
-                waylinesWpmlContent += `        <wpml:waypointPoiPoint>${targetPoi.latlng.lng.toFixed(6)},${targetPoi.latlng.lat.toFixed(6)},${targetPoi.altitude.toFixed(1)}</wpml:waypointPoiPoint>\n`;
+                waylinesWpmlContent += `        <wpml:waypointPoiPoint>${targetPoi.latlng.lat.toFixed(6)},${targetPoi.latlng.lng.toFixed(6)},${targetPoi.altitude.toFixed(1)}</wpml:waypointPoiPoint>\n`;
             } else {
                 waylinesWpmlContent += `        <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>\n`;
             }
