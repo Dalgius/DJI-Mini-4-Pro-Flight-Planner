@@ -24,7 +24,6 @@ function clearTemporaryDrawing() {
 }
 
 function updateTempPolygonDisplay() {
-    // Non pulire qui, altrimenti i marker dei vertici scompaiono
     if (tempPolygonLayer) {
         map.removeLayer(tempPolygonLayer);
         tempPolygonLayer = null;
