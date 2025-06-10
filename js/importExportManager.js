@@ -153,7 +153,7 @@ async function loadFlightPlan(plan) {
                 console.warn(`Skipping POI ${pData.id || pData.name}: invalid coordinates.`);
                 continue;
             }
-            const poiOptions = { id: pData.id, name: pData.name, objectHeightAboveGround: pData.objectHeightAboveGround, terrainElevationMSL: pData.terrainElevationMSL, altitude: pData.altitude, calledFromLoad: true };
+            const poiOptions = { id: pData.id, name: pData.name, objectHeightAboveGround: pData.objectHeightAboveGround, terrainElevationMSL: pData.terrainElevationMSL, calledFromLoad: true };
             if (typeof addPOI === 'function') {
                 await addPOI(L.latLng(pData.lat, pData.lng), poiOptions); 
             }
@@ -176,6 +176,7 @@ async function loadFlightPlan(plan) {
     waypointCounter = Math.max(waypointCounter, maxImportedWaypointId + 1);
     poiCounter = Math.max(poiCounter, maxImportedPoiId + 1);
     
+    // Update UI
     updatePOIList();
     updateWaypointList();
     updateFlightPath(); 
@@ -371,8 +372,8 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `        <wpml:waypointTurnDampingDist>0.2</wpml:waypointTurnDampingDist>\n`;
         waylinesWpmlContent += `      </wpml:waypointTurnParam>\n`;
 
-        const useStraightLine = (turnMode === 'toPointAndStopWithDiscontinuityCurvature');
-        waylinesWpmlContent += `      <wpml:useStraightLine>${useStraightLine ? 1 : 0}</wpml:useStraightLine>\n`;
+        // Imposta useStraightLine a 0 per massima compatibilità, affidandosi al turnMode.
+        waylinesWpmlContent += `      <wpml:useStraightLine>0</wpml:useStraightLine>\n`;
 
         let actionsXmlBlock = "";
         if (wp.hoverTime > 0) {
