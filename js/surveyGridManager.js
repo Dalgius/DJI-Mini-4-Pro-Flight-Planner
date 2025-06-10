@@ -28,10 +28,8 @@ function updateTempPolygonDisplay() {
         map.removeLayer(tempPolygonLayer);
         tempPolygonLayer = null;
     }
-
     if (currentPolygonPoints.length < 2) return;
     const opts = { color: 'rgba(0, 100, 255, 0.7)', weight: 2, fillColor: 'rgba(0, 100, 255, 0.2)', fillOpacity: 0.3 };
-    
     if (currentPolygonPoints.length === 2) {
         tempPolygonLayer = L.polyline(currentPolygonPoints, opts).addTo(map);
     } else if (currentPolygonPoints.length >= 3) {
@@ -223,6 +221,11 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     let currentRotLat = rSW.lat;
     let scanDir = 1; let lines = 0;
 
+    // ======================= INIZIO BLOCCO LOGICA CORRETTO =======================
+    // L'orientamento è FISSO per tutta la griglia per garantire un volo a "strafe".
+    const fixedGridHeading = Math.round(gridAngleDeg);
+    // ======================= FINE BLOCCO LOGICA CORRETTO =======================
+
     while (currentRotLat <= rNE.lat + lineSpacingRotLat * 0.5) {
         lines++;
         const lineCandRot = [];
@@ -233,14 +236,12 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
             for (let curRotLng = rNE.lng; curRotLng >= rSW.lng; curRotLng -= photoSpacingRotLng) lineCandRot.push(L.latLng(currentRotLat, curRotLng));
             if (!lineCandRot.length || lineCandRot[lineCandRot.length - 1].lng > rSW.lng + 1e-7) lineCandRot.push(L.latLng(currentRotLat, rSW.lng));
         }
-
-        let intendedLineBearing = (gridAngleDeg + (scanDir === 1 ? 0 : 180)) % 360;
         
         const wpOptions = { 
             altitude: flightAltitudeAGL, 
             cameraAction: 'takePhoto', 
             headingControl: 'fixed', 
-            fixedHeading: Math.round(intendedLineBearing),
+            fixedHeading: fixedGridHeading, // Usa sempre lo stesso orientamento
             waypointType: 'grid'
         };
 
