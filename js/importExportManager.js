@@ -336,9 +336,8 @@ function exportToDjiWpmlKmz() {
         let effectiveHeadingControl = wp.waypointType === 'grid' ? 'fixed' : wp.headingControl;
         
         if (effectiveHeadingControl === 'fixed') {
-            waylinesWpmlContent += `        <wpml:waypointHeadingMode>lockCourse</wpml:waypointHeadingMode>\n`;
+            waylinesWpmlContent += `        <wpml:waypointHeadingMode>fixed</wpml:waypointHeadingMode>\n`;
             waylinesWpmlContent += `        <wpml:waypointHeadingAngle>${wp.fixedHeading}</wpml:waypointHeadingAngle>\n`;
-            waylinesWpmlContent += `        <wpml:waypointHeadingAngleEnable>1</wpml:waypointHeadingAngleEnable>\n`;
         } else if (effectiveHeadingControl === 'poi_track' && wp.targetPoiId != null) {
             const targetPoi = pois.find(p => p.id === wp.targetPoiId);
             if (targetPoi) {
