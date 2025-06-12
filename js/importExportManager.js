@@ -1,15 +1,6 @@
 // File: importExportManager.js
 
-// Global dependencies (expected from other files):
-// waypoints, pois, flightSpeedSlider, pathTypeSelect, homeElevationMslInput,
-// waypointCounter, poiCounter, actionGroupCounter, actionCounter, lastAltitudeAdaptationMode (from config.js)
-// fileInputEl, poiNameInput, poiObjectHeightInputEl, poiTerrainElevationInputEl (from domCache.js)
-// showCustomAlert, haversineDistance, calculateBearing, toRad (from utils.js or global)
-// addWaypoint, addPOI, updateGimbalForPoiTrack (from waypointManager.js, poiManager.js)
-// JSZip (external library)
-// map (for POI import, if needed)
-// translate (from i18n.js)
-
+// Global dependencies (expected from other files)
 if (typeof calculateBearing === 'undefined') {
     function calculateBearing(point1LatLng, point2LatLng) {
         const toRadFn = typeof toRad === 'function' ? toRad : (deg => deg * Math.PI / 180);
@@ -336,7 +327,7 @@ function exportToDjiWpmlKmz() {
         let effectiveHeadingControl = wp.waypointType === 'grid' ? 'fixed' : wp.headingControl;
         
         if (effectiveHeadingControl === 'fixed') {
-            waylinesWpmlContent += `        <wpml:waypointHeadingMode>fixed</wpml:waypointHeadingMode>\n`;
+            waylinesWpmlContent += `        <wpml:waypointHeadingMode>smoothTransition</wpml:waypointHeadingMode>\n`;
             waylinesWpmlContent += `        <wpml:waypointHeadingAngle>${wp.fixedHeading}</wpml:waypointHeadingAngle>\n`;
         } else if (effectiveHeadingControl === 'poi_track' && wp.targetPoiId != null) {
             const targetPoi = pois.find(p => p.id === wp.targetPoiId);
