@@ -37,8 +37,6 @@ function updateTempPolygonDisplay() {
     }
 }
 
-function toRad(degrees) { return degrees * Math.PI / 180; }
-
 function rotateLatLng(pointLatLng, centerLatLng, angleRadians) {
     const cosAngle = Math.cos(angleRadians);
     const sinAngle = Math.sin(angleRadians);
