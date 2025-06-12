@@ -1,6 +1,15 @@
 // File: importExportManager.js
 
-// Global dependencies (expected from other files)
+// Global dependencies (expected from other files):
+// waypoints, pois, flightSpeedSlider, pathTypeSelect, homeElevationMslInput,
+// waypointCounter, poiCounter, actionGroupCounter, actionCounter, lastAltitudeAdaptationMode (from config.js)
+// fileInputEl, poiNameInput, poiObjectHeightInputEl, poiTerrainElevationInputEl (from domCache.js)
+// showCustomAlert, haversineDistance, calculateBearing, toRad (from utils.js or global)
+// addWaypoint, addPOI, updateGimbalForPoiTrack (from waypointManager.js, poiManager.js)
+// JSZip (external library)
+// map (for POI import, if needed)
+// translate (from i18n.js)
+
 if (typeof calculateBearing === 'undefined') {
     function calculateBearing(point1LatLng, point2LatLng) {
         const toRadFn = typeof toRad === 'function' ? toRad : (deg => deg * Math.PI / 180);
@@ -167,7 +176,6 @@ async function loadFlightPlan(plan) {
     waypointCounter = Math.max(waypointCounter, maxImportedWaypointId + 1);
     poiCounter = Math.max(poiCounter, maxImportedPoiId + 1);
     
-    // Update UI
     updatePOIList();
     updateWaypointList();
     updateFlightPath(); 
@@ -312,7 +320,7 @@ function exportToDjiWpmlKmz() {
     const totalDistance = calculateMissionDistance(waypoints);
     const totalDuration = calculateMissionDuration(waypoints, missionFlightSpeed);
 
-    let templateKmlContent = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="${wpmlNs}"><Document><wpml:author>FlightPlanner</wpml:author><wpml:createTime>${createTimeMillis}</wpml:createTime><wpml:updateTime>${createTimeMillis}</wpml:updateTime><wpml:missionConfig><wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode><wpml:finishAction>goHome</wpml:finishAction><wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost><wpml:executeRCLostAction>goBack</wpml:executeRCLostAction><wpml:globalTransitionalSpeed>${missionFlightSpeed}</wpml:globalTransitionalSpeed><wpml:droneInfo><wpml:droneEnumValue>68</wpml:droneEnumValue><wpml:droneSubEnumValue>0</wpml:droneSubEnumValue></wpml:droneInfo><wpml:payloadInfo><wpml:payloadEnumValue>0</wpml:payloadEnumValue><wpml:payloadSubEnumValue>0</wpml:payloadSubEnumValue><wpml:payloadPositionIndex>0</wpml:payloadPositionIndex></wpml:payloadInfo></wpml:missionConfig></Document></kml>`;
+    let templateKmlContent = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="${wpmlNs}"><Document><wpml:author>FlightPlanner</wpml:author><wpml:createTime>${createTimeMillis}</wpml:createTime><wpml:updateTime>${createTimeMillis}</wpml:updateTime><wpml:missionConfig><wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode><wpml:finishAction>goHome</wpml:finishAction><wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost><wpml:executeRCLostAction>goBack</wpml:executeRCLostAction><wpml:globalTransitionalSpeed>${missionFlightSpeed}</wpml:globalTransitionalSpeed><wpml:droneInfo><wpml:droneEnumValue>68</wpml:droneEnumValue><wpml:droneSubEnumValue>0</wpml:droneSubEnumValue></wpml:droneInfo><wpml:payloadInfo><wpml:payloadEnumValue>0</wpml:payloadSubEnumValue>0</wpml:payloadSubEnumValue><wpml:payloadPositionIndex>0</wpml:payloadPositionIndex></wpml:payloadInfo></wpml:missionConfig></Document></kml>`;
 
     let waylinesWpmlContent = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="${wpmlNs}"><Document><wpml:missionConfig><wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode><wpml:finishAction>goHome</wpml:finishAction><wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost><wpml:executeRCLostAction>goBack</wpml:executeRCLostAction><wpml:globalTransitionalSpeed>${missionFlightSpeed}</wpml:globalTransitionalSpeed><wpml:droneInfo><wpml:droneEnumValue>68</wpml:droneEnumValue><wpml:droneSubEnumValue>0</wpml:droneSubEnumValue></wpml:droneInfo></wpml:missionConfig><Folder><name>Wayline Mission ${waylineIdInt}</name><wpml:templateId>0</wpml:templateId><wpml:executeHeightMode>relativeToStartPoint</wpml:executeHeightMode><wpml:waylineId>0</wpml:waylineId><wpml:distance>${Math.round(totalDistance)}</wpml:distance><wpml:duration>${Math.round(totalDuration)}</wpml:duration><wpml:autoFlightSpeed>${missionFlightSpeed}</wpml:autoFlightSpeed>\n`;
 
