@@ -305,7 +305,9 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     const rotationAngleDeg = 90 - gridAngleDeg;
     const fixedGridHeading = gridAngleDeg; // The drone's real-world heading remains the user-specified angle.
 
+    // Spacing between lines (cross-track) is based on sensor width and sidelap.
     const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
+    // Spacing between photos on a line (in-track) is based on sensor height and frontlap.
     const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
 
     const rotationCenter = polygonLatLngs[0];
