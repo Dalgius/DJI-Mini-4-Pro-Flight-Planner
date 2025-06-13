@@ -135,7 +135,7 @@ const translations = {
         "surveyFrontlapLabel": "Frontlap (%):",
         "surveyFrontlapTitle": "Overlap between consecutive photos along a flight line (e.g., 70-90%)",
         "surveyGridAngleLabel": "Grid Angle (°):",
-        "surveyGridAngleDesc": "Direction of the flight lines (e.g., 0° for E-W, 90° for N-S).",
+        "surveyGridAngleDesc": "Flight line direction (0°=North, 90°=East).",
         "drawGridAngleBtn": "Set Angle by Drawing", // <-- NUOVA TRADUZIONE
         "surveyAreaStatusDefault": "Area not defined.",
         "surveyAreaStatusDefined": "Area defined: {points} points.",
@@ -343,7 +343,7 @@ const translations = {
         "surveyFrontlapLabel": "Frontlap (%):",
         "surveyFrontlapTitle": "Sovrapposizione tra foto consecutive lungo una linea di volo (es. 70-90%)",
         "surveyGridAngleLabel": "Angolo Griglia (°):",
-        "surveyGridAngleDesc": "Direzione delle linee di volo (es. 0° per E-O, 90° per N-S).",
+        "surveyGridAngleDesc": "Direzione delle linee di volo (0°=Nord, 90°=Est).",
         "drawGridAngleBtn": "Imposta Angolo Disegnando", // <-- NUOVA TRADUZIONE
         "surveyAreaStatusDefault": "Area non definita.",
         "surveyAreaStatusDefined": "Area definita: {points} punti.",
