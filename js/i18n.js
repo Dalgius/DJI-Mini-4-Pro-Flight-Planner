@@ -82,6 +82,12 @@ const translations = {
         "NAedit": "N/A, edit",
         "invalidPoiObjectHeightTitle": "Invalid value. Must be a non-negative number.",
         "invalidPoiTerrainElevTitle": "Invalid value. Must be a number.",
+        // Survey Missions
+        "surveyMissionsTitle": "🗺️ Survey Missions",
+        "noSurveyMissions": "No survey missions created yet.",
+        "editMissionBtn": "Edit",
+        "deleteMissionBtn": "Delete",
+        "missionLabel": "Mission",
         // Terrain & Orbit
         "terrainOrbitTitle": "🏞️ Terrain & Orbit Tools",
         "takeoffElevationLabel": "Takeoff Point Elevation (MSL, m)",
@@ -136,12 +142,13 @@ const translations = {
         "surveyFrontlapTitle": "Overlap between consecutive photos along a flight line (e.g., 70-90%)",
         "surveyGridAngleLabel": "Grid Angle (°):",
         "surveyGridAngleDesc": "Flight line direction (0°=North, 90°=East).",
-        "drawGridAngleBtn": "Set Angle by Drawing", // <-- NUOVA TRADUZIONE
+        "drawGridAngleBtn": "Set Angle by Drawing",
         "surveyAreaStatusDefault": "Area not defined.",
         "surveyAreaStatusDefined": "Area defined: {points} points.",
         "startDrawingSurveyAreaBtn": "Start Drawing Area",
         "finalizeSurveyAreaBtn": "Finalize Area",
         "generateGridBtn": "Generate Grid",
+        "updateGridBtn": "Update Grid",
 
         // --- Dynamic UI text (JS) ---
         "waypointLabel": "Waypoint",
@@ -188,7 +195,7 @@ const translations = {
         "alert_surveyGridSuccess": "{count} survey waypoints generated!",
         "alert_surveyGridError": "Error during grid generation.",
         "alert_surveyGridInvalidInput_angle": "Invalid grid angle.",
-        "alert_drawAngleInstruction": "Click and drag on the map to draw a line that defines the flight line direction.", // <-- NUOVA TRADUZIONE
+        "alert_drawAngleInstruction": "Click and drag on the map to draw a line that defines the flight line direction.",
         "alert_surveyGridInvalidInput_speed": "Invalid flight speed.",
         "alert_surveyGridInvalidPoly": "Invalid polygon for generation.",
         "alert_surveyGridInvalidParams": "Invalid survey grid parameters. Check spacing values.",
@@ -196,8 +203,8 @@ const translations = {
         "alert_surveyGridInvalidInput_altitude": "Invalid altitude.",
         "alert_surveyGridInvalidInput_sidelap": "Invalid Sidelap % (10-95).",
         "alert_surveyGridInvalidInput_frontlap": "Invalid Frontlap % (10-95).",
-        "alert_surveyGridInvalidInput_angle": "Invalid grid angle.",
-        "alert_surveyGridInvalidInput_speed": "Invalid flight speed.",
+        "alert_deleteSurveyMissionConfirm": "Are you sure you want to delete '{missionName}' and its {wpCount} waypoints? This action cannot be undone.",
+        "alert_missionUpdated": "Survey Mission '{missionName}' has been updated.",
         "error_min_waypoints": "At least 2 waypoints are required for a mission.",
         "error_invalid_coordinates": "Invalid coordinates.",
         "error_altitude_range": "Altitude out of range (2-500m).",
@@ -290,6 +297,12 @@ const translations = {
         "NAedit": "N/D, modifica",
         "invalidPoiObjectHeight": "Valore non valido. Inserire un numero non negativo.",
         "invalidPoiTerrainElev": "Valore non valido. Inserire un numero.",
+        // Survey Missions
+        "surveyMissionsTitle": "🗺️ Missioni di Rilievo",
+        "noSurveyMissions": "Nessuna missione di rilievo creata.",
+        "editMissionBtn": "Modifica",
+        "deleteMissionBtn": "Elimina",
+        "missionLabel": "Missione",
         // Terrain & Orbit
         "terrainOrbitTitle": "🏞️ Strumenti Terreno & Orbita",
         "takeoffElevationLabel": "Elevazione Decollo (MSL, m)",
@@ -344,12 +357,13 @@ const translations = {
         "surveyFrontlapTitle": "Sovrapposizione tra foto consecutive lungo una linea di volo (es. 70-90%)",
         "surveyGridAngleLabel": "Angolo Griglia (°):",
         "surveyGridAngleDesc": "Direzione delle linee di volo (0°=Nord, 90°=Est).",
-        "drawGridAngleBtn": "Imposta Angolo Disegnando", // <-- NUOVA TRADUZIONE
+        "drawGridAngleBtn": "Imposta Angolo Disegnando",
         "surveyAreaStatusDefault": "Area non definita.",
         "surveyAreaStatusDefined": "Area definita: {points} punti.",
         "startDrawingSurveyAreaBtn": "Inizia a Disegnare",
         "finalizeSurveyAreaBtn": "Finalizza Area",
         "generateGridBtn": "Genera Griglia",
+        "updateGridBtn": "Aggiorna Griglia",
         
         // --- Dynamic UI text (JS) ---
         "waypointLabel": "Waypoint",
@@ -384,9 +398,6 @@ const translations = {
         "alert_adaptAglFail": "Impossibile adattare le altitudini. Dati terreno non recuperati.",
         "alert_invalidDesiredAMSL": "Valore AMSL Desiderato non valido. Inserire un numero valido.",
         "alert_adaptingAmslAlts": "Adattamento altitudini a AMSL costante...",
-        "alert_surveyGridInvalidInput_angle": "Angolo griglia non valido.",
-        "alert_drawAngleInstruction": "Clicca e trascina sulla mappa per disegnare una linea che definisca la direzione delle linee di volo.", // <-- NUOVA TRADUZIONE
-        "alert_surveyGridInvalidInput_speed": "Velocità di volo non valida.",
         "alert_adaptAmslSuccess": "Tutte le altitudini dei waypoint impostate per un volo a {amslTarget}m AMSL.",
         "alert_invalidPoiObjectHeight": "Altezza oggetto non valida. Inserire un numero non negativo.",
         "invalidPoiTerrainElev": "Elevazione terreno non valida. Inserire un numero.",
@@ -398,14 +409,17 @@ const translations = {
         "alert_surveyGridNoWps": "Nessun waypoint generato all'interno del poligono. Controlla i parametri.",
         "alert_surveyGridSuccess": "{count} waypoint di rilievo generati!",
         "alert_surveyGridError": "Errore durante la generazione della griglia.",
+        "alert_surveyGridInvalidInput_angle": "Angolo griglia non valido.",
+        "alert_drawAngleInstruction": "Clicca e trascina sulla mappa per disegnare una linea che definisca la direzione delle linee di volo.",
+        "alert_surveyGridInvalidInput_speed": "Velocità di volo non valida.",
         "alert_surveyGridInvalidPoly": "Poligono non valido per la generazione.",
         "alert_surveyGridInvalidParams": "Parametri griglia non validi. Controlla i valori di spaziatura.",
         "alert_surveyGridTooManyLines": "Troppe linee di volo generate (>2000). Controlla i parametri (sidelap, dimensione area).",
         "alert_surveyGridInvalidInput_altitude": "Altitudine non valida.",
         "alert_surveyGridInvalidInput_sidelap": "Sidelap % non valido (10-95).",
         "alert_surveyGridInvalidInput_frontlap": "Frontlap % non valido (10-95).",
-        "alert_surveyGridInvalidInput_angle": "Angolo griglia non valido.",
-        "alert_surveyGridInvalidInput_speed": "Velocità di volo non valida.",
+        "alert_deleteSurveyMissionConfirm": "Sei sicuro di voler eliminare '{missionName}' e i suoi {wpCount} waypoint? L'azione non può essere annullata.",
+        "alert_missionUpdated": "La Missione di Rilievo '{missionName}' è stata aggiornata.",
         "error_min_waypoints": "Sono necessari almeno 2 waypoint per una missione.",
         "error_invalid_coordinates": "Coordinate non valide.",
         "error_altitude_range": "Altitudine fuori range (2-500m).",
@@ -471,6 +485,7 @@ function applyTranslations() {
 
     if (typeof updateWaypointList === 'function') updateWaypointList();
     if (typeof updatePOIList === 'function') updatePOIList();
+    if (typeof updateSurveyMissionsList === 'function') updateSurveyMissionsList();
     if (typeof updatePathModeDisplay === 'function') updatePathModeDisplay();
     if (typeof updateSingleWaypointEditControls === 'function') updateSingleWaypointEditControls();
     if (typeof updateMultiEditPanelVisibility === 'function') updateMultiEditPanelVisibility();
