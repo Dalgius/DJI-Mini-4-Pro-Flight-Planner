@@ -1,4 +1,4 @@
-// File: surveyGridManager.js - VERSIONE CORRETTA E FORMATA
+// File: surveyGridManager.js - VERSIONE CORRETTA
 
 let currentPolygonPoints = [];
 let tempPolygonLayer = null;
@@ -192,7 +192,9 @@ function onAngleDrawEnd(e) {
     
     const endPoint = e.latlng;
     const bearing = calculateBearing(angleDrawStartPoint, endPoint);
-    const angle = Math.round(bearing);
+    // CORREZIONE: Aggiungiamo 90° per allineare correttamente il grid
+    const gridAngle = (bearing + 90) % 360;
+    const angle = Math.round(gridAngle);
 
     if (surveyGridAngleInputEl) {
         surveyGridAngleInputEl.value = angle;
@@ -293,27 +295,22 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
 
     const footprint = calculateFootprint(flightAltitudeAGL, FIXED_CAMERA_PARAMS);
     
-    // ======================= INIZIO BLOCCO LOGICA CORRETTO =======================
-    // Se l'utente disegna il LATO CORTO, si aspetta che le linee di volo siano LUNGO IL LATO LUNGO.
-    // L'angolo disegnato (gridAngleDeg) definisce l'asse di scansione.
-    // Le linee di volo devono essere PERPENDICOLARI all'asse di scansione.
-    // CORREZIONE DEFINITIVA
-console.log("=== DEBUG ANGOLI ===");
-console.log("Angolo input (gridAngleDeg):", gridAngleDeg, "°");
+    // CORREZIONE DEFINITIVA DELLA LOGICA DI ROTAZIONE
+    console.log("=== DEBUG ANGOLI ===");
+    console.log("Angolo input (gridAngleDeg):", gridAngleDeg, "°");
 
-// Linee PERPENDICOLARI all'angolo disegnato (per survey grid standard)
-const flightLineDirection = gridAngleDeg; 
-console.log("Direzione linee di volo (flightLineDirection):", flightLineDirection, "°");
+    // Le linee di volo sono PERPENDICOLARI all'angolo disegnato
+    const flightLineDirection = (gridAngleDeg + 90) % 360;
+    console.log("Direzione linee di volo (flightLineDirection):", flightLineDirection, "°");
 
-// Drone orientato PERPENDICOLARE alle linee di volo
-const fixedGridHeading = (flightLineDirection + 90) % 360; 
-console.log("Orientamento drone (fixedGridHeading):", fixedGridHeading, "°");
+    // Orientamento del drone (perpendicolare alle linee di volo)
+    const fixedGridHeading = flightLineDirection;
+    console.log("Orientamento drone (fixedGridHeading):", fixedGridHeading, "°");
 
-// Ruotiamo il sistema di coordinate dell'angolo opposto alle linee
-const rotationAngleDeg = -flightLineDirection; 
-console.log("Angolo rotazione sistema (rotationAngleDeg):", rotationAngleDeg, "°");
-console.log("====================");
-    // ======================= FINE BLOCCO LOGICA CORRETTO =======================
+    // Angolo per ruotare il sistema di coordinate
+    const rotationAngleDeg = -gridAngleDeg;
+    console.log("Angolo rotazione sistema (rotationAngleDeg):", rotationAngleDeg, "°");
+    console.log("====================");
 
     const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
     const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
