@@ -1,14 +1,8 @@
 // File: importExportManager.js
 
 // Global dependencies (expected from other files):
-// waypoints, pois, flightSpeedSlider, pathTypeSelect, homeElevationMslInput,
-// waypointCounter, poiCounter, actionGroupCounter, actionCounter, lastAltitudeAdaptationMode (from config.js)
-// fileInputEl, poiNameInput, poiObjectHeightInputEl, poiTerrainElevationInputEl (from domCache.js)
-// showCustomAlert, haversineDistance, calculateBearing, toRad (from utils.js or global)
-// addWaypoint, addPOI, updateGimbalForPoiTrack (from waypointManager.js, poiManager.js)
-// JSZip (external library)
-// map (for POI import, if needed)
-// translate (from i18n.js)
+// waypoints, pois, surveyMissions, flightSpeedSlider, etc. (from config.js)
+// ...e altre funzioni dagli altri moduli
 
 if (typeof calculateBearing === 'undefined') {
     function calculateBearing(point1LatLng, point2LatLng) {
@@ -128,7 +122,9 @@ async function loadFlightPlan(plan) {
 
     let maxImportedPoiId = 0;
     let maxImportedWaypointId = 0;
+    let maxImportedSurveyId = 0; // <-- NUOVO
 
+    // Restore settings
     if (plan.settings) {
         if (defaultAltitudeSlider) {
             defaultAltitudeSlider.value = plan.settings.defaultAltitude || 30;
@@ -147,6 +143,7 @@ async function loadFlightPlan(plan) {
         if(desiredAMSLInputEl && plan.settings.desiredAMSL) desiredAMSLInputEl.value = plan.settings.desiredAMSL;
     }
 
+    // Restore POIs
     if (plan.pois && Array.isArray(plan.pois)) {
         for (const pData of plan.pois) { 
             if (!validateCoordinates(pData.lat, pData.lng)) {
@@ -161,6 +158,7 @@ async function loadFlightPlan(plan) {
         }
     }
 
+    // Restore Waypoints
     if (plan.waypoints && Array.isArray(plan.waypoints)) {
         plan.waypoints.forEach(wpData => { 
             if (!validateCoordinates(wpData.lat, wpData.lng)) {
@@ -173,21 +171,50 @@ async function loadFlightPlan(plan) {
         });
     }
 
+    // --- INIZIO MODIFICA: Ripristino delle Survey Missions ---
+    if (plan.surveyMissions && Array.isArray(plan.surveyMissions)) {
+        plan.surveyMissions.forEach(missionData => {
+            const mission = {
+                id: missionData.id,
+                polygon: missionData.polygon,
+                parameters: missionData.parameters,
+                waypointIds: missionData.waypointIds,
+                // Aggiungi il layer del poligono sulla mappa
+                polygonLayer: L.polygon(missionData.polygon.map(p => L.latLng(p.lat, p.lng)), { 
+                    color: '#1abc9c', 
+                    weight: 2, 
+                    fillOpacity: 0.1 
+                }).addTo(map)
+            };
+            surveyMissions.push(mission);
+            if (mission.id > maxImportedSurveyId) maxImportedSurveyId = mission.id;
+        });
+    }
+    // --- FINE MODIFICA ---
+
+    // Update counters to avoid ID conflicts
     waypointCounter = Math.max(waypointCounter, maxImportedWaypointId + 1);
     poiCounter = Math.max(poiCounter, maxImportedPoiId + 1);
+    surveyMissionCounter = Math.max(surveyMissionCounter, maxImportedSurveyId + 1); // <-- NUOVO
     
-    updatePOIList();
-    updateWaypointList();
-    updateFlightPath(); 
-    updateFlightStatistics();
-    fitMapToWaypoints();
-    updatePathModeDisplay(); 
+    // Update entire UI
+    if(typeof updateAllUI === 'function') {
+        updateAllUI(); // This should handle all necessary UI updates
+    } else { // Fallback to individual updates if updateAllUI doesn't exist
+        updatePOIList();
+        updateWaypointList();
+        updateFlightPath(); 
+        updateFlightStatistics();
+        if(typeof updateSurveyMissionsList === 'function') updateSurveyMissionsList();
+        fitMapToWaypoints();
+        updatePathModeDisplay(); 
+    }
 
     if (waypoints.length > 0) {
         selectWaypoint(waypoints[0]); 
     }
 
-    showCustomAlert(translate('successTitle'), translate('import_success'));
+    showCustomAlert(translate('import_success'), translate('successTitle'));
 }
 
 // =============================================================================
@@ -196,10 +223,11 @@ async function loadFlightPlan(plan) {
 
 function exportFlightPlanToJson() {
     if (waypoints.length === 0 && pois.length === 0) {
-        showCustomAlert(translate('errorTitle'), translate('nothing_to_export'));
+        showCustomAlert(translate('nothing_to_export'), translate('errorTitle'));
         return; 
     }
     
+    // --- INIZIO MODIFICA: Aggiornamento della struttura del piano esportato ---
     const plan = {
         waypoints: waypoints.map(wp => ({
             id: wp.id, lat: wp.latlng.lat, lng: wp.latlng.lng,
@@ -215,6 +243,13 @@ function exportFlightPlanToJson() {
             altitude: p.altitude, terrainElevationMSL: p.terrainElevationMSL,
             objectHeightAboveGround: p.objectHeightAboveGround
         })),
+        // Aggiungi le missioni di rilievo all'esportazione
+        surveyMissions: surveyMissions.map(mission => ({
+            id: mission.id,
+            polygon: mission.polygon, // Already in a simple format
+            parameters: mission.parameters,
+            waypointIds: mission.waypointIds
+        })),
         settings: {
             defaultAltitude: defaultAltitudeSlider ? parseInt(defaultAltitudeSlider.value) : 30,
             flightSpeed: flightSpeedSlider ? parseFloat(flightSpeedSlider.value) : 5,
@@ -225,6 +260,7 @@ function exportFlightPlanToJson() {
             desiredAMSL: desiredAMSLInputEl ? parseInt(desiredAMSLInputEl.value) : 100 
         }
     };
+    // --- FINE MODIFICA ---
     
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(plan, null, 2));
     const dl = document.createElement('a');
@@ -233,19 +269,16 @@ function exportFlightPlanToJson() {
     document.body.appendChild(dl); 
     dl.click(); 
     document.body.removeChild(dl);
-    
-    // --- MODIFICA: Rimossa notifica di successo automatica ---
-    // showCustomAlert(translate('successTitle'), translate('export_json_success'));
 }
 
 function exportToGoogleEarthKml() { 
     if (waypoints.length === 0) {
-        showCustomAlert(translate('errorTitle'), translate('no_waypoints_export'));
+        showCustomAlert(translate('nothing_to_export'), translate('errorTitle'));
         return; 
     }
     let homeElevationMSL = homeElevationMslInput ? parseFloat(homeElevationMslInput.value) : 0;
     if (isNaN(homeElevationMSL)) {
-        showCustomAlert(translate('infoTitle'), translate('invalid_elevation_fallback'));
+        showCustomAlert(translate('invalid_elevation_fallback'), translate('infoTitle'));
         homeElevationMSL = 0;
     }
     const actionTextMap = {
@@ -292,9 +325,6 @@ function exportToGoogleEarthKml() {
     document.body.appendChild(dl); 
     dl.click(); 
     document.body.removeChild(dl);
-    
-    // --- MODIFICA: Rimossa notifica di successo automatica ---
-    // showCustomAlert(translate('successTitle'), translate('export_ge_success'));
 }
 
 function exportToDjiWpmlKmz() {
@@ -408,8 +438,6 @@ function exportToDjiWpmlKmz() {
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(link.href);
-            // --- MODIFICA: Rimossa notifica di successo automatica ---
-            // showCustomAlert(translate('successTitle'), translate('export_dji_success'));
         })
         .catch(function(err) {
             showCustomAlert(`${translate('errorTitle')}: ${err.message}`, "KMZ Generation Error");
