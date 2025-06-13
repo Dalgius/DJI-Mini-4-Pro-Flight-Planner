@@ -3,6 +3,7 @@
 // --- Global Application State & Configuration ---
 let map; 
 let isDrawingSurveyArea = false;
+let isDrawingGridAngle = false;
 let waypoints = [];
 let pois = [];
 let selectedWaypoint = null; 
@@ -66,6 +67,7 @@ let applyMultiEditBtn, clearMultiSelectionBtn;
 let createSurveyGridBtn, surveyGridModalOverlayEl, surveyGridModalTitleEl, surveyGridInstructionsEl;
 let surveyGridAltitudeInputEl, surveySidelapInputEl, surveyFrontlapInputEl, surveyGridAngleInputEl;
 let surveyAreaStatusEl, startDrawingSurveyAreaBtnEl, finalizeSurveyAreaBtnEl, confirmSurveyGridBtnEl, cancelSurveyGridBtnEl;
+let drawGridAngleBtnEl;
 
 // Terrain & Orbit Tools
 let homeElevationMslInput, desiredAGLInput, adaptToAGLBtnEl;
