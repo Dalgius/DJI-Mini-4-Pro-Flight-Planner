@@ -299,7 +299,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     // L'angolo fornito dall'utente definisce la direzione del volo.
     // Per avere le linee di volo parallele a questo angolo, dobbiamo ruotare il sistema
     // di coordinate di 90 gradi, in modo che la "scansione" avvenga lungo questo asse.
-    const rotationAngleDeg = (gridAngleDeg) % 360; // CAMBIO per Angolo
+    const rotationAngleDeg = (gridAngleDeg + 90) % 360; // CAMBIO per Angolo
     const fixedGridHeading = Math.round(gridAngleDeg);
     // ======================= FINE BLOCCO LOGICA CORRETTO =======================
     
