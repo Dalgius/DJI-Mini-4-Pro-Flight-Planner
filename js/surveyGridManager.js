@@ -151,7 +151,11 @@ function handleStartDrawingSurveyArea() {
 }
 
 function handleDrawGridAngle() {
-    isDrawingSurveyArea = true;
+    // ======================= CORREZIONE CHIAVE =======================
+    // Imposta la variabile corretta per attivare la modalità di disegno dell'angolo.
+    isDrawingGridAngle = true;
+    // =================================================================
+
     angleDrawStartPoint = null;
 
     if (typeof handleMapClick === 'function') map.off('click', handleMapClick);
