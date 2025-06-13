@@ -1,7 +1,7 @@
 // ===================================================================================
 // File: surveyGridManager.js
 // Description: Manages the creation, editing, and deletion of survey grid missions.
-// Version: 4.0 (Refactored for clarity, state management, and maintainability)
+// Version: 4.1 (Corrected ReferenceError and restored utility functions)
 // ===================================================================================
 
 // --- MODULE CONSTANTS ---
@@ -29,7 +29,6 @@ const CONSTANTS = {
 };
 
 // --- STATE MANAGEMENT ---
-// Centralized state object for the survey tool to avoid global scope pollution.
 const surveyState = {
     isDrawingArea: false,
     isDrawingAngle: false,
@@ -48,7 +47,6 @@ const surveyState = {
 
 /**
  * Generates the waypoint data for a survey grid based on the provided parameters.
- * This is the core calculation engine.
  * @param {L.LatLng[]} polygonLatLngs - The vertices of the survey area.
  * @param {object} params - The survey parameters { altitude, sidelap, frontlap, angle, speed }.
  * @returns {object[]} An array of waypoint data objects { latlng, options }.
@@ -90,7 +88,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, params) {
             altitude: altitude, 
             cameraAction: 'takePhoto', 
             headingControl: 'fixed', 
-            fixedHeading: Math.round(fixedGridHeading), // "Crabbing" effect
+            fixedHeading: Math.round(fixedGridHeading),
             gimbalPitch: -90, 
             waypointType: 'grid', 
             speed: speed 
@@ -107,7 +105,6 @@ function generateSurveyGridWaypoints(polygonLatLngs, params) {
         scanDir *= -1;
     }
     
-    // Deduplicate waypoints before returning
     const uniqueWaypoints = [], seenKeys = new Set();
     for (const wp of finalWaypointsData) {
         const key = `${wp.latlng.lat.toFixed(7)},${wp.latlng.lng.toFixed(7)}`;
@@ -120,13 +117,10 @@ function generateSurveyGridWaypoints(polygonLatLngs, params) {
 }
 
 /**
- * Deletes old waypoints of a mission and adds new ones.
- * @param {object} mission - The survey mission object to update.
- * @param {object[]} waypointsData - The new waypoint data generated.
+ * Updates the waypoints for a given survey mission.
  * @private
  */
 function _updateMissionWaypoints(mission, waypointsData) {
-    // 1. Delete old waypoints from global array and map
     if (mission.waypointIds.length > 0) {
         const oldWpIds = new Set(mission.waypointIds);
         waypoints = waypoints.filter(wp => {
@@ -137,20 +131,15 @@ function _updateMissionWaypoints(mission, waypointsData) {
             return true;
         });
     }
-
-    // 2. Add new waypoints and link them to the mission
     mission.waypointIds = [];
     waypointsData.forEach(wpData => {
         addWaypoint(wpData.latlng, wpData.options);
-        const newWpId = waypointCounter - 1; // ID of the last added waypoint
-        mission.waypointIds.push(newWpId);
+        mission.waypointIds.push(waypointCounter - 1);
     });
 }
 
 /**
- * Creates a new survey mission object and adds it to the global list.
- * @param {object} params - The survey parameters.
- * @returns {object} The newly created mission object.
+ * Creates a new survey mission object.
  * @private
  */
 function _createNewMission(params) {
@@ -159,29 +148,20 @@ function _createNewMission(params) {
         polygon: surveyState.polygonPoints.map(p => ({ lat: p.lat, lng: p.lng })),
         parameters: params,
         waypointIds: [],
-        polygonLayer: L.polygon(surveyState.polygonPoints, { 
-            color: CONSTANTS.COLORS.MISSION, 
-            weight: 2, 
-            fillOpacity: 0.1 
-        }).addTo(map)
+        polygonLayer: L.polygon(surveyState.polygonPoints, { color: CONSTANTS.COLORS.MISSION, weight: 2, fillOpacity: 0.1 }).addTo(map)
     };
     surveyMissions.push(mission);
     return mission;
 }
 
-
 // ===================================================================================
 //                                UI & EVENT HANDLERS
 // ===================================================================================
 
-/**
- * Opens the survey grid modal, for a new mission or to edit an existing one.
- * @param {number|null} [missionId=null] - The ID of the mission to edit.
- */
 function openSurveyGridModal(missionId = null) {
     if (!surveyGridModalOverlayEl) return;
     
-    _resetAndExitDrawingMode(); // Ensure clean state
+    _resetAndExitDrawingMode();
     surveyState.isEditingMissionId = missionId;
 
     if (surveyState.isEditingMissionId !== null) {
@@ -190,30 +170,22 @@ function openSurveyGridModal(missionId = null) {
             surveyState.isEditingMissionId = null;
             return;
         }
-
-        // --- EDIT MODE ---
         surveyGridModalTitleEl.textContent = `${translate('editMissionBtn')} ${translate('missionLabel')} ${mission.id}`;
         surveyGridAltitudeInputEl.value = mission.parameters.altitude;
         surveySidelapInputEl.value = mission.parameters.sidelap;
         surveyFrontlapInputEl.value = mission.parameters.frontlap;
         surveyGridAngleInputEl.value = mission.parameters.angle;
-        
         surveyState.polygonPoints = mission.polygon.map(p => L.latLng(p.lat, p.lng));
-        
         startDrawingSurveyAreaBtnEl.style.display = 'none';
         confirmSurveyGridBtnEl.textContent = translate('updateGridBtn');
         confirmSurveyGridBtnEl.disabled = false;
-        
-        _drawTempPolygon(true); // Draw polygon in edit color
-
+        _drawTempPolygon(true);
     } else {
-        // --- CREATE MODE ---
         surveyGridModalTitleEl.textContent = translate('surveyGridModalTitle');
         surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value;
         surveySidelapInputEl.value = 70;
         surveyFrontlapInputEl.value = 80;
         surveyGridAngleInputEl.value = 0;
-        
         startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
         confirmSurveyGridBtnEl.textContent = translate('generateGridBtn');
         confirmSurveyGridBtnEl.disabled = true;
@@ -223,11 +195,7 @@ function openSurveyGridModal(missionId = null) {
     surveyGridModalOverlayEl.style.display = 'flex';
 }
 
-/**
- * Handles the main "Generate/Update Grid" button click.
- */
 function handleConfirmSurveyGridGeneration() {
-    // 1. Collect and validate parameters
     const params = {
         altitude: parseInt(surveyGridAltitudeInputEl.value),
         sidelap: parseFloat(surveySidelapInputEl.value),
@@ -235,44 +203,33 @@ function handleConfirmSurveyGridGeneration() {
         angle: parseFloat(surveyGridAngleInputEl.value) || 0,
         speed: parseFloat(flightSpeedSlider.value)
     };
-    const validationErrors = validateSurveyGridInputs(params.altitude, params.sidelap, params.frontlap, params.angle, params.speed);
-    if (validationErrors.length > 0) {
-        return showCustomAlert(validationErrors.join('\n'), translate('inputErrorTitle'));
-    }
-    if (!surveyState.polygonPoints || surveyState.polygonPoints.length < CONSTANTS.MIN_POLYGON_POINTS) {
-        return showCustomAlert('Please define a survey area first.', translate('inputErrorTitle'));
-    }
 
-    // 2. Generate waypoint data
+    const validationErrors = validateSurveyGridInputs(params.altitude, params.sidelap, params.frontlap, params.angle, params.speed);
+    if (validationErrors.length > 0) return showCustomAlert(validationErrors.join('\n'), translate('inputErrorTitle'));
+    if (!surveyState.polygonPoints || surveyState.polygonPoints.length < CONSTANTS.MIN_POLYGON_POINTS) return showCustomAlert('Please define a survey area first.', translate('inputErrorTitle'));
+
     const waypointsData = generateSurveyGridWaypoints(surveyState.polygonPoints, params);
 
     if (waypointsData.length > 0) {
         let mission;
         if (surveyState.isEditingMissionId !== null) {
             mission = surveyMissions.find(m => m.id === surveyState.isEditingMissionId);
-            if (!mission) return; // Should not happen
-            mission.parameters = params; // Update parameters
+            if (!mission) return;
+            mission.parameters = params;
         } else {
             mission = _createNewMission(params);
         }
-        
         _updateMissionWaypoints(mission, waypointsData);
-
         showCustomAlert(translate('alert_surveyGridSuccess', { count: mission.waypointIds.length }), translate('successTitle'));
     } else {
         showCustomAlert('No waypoints could be generated for this configuration.', 'Warning');
     }
     
-    // 3. Cleanup and UI update
     updateAllUI();
     _resetAndExitDrawingMode();
     surveyGridModalOverlayEl.style.display = 'none';
 }
 
-/**
- * Deletes a survey mission and its associated waypoints.
- * @param {number} missionId - The ID of the mission to delete.
- */
 function deleteSurveyMission(missionId) {
     const missionIndex = surveyMissions.findIndex(m => m.id === missionId);
     if (missionIndex === -1) return;
@@ -284,16 +241,12 @@ function deleteSurveyMission(missionId) {
     });
 
     if (confirm(confirmMsg)) {
-        // Delete waypoints
         _updateMissionWaypoints(mission, []); 
-        // Delete mission object and its polygon layer
         surveyMissions.splice(missionIndex, 1);
         if (mission.polygonLayer) map.removeLayer(mission.polygonLayer);
-        
         updateAllUI();
     }
 }
-
 
 // ===================================================================================
 //                                  DRAWING HANDLERS
@@ -318,30 +271,25 @@ function handleDrawGridAngle() {
 }
 
 function onMapClick(e) {
-    if (surveyState.isDrawingArea) {
-        // Close polygon if clicking near the start
-        if (surveyState.polygonPoints.length >= CONSTANTS.MIN_POLYGON_POINTS && surveyState.tempVertexMarkers.length > 0) {
-            const firstMarker = surveyState.tempVertexMarkers[0];
-            if (firstMarker.getLatLng().distanceTo(e.latlng) < 10 * map.getZoomScale(map.getZoom(), 18)) {
-                return handleFinalizeSurveyArea();
-            }
+    if (!surveyState.isDrawingArea) return;
+    if (surveyState.polygonPoints.length >= CONSTANTS.MIN_POLYGON_POINTS && surveyState.tempVertexMarkers.length > 0) {
+        if (surveyState.tempVertexMarkers[0].getLatLng().distanceTo(e.latlng) < 10 * map.getZoomScale(map.getZoom(), 18)) {
+            return handleFinalizeSurveyArea();
         }
-        // Prevent overly complex polygons
-        if (surveyState.polygonPoints.length >= CONSTANTS.MAX_POLYGON_POINTS) {
-            return showCustomAlert(`Maximum ${CONSTANTS.MAX_POLYGON_POINTS} points allowed.`, 'Warning');
-        }
-        // Add a new point
-        surveyState.polygonPoints.push(e.latlng);
-        const vertexMarker = L.circleMarker(e.latlng, { radius: 6, color: 'red', pane: 'markerPane' }).addTo(map);
-        if (surveyState.polygonPoints.length === 1) {
-            vertexMarker.on("click", (ev) => {
-                ev.originalEvent.stopPropagation();
-                if (surveyState.isDrawingArea && surveyState.polygonPoints.length >= CONSTANTS.MIN_POLYGON_POINTS) handleFinalizeSurveyArea();
-            });
-        }
-        surveyState.tempVertexMarkers.push(vertexMarker);
-        _drawTempPolygon();
     }
+    if (surveyState.polygonPoints.length >= CONSTANTS.MAX_POLYGON_POINTS) {
+        return showCustomAlert(`Maximum ${CONSTANTS.MAX_POLYGON_POINTS} points allowed.`, 'Warning');
+    }
+    surveyState.polygonPoints.push(e.latlng);
+    const vertexMarker = L.circleMarker(e.latlng, { radius: 6, color: 'red', pane: 'markerPane' }).addTo(map);
+    if (surveyState.polygonPoints.length === 1) {
+        vertexMarker.on("click", (ev) => {
+            ev.originalEvent.stopPropagation();
+            if (surveyState.isDrawingArea && surveyState.polygonPoints.length >= CONSTANTS.MIN_POLYGON_POINTS) handleFinalizeSurveyArea();
+        });
+    }
+    surveyState.tempVertexMarkers.push(vertexMarker);
+    _drawTempPolygon();
 }
 
 function onAngleDrawStart(e) {
@@ -362,24 +310,18 @@ function onAngleDrawEnd(e) {
     if (!surveyState.isDrawingAngle) return;
     const bearing = calculateBearing(surveyState.angleDrawStartPoint, e.latlng);
     surveyGridAngleInputEl.value = Math.round(bearing > 180 ? bearing - 360 : bearing);
-    
-    _exitMapDrawingState(); // Restore normal map behavior
-    
+    _exitMapDrawingState();
     if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'flex';
     showCustomAlert(`Grid angle set to ${surveyGridAngleInputEl.value}°`, 'Success');
 }
 
 function handleFinalizeSurveyArea() {
     if (!surveyState.isDrawingArea || surveyState.polygonPoints.length < CONSTANTS.MIN_POLYGON_POINTS) return;
-    
     _exitMapDrawingState();
-    
     surveyGridModalOverlayEl.style.display = 'flex';
     finalizeSurveyAreaBtnEl.style.display = 'none';
     confirmSurveyGridBtnEl.disabled = false;
-    
-    _drawTempPolygon(false, true); // Redraw polygon in finalized color
-    
+    _drawTempPolygon(false, true);
     surveyGridInstructionsEl.innerHTML = translate('surveyGridInstructionsFinalized');
     showCustomAlert(`Survey area defined.`, 'Success');
 }
@@ -398,20 +340,18 @@ function updateAllUI() {
     updateWaypointList();
     updateFlightPath();
     updateFlightStatistics();
-    if(typeof updateSurveyMissionsList === 'function') updateSurveyMissionsList();
+    if (typeof updateSurveyMissionsList === 'function') updateSurveyMissionsList();
     fitMapToWaypoints();
 }
 
 function _enterDrawingMode(mode = 'area') {
     map.dragging.disable();
-    if(typeof handleMapClick === 'function') map.off('click', handleMapClick);
-    
+    if (typeof handleMapClick === 'function') map.off('click', handleMapClick);
+    map.getContainer().style.cursor = 'crosshair';
     if (mode === 'area') {
         map.on('click', onMapClick);
-        map.getContainer().style.cursor = 'crosshair';
     } else if (mode === 'angle') {
         map.on('mousedown', onAngleDrawStart);
-        map.getContainer().style.cursor = 'crosshair';
     }
 }
 
@@ -422,11 +362,9 @@ function _exitMapDrawingState() {
     map.off('mousedown', onAngleDrawStart);
     map.off('mousemove', onAngleDrawMove);
     map.off('mouseup', onAngleDrawEnd);
-    
     if (typeof handleMapClick === 'function' && !map.hasEventListeners('click')) {
         map.on('click', handleMapClick);
     }
-    
     surveyState.isDrawingArea = false;
     surveyState.isDrawingAngle = false;
     surveyState.angleDrawStartPoint = null;
@@ -435,26 +373,19 @@ function _exitMapDrawingState() {
 
 function _resetAndExitDrawingMode() {
     _exitMapDrawingState();
-    if (surveyState.tempPolygonLayer) map.removeLayer(surveyState.tempPolygonLayer);
-    surveyState.tempVertexMarkers.forEach(m => map.removeLayer(m));
-    
+    clearTemporaryDrawing();
     surveyState.polygonPoints = [];
-    surveyState.tempVertexMarkers = [];
     surveyState.isEditingMissionId = null;
 }
 
 function _drawTempPolygon(isEdit = false, isFinalized = false) {
     if (surveyState.tempPolygonLayer) map.removeLayer(surveyState.tempPolygonLayer);
     if (surveyState.polygonPoints.length < 2) return;
-
-    let color = isFinalized ? CONSTANTS.COLORS.FINALIZED : (isEdit ? CONSTANTS.COLORS.EDITING : CONSTANTS.COLORS.DRAWING);
-    const opts = { color: color, weight: 2, fillColor: color, fillOpacity: 0.2 };
-    
-    if (surveyState.polygonPoints.length < 3) {
-        surveyState.tempPolygonLayer = L.polyline(surveyState.polygonPoints, opts).addTo(map);
-    } else {
-        surveyState.tempPolygonLayer = L.polygon(surveyState.polygonPoints, opts).addTo(map);
-    }
+    const color = isFinalized ? CONSTANTS.COLORS.FINALIZED : (isEdit ? CONSTANTS.COLORS.EDITING : CONSTANTS.COLORS.DRAWING);
+    const opts = { color, weight: 2, fillColor: color, fillOpacity: 0.2 };
+    surveyState.tempPolygonLayer = (surveyState.polygonPoints.length < 3)
+        ? L.polyline(surveyState.polygonPoints, opts).addTo(map)
+        : L.polygon(surveyState.polygonPoints, opts).addTo(map);
 }
 
 function toRad(degrees) { return degrees * (Math.PI / 180); }
