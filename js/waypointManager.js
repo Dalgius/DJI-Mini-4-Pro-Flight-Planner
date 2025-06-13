@@ -3,13 +3,33 @@
 // Depends on: config.js, utils.js (calculateRequiredGimbalPitch, haversineDistance), 
 // uiUpdater.js, mapManager.js, flightPathManager.js, terrainManager.js (getElevationsBatch)
 
+/**
+ * Recalculates the global waypoint counter to be one greater than the highest existing waypoint ID.
+ * This prevents ID gaps and ensures new waypoints get a correct sequential ID.
+ * @private
+ */
+function _recalculateGlobalWaypointCounter() {
+    if (waypoints.length === 0) {
+        waypointCounter = 1;
+    } else {
+        const maxId = Math.max(...waypoints.map(wp => wp.id));
+        waypointCounter = maxId + 1;
+    }
+}
+
+
 async function addWaypoint(latlng, options = {}) { 
     if (!map || !defaultAltitudeSlider || !gimbalPitchSlider) return;
 
     const isFirstWaypointBeingAdded = waypoints.length === 0 && (options.id === undefined || options.id === 1); 
 
+    // --- MODIFICA: Gestione ID più robusta ---
+    const useProvidedId = options.id !== undefined;
+    const newWaypointId = useProvidedId ? options.id : waypointCounter;
+    // --- FINE MODIFICA ---
+
     const newWaypoint = {
-        id: options.id !== undefined ? options.id : waypointCounter++, 
+        id: newWaypointId,
         latlng: L.latLng(latlng.lat, latlng.lng),
         altitude: options.altitude !== undefined ? options.altitude : parseInt(defaultAltitudeSlider.value),
         hoverTime: options.hoverTime !== undefined ? options.hoverTime : 0,
@@ -22,6 +42,12 @@ async function addWaypoint(latlng, options = {}) {
         marker: null,
         waypointType: options.waypointType || 'generic' 
     };
+    
+    // --- MODIFICA: Incrementa il contatore solo se non è stato fornito un ID ---
+    if (!useProvidedId) {
+        waypointCounter++;
+    }
+    // --- FINE MODIFICA ---
     
     waypoints.push(newWaypoint);
 
@@ -232,6 +258,8 @@ function deleteSelectedWaypoint() {
             updateMarkerIconStyle(prevWp);
         }
     }
+
+    _recalculateGlobalWaypointCounter(); // <-- NUOVA CHIAMATA
     updateWaypointList(); 
     updateFlightPath();
     updateFlightStatistics();
@@ -247,10 +275,8 @@ function clearWaypoints() {
     selectedWaypoint = null;
     waypointCounter = 1; 
     actionGroupCounter = 1; 
-    actionCounter = 1;
+    actionCounter = 1;    
 
-    // <-- INIZIO MODIFICA -->
-    // Cancella anche le missioni di rilievo e il loro stato visuale
     surveyMissions.forEach(mission => {
         if (mission.polygonLayer) {
             map.removeLayer(mission.polygonLayer);
@@ -258,8 +284,7 @@ function clearWaypoints() {
     });
     surveyMissions = [];
     surveyMissionCounter = 1;
-    if(typeof updateSurveyMissionsList === "function") updateSurveyMissionsList();
-    // <-- FINE MODIFICA -->
+    if(typeof updateSurveyMissionsList === 'function') updateSurveyMissionsList();
 
     clearMultiSelection(); 
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
