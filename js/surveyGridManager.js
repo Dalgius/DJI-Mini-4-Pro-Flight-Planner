@@ -25,7 +25,7 @@ function clearTemporaryDrawing() {
     }
     tempVertexMarkers.forEach(marker => map.removeLayer(marker));
     tempVertexMarkers = [];
-    if (tempAngleLineLayer) { // Pulisce anche la linea dell'angolo
+    if (tempAngleLineLayer) { 
         map.removeLayer(tempAngleLineLayer);
         tempAngleLineLayer = null;
     }
@@ -107,7 +107,7 @@ function cancelSurveyAreaDrawing() {
     isDrawingGridAngle = false;
     
     if (map) {
-        map.dragging.enable(); // <<< MODIFICA: Assicura che il drag sia riabilitato in ogni caso di cancellazione
+        map.dragging.enable();
         map.getContainer().style.cursor = '';
         if (nativeMapClickListener) {
             map.getContainer().removeEventListener('click', nativeMapClickListener, true);
@@ -150,15 +150,13 @@ function handleStartDrawingSurveyArea() {
     showCustomAlert(translate('alert_surveyDrawingActive', {minPoints: MIN_POLYGON_POINTS}), translate('infoTitle'));
 }
 
-// === NUOVE FUNZIONI PER DISEGNARE L'ANGOLO (CON CORREZIONI) ===
-
 function handleDrawGridAngle() {
     isDrawingGridAngle = true;
     angleDrawStartPoint = null;
 
     if (typeof handleMapClick === 'function') map.off('click', handleMapClick);
     
-    map.dragging.disable(); // <<< MODIFICA: Disabilita il trascinamento della mappa
+    map.dragging.disable();
     map.on('mousedown', onAngleDrawStart);
     
     map.getContainer().style.cursor = 'crosshair';
@@ -200,10 +198,9 @@ function onAngleDrawEnd(e) {
         surveyGridAngleInputEl.value = angle;
     }
 
-    // Pulisci tutto
     isDrawingGridAngle = false;
     angleDrawStartPoint = null;
-    map.dragging.enable(); // <<< MODIFICA: Riabilita il trascinamento della mappa
+    map.dragging.enable();
     map.getContainer().style.cursor = '';
     
     if (tempAngleLineLayer) {
@@ -223,9 +220,6 @@ function onAngleDrawEnd(e) {
         surveyGridModalOverlayEl.style.display = 'flex';
     }
 }
-
-
-// === FUNZIONI ESISTENTI (INVARIATE) ===
 
 function handleSurveyAreaMapClick(e) {
     if (!isDrawingSurveyArea) return;
@@ -301,8 +295,16 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
     const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
     
+    // ======================= INIZIO BLOCCO LOGICA CORRETTO =======================
+    // L'angolo fornito dall'utente definisce la direzione del volo.
+    // Per avere le linee di volo parallele a questo angolo, dobbiamo ruotare il sistema
+    // di coordinate di 90 gradi, in modo che la "scansione" avvenga lungo questo asse.
+    const rotationAngleDeg = (gridAngleDeg + 90) % 360; 
+    const fixedGridHeading = Math.round(gridAngleDeg);
+    // ======================= FINE BLOCCO LOGICA CORRETTO =======================
+    
     const rotationCenter = polygonLatLngs[0];
-    const angleRad = toRad(gridAngleDeg);
+    const angleRad = toRad(rotationAngleDeg); // Usa l'angolo ruotato per la griglia
     const rotatedPolygonLatLngs = polygonLatLngs.map(p => rotateLatLng(p, rotationCenter, -angleRad));
     const rotatedBounds = L.latLngBounds(rotatedPolygonLatLngs);
     const rNE = rotatedBounds.getNorthEast(); const rSW = rotatedBounds.getSouthWest();
@@ -312,9 +314,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     
     let currentRotLat = rSW.lat;
     let scanDir = 1; let lines = 0;
-    
-    const fixedGridHeading = Math.round(gridAngleDeg);
-    
+
     while (currentRotLat <= rNE.lat + lineSpacingRotLat * 0.5) {
         lines++;
         const lineCandRot = [];
@@ -330,7 +330,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
             altitude: flightAltitudeAGL, 
             cameraAction: 'takePhoto', 
             headingControl: 'fixed', 
-            fixedHeading: fixedGridHeading,
+            fixedHeading: fixedGridHeading, // L'orientamento del drone segue l'angolo originale
             waypointType: 'grid'
         };
 
