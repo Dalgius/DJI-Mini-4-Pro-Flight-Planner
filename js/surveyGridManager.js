@@ -299,11 +299,10 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     // L'orientamento del drone (heading) rispetta la direzione disegnata dall'utente.
     const fixedGridHeading = Math.round(gridAngleDeg);
     
-    // Per creare linee di volo PARALLELE all'angolo `gridAngleDeg`, dobbiamo ruotare
-    // il sistema di coordinate in modo che l'asse di disegno dell'algoritmo
-    // (che è orizzontale) si allinei con `gridAngleDeg`. L'algoritmo disegna
-    // a 90 gradi nel suo sistema di riferimento, quindi dobbiamo ruotare di
-    // (gridAngleDeg - 90) per compensare.
+    // Per avere linee di volo PARALLELE all'angolo `gridAngleDeg`, dobbiamo
+    // ruotare il sistema di coordinate di (gridAngleDeg) gradi. Questo allinea
+    // l'asse X dell'algoritmo con la direzione di volo. Poiché l'algoritmo
+    // disegna le linee di volo parallele all'asse X, il risultato sarà corretto.
     const rotationAngleDeg = gridAngleDeg;
     // ======================= FINE BLOCCO LOGICA CORRETTO =======================
     
@@ -313,13 +312,14 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     const rotatedBounds = L.latLngBounds(rotatedPolygonLatLngs);
     const rNE = rotatedBounds.getNorthEast(); const rSW = rotatedBounds.getSouthWest();
     const earthR = (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000;
-    const lineSpacingRotLat = (actualLineSpacing / earthR) * (180 / Math.PI);
     
     let currentRotLat = rSW.lat;
     let scanDir = 1;
 
-    while (currentRotLat <= rNE.lat + lineSpacingRotLat * 0.5) {
-        const photoSpacingRotLng = (actualDistanceBetweenPhotos / (earthR * Math.cos(toRad(currentRotLat)))) * (180 / Math.PI);
+    while (currentRotLat <= rNE.lat + 1e-9) {
+        const lineSpacingRotLat = (actualLineSpacing / (earthR * Math.cos(toRad(currentRotLat)))) * (180 / Math.PI);
+        const photoSpacingRotLng = (actualDistanceBetweenPhotos / earthR) * (180 / Math.PI);
+
         const lineCandRot = [];
         
         if (scanDir === 1) {
