@@ -1,15 +1,92 @@
+// ===================================================================================
 // File: waypointManager.js
+// Version: 6.0 (Centralized waypoint replacement logic for robustness)
+// ===================================================================================
 
-// Depends on: config.js, utils.js (calculateRequiredGimbalPitch, haversineDistance), 
-// uiUpdater.js, mapManager.js, flightPathManager.js, terrainManager.js (getElevationsBatch)
+/**
+ * Recalculates the global waypoint counter to be one greater than the highest existing waypoint ID.
+ * @private
+ */
+function _recalculateGlobalWaypointCounter() {
+    if (waypoints.length === 0) {
+        waypointCounter = 1;
+    } else {
+        const maxId = Math.max(0, ...waypoints.map(wp => wp.id));
+        waypointCounter = maxId + 1;
+    }
+}
+
+/**
+ * Creates a new Leaflet marker for a waypoint, binds all necessary events, and assigns it.
+ * @private
+ */
+function _createAndBindMarker(waypoint) {
+    const isHomeForIcon = waypoints.length > 0 && waypoint.id === waypoints[0].id;
+    const marker = L.marker(waypoint.latlng, {
+        draggable: true,
+        icon: createWaypointIcon(waypoint, false, false, isHomeForIcon)
+    }).addTo(map);
+
+    marker.on('click', (e) => { L.DomEvent.stopPropagation(e); selectWaypoint(waypoint); });
+    
+    // simplified drag/hover events for re-created markers
+    marker.on('dragend', () => { 
+        waypoint.latlng = marker.getLatLng();
+        updateAllUI();
+    });
+
+    waypoint.marker = marker;
+}
+
+/**
+ * Replaces a set of waypoints with a new set, renumbering and redrawing everything.
+ * This is the master function for mission updates to ensure data integrity.
+ * @param {number[]} idsToDelete - An array of waypoint IDs to remove.
+ * @param {object[]} newWpsData - An array of new waypoint data objects to insert.
+ * @returns {number[]} An array of the new IDs assigned to the inserted waypoints.
+ */
+function replaceWaypointSet(idsToDelete, newWpsData) {
+    let insertionIndex = -1;
+    if (idsToDelete && idsToDelete.length > 0) {
+        insertionIndex = waypoints.findIndex(wp => wp.id === idsToDelete[0]);
+        const oldWpIds = new Set(idsToDelete);
+        waypoints.forEach(wp => { if (oldWpIds.has(wp.id) && wp.marker) map.removeLayer(wp.marker); });
+        waypoints = waypoints.filter(wp => !oldWpIds.has(wp.id));
+    }
+    if (insertionIndex === -1) {
+        insertionIndex = waypoints.length;
+    }
+
+    const newWps = newWpsData.map(data => ({
+        latlng: L.latLng(data.latlng.lat, data.latlng.lng),
+        ...data.options,
+        marker: null // Ensure marker is null initially
+    }));
+
+    waypoints.splice(insertionIndex, 0, ...newWps);
+
+    const newWaypointIds = [];
+    waypoints.forEach((wp, index) => {
+        const newId = index + 1;
+        wp.id = newId;
+        if (index >= insertionIndex && index < insertionIndex + newWps.length) {
+            newWaypointIds.push(newId);
+        }
+        if (wp.marker) map.removeLayer(wp.marker); // Clean old marker if any
+    });
+
+    waypoints.forEach(wp => _createAndBindMarker(wp));
+    
+    _recalculateGlobalWaypointCounter();
+    
+    return newWaypointIds;
+}
 
 async function addWaypoint(latlng, options = {}) { 
     if (!map || !defaultAltitudeSlider || !gimbalPitchSlider) return;
-
-    const isFirstWaypointBeingAdded = waypoints.length === 0 && (options.id === undefined || options.id === 1); 
-
+    
     const newWaypoint = {
-        id: options.id !== undefined ? options.id : waypointCounter++, 
+        id: options.id !== undefined ? options.id : waypointCounter,
         latlng: L.latLng(latlng.lat, latlng.lng),
         altitude: options.altitude !== undefined ? options.altitude : parseInt(defaultAltitudeSlider.value),
         hoverTime: options.hoverTime !== undefined ? options.hoverTime : 0,
@@ -23,161 +100,15 @@ async function addWaypoint(latlng, options = {}) {
         waypointType: options.waypointType || 'generic' 
     };
     
-    waypoints.push(newWaypoint);
-
-    const isHomeForIcon = waypoints.length > 0 && newWaypoint.id === waypoints[0].id; 
-    const marker = L.marker(newWaypoint.latlng, {
-        draggable: true,
-        icon: createWaypointIcon(newWaypoint, false, false, isHomeForIcon) 
-    }).addTo(map);
-
-    marker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e); 
-        selectWaypoint(newWaypoint);
-    });
-    marker.on('dragend', async () => { 
-        newWaypoint.latlng = marker.getLatLng();
-        updateFlightPath(); 
-        updateFlightStatistics();
-        
-        const wpIndex = waypoints.findIndex(wp => wp.id === newWaypoint.id);
-        const isDraggedWpFirst = wpIndex === 0;
-
-        if (isDraggedWpFirst && typeof getElevationsBatch === "function" && homeElevationMslInput) {
-            console.log(`WP1 (ID: ${newWaypoint.id}) trascinato. Tento di aggiornare l'elevazione di decollo e del WP1.`);
-            if(loadingOverlayEl) loadingOverlayEl.style.display = 'flex';
-            if(loadingOverlayEl) loadingOverlayEl.textContent = "Aggiornamento elevazione decollo da WP1...";
-            const elevations = await getElevationsBatch([{ lat: newWaypoint.latlng.lat, lng: newWaypoint.latlng.lng }]);
-            if(loadingOverlayEl) loadingOverlayEl.style.display = 'none';
-            if (elevations && elevations.length > 0 && elevations[0] !== null) {
-                const terrainElev = Math.round(elevations[0]);
-                homeElevationMslInput.value = terrainElev;
-                newWaypoint.terrainElevationMSL = terrainElev;
-                
-                if (typeof updateDefaultDesiredAMSLTarget === "function") {
-                    updateDefaultDesiredAMSLTarget();
-                }
-
-                lastAltitudeAdaptationMode = 'relative'; 
-                if(typeof updatePathModeDisplay === "function") updatePathModeDisplay();
-                updateFlightPath(); 
-
-                waypoints.forEach(wp_iter => {
-                    if (wp_iter.headingControl === 'poi_track' && typeof updateGimbalForPoiTrack === "function") {
-                        updateGimbalForPoiTrack(wp_iter, selectedWaypoint && selectedWaypoint.id === wp_iter.id);
-                    }
-                });
-            } else {
-                console.warn("Fallito aggiornamento elevazione decollo dopo trascinamento WP1.");
-            }
-        } else if (newWaypoint.headingControl === 'poi_track' && typeof updateGimbalForPoiTrack === "function") {
-            updateGimbalForPoiTrack(newWaypoint, true); 
-        }
-        
-        updateWaypointList();
-        if(selectedWaypoint && selectedWaypoint.id === newWaypoint.id && typeof updateSingleWaypointEditControls === "function"){
-             updateSingleWaypointEditControls();
-        }
-        updateMarkerIconStyle(newWaypoint);
-        if (wpIndex > 0 && waypoints[wpIndex-1].headingControl === 'auto') { 
-            updateMarkerIconStyle(waypoints[wpIndex-1]);
-        }
-    });
-    marker.on('drag', () => { 
-        newWaypoint.latlng = marker.getLatLng();
-        updateFlightPath(); 
-        if(newWaypoint.headingControl === 'poi_track' && typeof updateGimbalForPoiTrack === "function"){ 
-            updateGimbalForPoiTrack(newWaypoint); 
-            if(selectedWaypoint && selectedWaypoint.id === newWaypoint.id && gimbalPitchSlider && gimbalPitchValueEl){ 
-                 gimbalPitchSlider.value = newWaypoint.gimbalPitch;
-                 gimbalPitchValueEl.textContent = newWaypoint.gimbalPitch + '°';
-            }
-        }
-    });
-
-    marker.on('mouseover', function (e) {
-        let homeElevation = 0;
-        if (homeElevationMslInput && homeElevationMslInput.value !== "") {
-            homeElevation = parseFloat(homeElevationMslInput.value);
-            if (isNaN(homeElevation)) homeElevation = 0;
-        }
-        const altitudeRelToHome = newWaypoint.altitude;
-        const terrainElevText = newWaypoint.terrainElevationMSL !== null ? `${newWaypoint.terrainElevationMSL.toFixed(1)} m` : translate('NA');
-        let amslText = translate('NA');
-        let aglText = translate('NA');
-        if (typeof homeElevation === 'number') {
-            amslText = `${(homeElevation + altitudeRelToHome).toFixed(1)} m`;
-        }
-        if (newWaypoint.terrainElevationMSL !== null && typeof homeElevation === 'number') {
-            const amslWaypoint = homeElevation + altitudeRelToHome;
-            aglText = `${(amslWaypoint - newWaypoint.terrainElevationMSL).toFixed(1)} m`;
-        }
-        
-        const popupContent = `
-            <strong>${translate('waypointLabel')} ${newWaypoint.id}</strong><br>
-            <div style="font-size:0.9em; line-height:1.3;">
-            Lat: ${newWaypoint.latlng.lat.toFixed(5)}, Lng: ${newWaypoint.latlng.lng.toFixed(5)}<br>
-            ${translate('flightAltRelLabel')}: ${altitudeRelToHome} m<br>
-            ${translate('amslAltLabel')}: ${amslText}<br>
-            ${translate('aglAltLabel')}: ${aglText}<br>
-            ${translate('terrainElevLabel')}: ${terrainElevText}<br>
-            ${translate('gimbalLabel')}: ${newWaypoint.gimbalPitch}° | ${translate('hoverLabel')}: ${newWaypoint.hoverTime}s
-            </div>
-        `;
-
-        if (!this.getPopup()) { this.bindPopup(popupContent).openPopup(); } 
-        else { this.setPopupContent(popupContent).openPopup(); }
-    });
-    newWaypoint.marker = marker;
-
-    if (isFirstWaypointBeingAdded && typeof getElevationsBatch === "function" && homeElevationMslInput) {
-        console.log(`Primo waypoint (ID: ${newWaypoint.id}) aggiunto. Tento di impostare l'elevazione di decollo e del WP1.`);
-        if(loadingOverlayEl) loadingOverlayEl.style.display = 'flex';
-        if(loadingOverlayEl) loadingOverlayEl.textContent = "Recupero elevazione decollo da WP1...";
-        
-        const elevations = await getElevationsBatch([{ lat: newWaypoint.latlng.lat, lng: newWaypoint.latlng.lng }]);
-        
-        if(loadingOverlayEl) loadingOverlayEl.style.display = 'none';
-
-        if (elevations && elevations.length > 0 && elevations[0] !== null) {
-            const terrainElev = Math.round(elevations[0]);
-            homeElevationMslInput.value = terrainElev; 
-            newWaypoint.terrainElevationMSL = terrainElev; 
-            
-            console.log(`Elevazione decollo impostata a ${homeElevationMslInput.value}m MSL. WP1.terrainElevationMSL: ${newWaypoint.terrainElevationMSL}m.`);
-            
-            if (typeof updateDefaultDesiredAMSLTarget === "function") {
-                updateDefaultDesiredAMSLTarget();
-            }
-
-            lastAltitudeAdaptationMode = 'relative'; 
-            if(typeof updatePathModeDisplay === "function") updatePathModeDisplay();
-
-            if (newWaypoint.headingControl === 'poi_track' && typeof updateGimbalForPoiTrack === "function") {
-                updateGimbalForPoiTrack(newWaypoint, true); 
-            }
-        } else {
-            console.warn("Impossibile recuperare l'elevazione per WP1. homeElevationMslInput e WP1.terrainElevationMSL non impostati automaticamente.");
-            newWaypoint.terrainElevationMSL = null;
-        }
-    } else if (waypoints.length > 1) { 
-        const prevWpIndex = waypoints.length - 2; 
-        const prevWp = waypoints[prevWpIndex];
-        if (prevWp && prevWp.headingControl === 'auto') { 
-            updateMarkerIconStyle(prevWp);
-        }
+    if (options.id === undefined) {
+        waypointCounter++;
     }
     
-    if (newWaypoint.headingControl === 'poi_track' && newWaypoint.targetPoiId !== null && typeof updateGimbalForPoiTrack === "function") {
-        if (!isFirstWaypointBeingAdded) {
-             updateGimbalForPoiTrack(newWaypoint, (options.calledFromLoad !== true && selectedWaypoint && selectedWaypoint.id === newWaypoint.id));
-        }
-    }
+    waypoints.push(newWaypoint);
+    _createAndBindMarker(newWaypoint);
     
     if (options.calledFromLoad !== true) { 
-        updateWaypointList();
-        updateFlightPath();
-        updateFlightStatistics();
+        updateAllUI();
         selectWaypoint(newWaypoint); 
     }
 }
@@ -185,114 +116,57 @@ async function addWaypoint(latlng, options = {}) {
 function selectWaypoint(waypoint) {
     if (!waypoint) return;
     const previouslySelectedSingleId = selectedWaypoint ? selectedWaypoint.id : null;
-    if (selectedForMultiEdit.size > 0) {
-        clearMultiSelection(); 
-    }
+    if (selectedForMultiEdit.size > 0) clearMultiSelection(); 
+    
     selectedWaypoint = waypoint;
+    
     if (previouslySelectedSingleId && previouslySelectedSingleId !== waypoint.id) {
         const prevWp = waypoints.find(wp => wp.id === previouslySelectedSingleId);
         if (prevWp) updateMarkerIconStyle(prevWp);
     }
-    updateMarkerIconStyle(selectedWaypoint); 
-    waypoints.forEach(wp => { 
-        if (wp.id !== selectedWaypoint.id && !selectedForMultiEdit.has(wp.id)) { 
-            updateMarkerIconStyle(wp); 
-        }
-    });
+    
+    updateMarkerIconStyle(selectedWaypoint);
     updateSingleWaypointEditControls(); 
-    updateWaypointList(); 
-    if (selectedWaypoint.marker) {
-        map.panTo(selectedWaypoint.latlng); 
-    }
+    updateWaypointList();
+    if (selectedWaypoint.marker) map.panTo(selectedWaypoint.latlng);
     updateMultiEditPanelVisibility(); 
 }
 
 function deleteSelectedWaypoint() {
-    if (!selectedWaypoint) {
-        showCustomAlert("Nessun waypoint selezionato da eliminare.", "Info"); 
-        return;
-    }
-    const deletedWaypointId = selectedWaypoint.id;
-    const deletedWaypointIndex = waypoints.findIndex(wp => wp.id === deletedWaypointId);
-
-    if (selectedWaypoint.marker) {
-        map.removeLayer(selectedWaypoint.marker);
-    }
-    waypoints = waypoints.filter(wp => wp.id !== deletedWaypointId);
-
-    if (selectedForMultiEdit.has(deletedWaypointId)) { 
-        selectedForMultiEdit.delete(deletedWaypointId);
-    }
+    if (!selectedWaypoint) return;
+    replaceWaypointSet([selectedWaypoint.id], []);
     selectedWaypoint = null;
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
-    
-    if (deletedWaypointIndex > 0 && deletedWaypointIndex -1 < waypoints.length) { 
-        const prevWp = waypoints[deletedWaypointIndex - 1]; 
-        if (prevWp && prevWp.headingControl === 'auto') {
-            updateMarkerIconStyle(prevWp);
-        }
-    }
-    updateWaypointList(); 
-    updateFlightPath();
-    updateFlightStatistics();
-    updateMultiEditPanelVisibility(); 
-    waypoints.forEach(wp => updateMarkerIconStyle(wp)); 
+    updateAllUI();
 }
 
 function clearWaypoints() {
-    waypoints.forEach(wp => {
-        if (wp.marker) map.removeLayer(wp.marker);
-    });
+    waypoints.forEach(wp => { if (wp.marker) map.removeLayer(wp.marker); });
     waypoints = [];
     selectedWaypoint = null;
     waypointCounter = 1; 
     actionGroupCounter = 1; 
-    actionCounter = 1;
+    actionCounter = 1;    
 
-    // <-- INIZIO MODIFICA -->
-    // Cancella anche le missioni di rilievo e il loro stato visuale
-    surveyMissions.forEach(mission => {
-        if (mission.polygonLayer) {
-            map.removeLayer(mission.polygonLayer);
-        }
-    });
+    surveyMissions.forEach(mission => { if (mission.polygonLayer) map.removeLayer(mission.polygonLayer); });
     surveyMissions = [];
     surveyMissionCounter = 1;
-    if(typeof updateSurveyMissionsList === "function") updateSurveyMissionsList();
-    // <-- FINE MODIFICA -->
+    if(typeof updateSurveyMissionsList === 'function') updateSurveyMissionsList();
 
     clearMultiSelection(); 
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
     
-    if(typeof clearPOIs === "function") { 
-        clearPOIs(); 
-    } else { 
-        if(pois) pois.forEach(p => { if(p.marker) map.removeLayer(p.marker); });
-        pois = [];
-        poiCounter = 1;
-        if(typeof updatePOIList === 'function') updatePOIList();
-        if(poiNameInput) poiNameInput.value = "";
-        if(poiObjectHeightInputEl) poiObjectHeightInputEl.value = "0";
-        if(poiTerrainElevationInputEl) {
-            poiTerrainElevationInputEl.value = "0";
-            poiTerrainElevationInputEl.readOnly = true;
-        }
-        if(typeof updatePoiFinalAltitudeDisplay === "function") updatePoiFinalAltitudeDisplay();
-        lastActivePoiForTerrainFetch = null;
-    }
+    if(typeof clearPOIs === 'function') clearPOIs(); 
+    else { if(pois) pois.forEach(p => { if(p.marker) map.removeLayer(p.marker); }); pois = []; poiCounter = 1; if(typeof updatePOIList === 'function') updatePOIList(); }
     
     lastAltitudeAdaptationMode = 'relative'; 
-    if(typeof updatePathModeDisplay === "function") updatePathModeDisplay();
-    updateFlightPath(); 
-
-    updateWaypointList();
-    updateFlightStatistics();
+    if(typeof updatePathModeDisplay === 'function') updatePathModeDisplay();
+    updateAllUI();
 }
 
 function toggleMultiSelectWaypoint(waypointId, isChecked) {
     const waypoint = waypoints.find(wp => wp.id === waypointId);
-    if (!waypoint) { return; }
-
+    if (!waypoint) return;
     if (isChecked) {
         selectedForMultiEdit.add(waypointId);
         if (selectedWaypoint) {
@@ -305,9 +179,7 @@ function toggleMultiSelectWaypoint(waypointId, isChecked) {
         selectedForMultiEdit.delete(waypointId);
     }
     updateMarkerIconStyle(waypoint); 
-    if (selectAllWaypointsCheckboxEl) {
-        selectAllWaypointsCheckboxEl.checked = waypoints.length > 0 && waypoints.every(wp => selectedForMultiEdit.has(wp.id));
-    }
+    if (selectAllWaypointsCheckboxEl) selectAllWaypointsCheckboxEl.checked = waypoints.length > 0 && waypoints.every(wp => selectedForMultiEdit.has(wp.id));
     updateWaypointList(); 
     updateMultiEditPanelVisibility(); 
 }
@@ -339,6 +211,7 @@ function clearMultiSelection() {
     updateWaypointList(); 
     updateMultiEditPanelVisibility(); 
 }
+
 
 function updateGimbalForPoiTrack(waypoint, forceUpdateUI = false) {
     if (!waypoint || waypoint.headingControl !== 'poi_track' || waypoint.targetPoiId === null) {
