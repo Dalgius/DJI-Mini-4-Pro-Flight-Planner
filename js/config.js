@@ -6,6 +6,7 @@ let isDrawingSurveyArea = false;
 let isDrawingGridAngle = false;
 let waypoints = [];
 let pois = [];
+let surveyMissions = []; // <-- NUOVO: Array per le missioni di rilievo
 let selectedWaypoint = null; 
 let flightPath = null; 
 let userLocationMarker = null; 
@@ -19,6 +20,7 @@ let satelliteView = false;
 // --- Counters for Unique IDs ---
 let waypointCounter = 1;
 let poiCounter = 1;
+let surveyMissionCounter = 1; // <-- NUOVO: Contatore per le missioni
 let actionGroupCounter = 1; 
 let actionCounter = 1;      
 
@@ -49,6 +51,7 @@ let poiNameInput, poiObjectHeightInputEl, poiTerrainElevationInputEl, poiFinalAl
 
 // List Display Elements
 let waypointListEl, poiListEl;
+let surveyMissionsListEl; // <-- NUOVO
 
 // Flight Statistics Display
 let totalDistanceEl, flightTimeEl, waypointCountEl, poiCountEl;
