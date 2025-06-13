@@ -207,21 +207,18 @@ function createWaypointIcon(waypointObject, isSelectedSingle, isMultiSelected = 
     if (arrowColor !== 'transparent') {
         const circleRadius = currentSize / 2;
         
-        // Dimensions for the arrowhead (no stem)
-        const arrowheadLength = 10; // Total length of the arrowhead from its base to its tip
-        const arrowheadWidth = 9;  // Base width of the arrowhead
-        const gapFromCircle = 1; // Small gap between circle edge and arrow base
+        // --- INIZIO MODIFICA: Rimpicciolita la freccia ---
+        const arrowheadLength = 8;  // Lunghezza della punta
+        const arrowheadWidth = 7;   // Larghezza della base della punta
+        const gapFromCircle = 2;    // Spazio tra cerchio e freccia
+        // --- FINE MODIFICA ---
 
-        // Calculate coordinates for the arrowhead polygon
-        // The base of the arrow starts just outside the circle
         const arrowBaseY = -(circleRadius + gapFromCircle);
         const arrowTipY = -(circleRadius + gapFromCircle + arrowheadLength);
         const baseCornerOffsetX = arrowheadWidth / 2;
         
         const polygonPoints = `${baseCornerOffsetX},${arrowBaseY} ${-baseCornerOffsetX},${arrowBaseY} 0,${arrowTipY}`;
 
-
-        // SVG container needs to be large enough for the rotated arrow.
         const maxArrowExtent = circleRadius + gapFromCircle + arrowheadLength;
         const svgContainerSize = maxArrowExtent * 2 + arrowheadWidth; 
 
@@ -264,6 +261,7 @@ function createWaypointIcon(waypointObject, isSelectedSingle, isMultiSelected = 
                     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
                     line-height: ${currentSize}px; 
                     position: relative; 
+                    z-index: 10;
                 ">
                     ${iconHtmlContent}
                 </div>
