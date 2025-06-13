@@ -1,7 +1,7 @@
 // ===================================================================================
 // File: surveyGridManager.js
 // Description: Manages the creation, editing, and deletion of survey grid missions.
-// Version: 4.1 (Corrected ReferenceError and restored utility functions)
+// Version: 4.2 (Fixed ReferenceError by restoring all helper functions)
 // ===================================================================================
 
 // --- MODULE CONSTANTS ---
@@ -40,23 +40,99 @@ const surveyState = {
     tempAngleLineLayer: null
 };
 
+// ===================================================================================
+//                        GEOMETRY & VALIDATION HELPERS (RESTORED)
+// ===================================================================================
+
+function clearTemporaryDrawing() {
+    if (surveyState.tempPolygonLayer) {
+        map.removeLayer(surveyState.tempPolygonLayer);
+        surveyState.tempPolygonLayer = null;
+    }
+    surveyState.tempVertexMarkers.forEach(marker => {
+        marker.off();
+        map.removeLayer(marker);
+    });
+    surveyState.tempVertexMarkers = [];
+    if (surveyState.tempAngleLineLayer) { 
+        map.removeLayer(surveyState.tempAngleLineLayer);
+        surveyState.tempAngleLineLayer = null;
+    }
+}
+
+function rotateLatLng(pointLatLng, centerLatLng, angleRadians) {
+    const cosAngle = Math.cos(angleRadians);
+    const sinAngle = Math.sin(angleRadians);
+    const dLngScaled = (pointLatLng.lng - centerLatLng.lng) * Math.cos(toRad(centerLatLng.lat));
+    const dLat = pointLatLng.lat - centerLatLng.lat;
+    const rotatedDLngScaled = dLngScaled * cosAngle - dLat * sinAngle;
+    const rotatedDLat = dLngScaled * sinAngle + dLat * cosAngle;
+    const finalLng = centerLatLng.lng + (rotatedDLngScaled / Math.cos(toRad(centerLatLng.lat)));
+    const finalLat = centerLatLng.lat + rotatedDLat;
+    return L.latLng(finalLat, finalLng);
+}
+
+function isPointInPolygon(point, polygonVertices) {
+    if (!point || !polygonVertices || polygonVertices.length < 3) return false;
+    let isInside = false;
+    const x = point.lng, y = point.lat;
+    for (let i = 0, j = polygonVertices.length - 1; i < polygonVertices.length; j = i++) {
+        const xi = polygonVertices[i].lng, yi = polygonVertices[i].lat;
+        const xj = polygonVertices[j].lng, yj = polygonVertices[j].lat;
+        const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) isInside = !isInside;
+    }
+    return isInside;
+}
+
+function calculateFootprint(altitudeAGL, cameraParams) {
+    if (!cameraParams || !cameraParams.focalLength_mm || cameraParams.focalLength_mm === 0) return { width: 0, height: 0 };
+    const footprintWidth = (cameraParams.sensorWidth_mm / cameraParams.focalLength_mm) * altitudeAGL;
+    const footprintHeight = (cameraParams.sensorHeight_mm / cameraParams.focalLength_mm) * altitudeAGL;
+    return { width: footprintWidth, height: footprintHeight };
+}
+
+function validateSurveyGridInputs(altitude, sidelap, frontlap, angle, speed) {
+    const errors = [];
+    if (isNaN(altitude) || altitude < CONSTANTS.VALIDATION.altitude.min || altitude > CONSTANTS.VALIDATION.altitude.max) errors.push(`Altitude: ${CONSTANTS.VALIDATION.altitude.min}-${CONSTANTS.VALIDATION.altitude.max}m`);
+    if (isNaN(sidelap) || sidelap < CONSTANTS.VALIDATION.sidelap.min || sidelap > CONSTANTS.VALIDATION.sidelap.max) errors.push(`Sidelap: ${CONSTANTS.VALIDATION.sidelap.min}-${CONSTANTS.VALIDATION.sidelap.max}%`);
+    if (isNaN(frontlap) || frontlap < CONSTANTS.VALIDATION.frontlap.min || frontlap > CONSTANTS.VALIDATION.frontlap.max) errors.push(`Frontlap: ${CONSTANTS.VALIDATION.frontlap.min}-${CONSTANTS.VALIDATION.frontlap.max}%`);
+    if (isNaN(angle) || angle < CONSTANTS.VALIDATION.angle.min || angle > CONSTANTS.VALIDATION.angle.max) errors.push(`Angle: ${CONSTANTS.VALIDATION.angle.min}°-${CONSTANTS.VALIDATION.angle.max}°`);
+    if (isNaN(speed) || speed < CONSTANTS.VALIDATION.speed.min || speed > CONSTANTS.VALIDATION.speed.max) errors.push(`Speed: ${CONSTANTS.VALIDATION.speed.min}-${CONSTANTS.VALIDATION.speed.max}m/s`);
+    return errors;
+}
+
+function calculatePolygonArea(polygonLatLngs) {
+    if (!polygonLatLngs || polygonLatLngs.length < 3) return 0;
+    const earthRadius = (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000;
+    let area = 0;
+    for (let i = 0; i < polygonLatLngs.length; i++) {
+        const j = (i + 1) % polygonLatLngs.length;
+        const lat1 = toRad(polygonLatLngs[i].lat), lat2 = toRad(polygonLatLngs[j].lat);
+        const deltaLng = toRad(polygonLatLngs[j].lng - polygonLatLngs[i].lng);
+        area += deltaLng * (2 + Math.sin(lat1) + Math.sin(lat2));
+    }
+    return Math.abs(area * earthRadius * earthRadius / 2);
+}
+
+function toRad(degrees) { return degrees * (Math.PI / 180); }
+function toDeg(radians) { return radians * (180 / Math.PI); }
+function calculateBearing(from, to) {
+    const lat1 = toRad(from.lat), lat2 = toRad(to.lat), deltaLng = toRad(to.lng - from.lng);
+    const y = Math.sin(deltaLng) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLng);
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
 
 // ===================================================================================
 //                                CORE LOGIC & GENERATION
 // ===================================================================================
 
-/**
- * Generates the waypoint data for a survey grid based on the provided parameters.
- * @param {L.LatLng[]} polygonLatLngs - The vertices of the survey area.
- * @param {object} params - The survey parameters { altitude, sidelap, frontlap, angle, speed }.
- * @returns {object[]} An array of waypoint data objects { latlng, options }.
- */
 function generateSurveyGridWaypoints(polygonLatLngs, params) {
     const { altitude, sidelap, frontlap, angle, speed } = params;
     const finalWaypointsData = [];
-
     if (!polygonLatLngs || polygonLatLngs.length < CONSTANTS.MIN_POLYGON_POINTS) return finalWaypointsData;
-
     const footprint = calculateFootprint(altitude, CONSTANTS.CAMERA);
     if (footprint.width === 0 || footprint.height === 0) return finalWaypointsData;
 
@@ -100,7 +176,6 @@ function generateSurveyGridWaypoints(polygonLatLngs, params) {
                 finalWaypointsData.push({ latlng: actualGeoPt, options: wpOptions });
             }
         });
-
         currentRotLat += lineSpacingRotLat;
         scanDir *= -1;
     }
@@ -116,10 +191,6 @@ function generateSurveyGridWaypoints(polygonLatLngs, params) {
     return uniqueWaypoints;
 }
 
-/**
- * Updates the waypoints for a given survey mission.
- * @private
- */
 function _updateMissionWaypoints(mission, waypointsData) {
     if (mission.waypointIds.length > 0) {
         const oldWpIds = new Set(mission.waypointIds);
@@ -138,10 +209,6 @@ function _updateMissionWaypoints(mission, waypointsData) {
     });
 }
 
-/**
- * Creates a new survey mission object.
- * @private
- */
 function _createNewMission(params) {
     const mission = {
         id: surveyMissionCounter++,
@@ -153,6 +220,7 @@ function _createNewMission(params) {
     surveyMissions.push(mission);
     return mission;
 }
+
 
 // ===================================================================================
 //                                UI & EVENT HANDLERS
@@ -247,6 +315,7 @@ function deleteSurveyMission(missionId) {
         updateAllUI();
     }
 }
+
 
 // ===================================================================================
 //                                  DRAWING HANDLERS
@@ -386,13 +455,4 @@ function _drawTempPolygon(isEdit = false, isFinalized = false) {
     surveyState.tempPolygonLayer = (surveyState.polygonPoints.length < 3)
         ? L.polyline(surveyState.polygonPoints, opts).addTo(map)
         : L.polygon(surveyState.polygonPoints, opts).addTo(map);
-}
-
-function toRad(degrees) { return degrees * (Math.PI / 180); }
-function toDeg(radians) { return radians * (180 / Math.PI); }
-function calculateBearing(from, to) {
-    const lat1 = toRad(from.lat), lat2 = toRad(to.lat), deltaLng = toRad(to.lng - from.lng);
-    const y = Math.sin(deltaLng) * Math.cos(lat2);
-    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLng);
-    return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
