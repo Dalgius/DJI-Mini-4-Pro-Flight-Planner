@@ -1,4 +1,4 @@
-// File: surveyGridManager.js
+// File: surveyGridManager.js - Enhanced Version with Improvements
 
 let currentPolygonPoints = [];
 let tempPolygonLayer = null;
@@ -10,11 +10,21 @@ let angleDrawStartPoint = null;
 let tempAngleLineLayer = null;
 
 const MIN_POLYGON_POINTS = 3;
+const MAX_POLYGON_POINTS = 50; // Prevent excessive polygon complexity
 
 const FIXED_CAMERA_PARAMS = {
     sensorWidth_mm: 8.976,
     sensorHeight_mm: 6.716,
     focalLength_mm: 6.88
+};
+
+// Enhanced validation constants
+const VALIDATION_LIMITS = {
+    altitude: { min: 1, max: 500 },
+    sidelap: { min: 10, max: 95 },
+    frontlap: { min: 10, max: 95 },
+    speed: { min: 0.1, max: 30 },
+    angle: { min: -360, max: 360 }
 };
 
 // === HELPER FUNCTIONS ===
@@ -23,7 +33,10 @@ function clearTemporaryDrawing() {
         map.removeLayer(tempPolygonLayer);
         tempPolygonLayer = null;
     }
-    tempVertexMarkers.forEach(marker => map.removeLayer(marker));
+    tempVertexMarkers.forEach(marker => {
+        marker.off(); // Remove all event listeners
+        map.removeLayer(marker);
+    });
     tempVertexMarkers = [];
     if (tempAngleLineLayer) { 
         map.removeLayer(tempAngleLineLayer);
@@ -37,7 +50,14 @@ function updateTempPolygonDisplay() {
         tempPolygonLayer = null;
     }
     if (currentPolygonPoints.length < 2) return;
-    const opts = { color: 'rgba(0, 100, 255, 0.7)', weight: 2, fillColor: 'rgba(0, 100, 255, 0.2)', fillOpacity: 0.3 };
+    
+    const opts = { 
+        color: 'rgba(0, 100, 255, 0.7)', 
+        weight: 2, 
+        fillColor: 'rgba(0, 100, 255, 0.2)', 
+        fillOpacity: 0.3 
+    };
+    
     if (currentPolygonPoints.length === 2) {
         tempPolygonLayer = L.polyline(currentPolygonPoints, opts).addTo(map);
     } else if (currentPolygonPoints.length >= 3) {
@@ -58,9 +78,12 @@ function rotateLatLng(pointLatLng, centerLatLng, angleRadians) {
 }
 
 function isPointInPolygon(point, polygonVertices) {
+    if (!point || !polygonVertices || polygonVertices.length < 3) return false;
+    
     let isInside = false;
     const x = point.lng;
     const y = point.lat;
+    
     for (let i = 0, j = polygonVertices.length - 1; i < polygonVertices.length; j = i++) {
         const xi = polygonVertices[i].lng, yi = polygonVertices[i].lat;
         const xj = polygonVertices[j].lng, yj = polygonVertices[j].lat;
@@ -80,12 +103,61 @@ function calculateFootprint(altitudeAGL, cameraParams) {
     return { width: footprintWidth, height: footprintHeight };
 }
 
+// Enhanced validation function
+function validateSurveyGridInputs(altitude, sidelap, frontlap, angle, speed) {
+    const errors = [];
+    
+    if (isNaN(altitude) || altitude < VALIDATION_LIMITS.altitude.min || altitude > VALIDATION_LIMITS.altitude.max) {
+        errors.push(`Altitude must be between ${VALIDATION_LIMITS.altitude.min} and ${VALIDATION_LIMITS.altitude.max} meters`);
+    }
+    
+    if (isNaN(sidelap) || sidelap < VALIDATION_LIMITS.sidelap.min || sidelap > VALIDATION_LIMITS.sidelap.max) {
+        errors.push(`Sidelap must be between ${VALIDATION_LIMITS.sidelap.min}% and ${VALIDATION_LIMITS.sidelap.max}%`);
+    }
+    
+    if (isNaN(frontlap) || frontlap < VALIDATION_LIMITS.frontlap.min || frontlap > VALIDATION_LIMITS.frontlap.max) {
+        errors.push(`Frontlap must be between ${VALIDATION_LIMITS.frontlap.min}% and ${VALIDATION_LIMITS.frontlap.max}%`);
+    }
+    
+    if (isNaN(angle) || angle < VALIDATION_LIMITS.angle.min || angle > VALIDATION_LIMITS.angle.max) {
+        errors.push(`Angle must be between ${VALIDATION_LIMITS.angle.min}° and ${VALIDATION_LIMITS.angle.max}°`);
+    }
+    
+    if (isNaN(speed) || speed < VALIDATION_LIMITS.speed.min || speed > VALIDATION_LIMITS.speed.max) {
+        errors.push(`Speed must be between ${VALIDATION_LIMITS.speed.min} and ${VALIDATION_LIMITS.speed.max} m/s`);
+    }
+    
+    return errors;
+}
+
+// Calculate polygon area for better feedback
+function calculatePolygonArea(polygonLatLngs) {
+    if (!polygonLatLngs || polygonLatLngs.length < 3) return 0;
+    
+    const earthRadius = 6371000; // meters
+    let area = 0;
+    
+    for (let i = 0; i < polygonLatLngs.length; i++) {
+        const j = (i + 1) % polygonLatLngs.length;
+        const lat1 = toRad(polygonLatLngs[i].lat);
+        const lat2 = toRad(polygonLatLngs[j].lat);
+        const deltaLng = toRad(polygonLatLngs[j].lng - polygonLatLngs[i].lng);
+        
+        area += deltaLng * (2 + Math.sin(lat1) + Math.sin(lat2));
+    }
+    
+    area = Math.abs(area * earthRadius * earthRadius / 2);
+    return area; // square meters
+}
+
 // === UI HANDLERS ===
 function openSurveyGridModal() {
     if (!surveyGridModalOverlayEl) {
         showCustomAlert(translate('errorTitle'), "Survey grid modal elements not found.");
         return;
     }
+    
+    // Initialize form values with defaults
     surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value;
     if (!surveySidelapInputEl.value) surveySidelapInputEl.value = 70;
     if (!surveyFrontlapInputEl.value) surveyFrontlapInputEl.value = 80;
@@ -109,23 +181,31 @@ function cancelSurveyAreaDrawing() {
     if (map) {
         map.dragging.enable();
         map.getContainer().style.cursor = '';
+        
+        // Clean up event listeners
         if (nativeMapClickListener) {
             map.getContainer().removeEventListener('click', nativeMapClickListener, true);
             nativeMapClickListener = null;
         }
+        
         map.off('click', handleSurveyAreaMapClick);
         map.off('mousedown', onAngleDrawStart);
         map.off('mousemove', onAngleDrawMove);
         map.off('mouseup', onAngleDrawEnd);
 
+        // Restore original map click handler if it was active
         if (wasActive && !map.hasEventListeners('click')) {
-             if (typeof handleMapClick === 'function') map.on('click', handleMapClick);
+             if (typeof handleMapClick === 'function') {
+                 map.on('click', handleMapClick);
+             }
         }
     }
+    
     clearTemporaryDrawing();
     currentPolygonPoints = [];
     angleDrawStartPoint = null;
 
+    // Reset UI elements
     if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
     if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
     if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
@@ -135,10 +215,12 @@ function cancelSurveyAreaDrawing() {
 
 function handleStartDrawingSurveyArea() {
     if (!map || !surveyGridModalOverlayEl) return;
+    
     isDrawingSurveyArea = true;
     currentPolygonPoints = [];
     clearTemporaryDrawing();
 
+    // Remove existing click handlers
     if (typeof handleMapClick === 'function') {
         map.off('click', handleMapClick);
     }
@@ -151,6 +233,11 @@ function handleStartDrawingSurveyArea() {
 }
 
 function handleDrawGridAngle() {
+    if (!currentPolygonPoints || currentPolygonPoints.length < MIN_POLYGON_POINTS) {
+        showCustomAlert('Please define a survey area first before setting the grid angle.', 'Error');
+        return;
+    }
+    
     isDrawingGridAngle = true;
     angleDrawStartPoint = null;
 
@@ -166,6 +253,10 @@ function handleDrawGridAngle() {
 
 function onAngleDrawStart(e) {
     if (!isDrawingGridAngle) return;
+    
+    e.originalEvent.preventDefault();
+    e.originalEvent.stopPropagation();
+    
     angleDrawStartPoint = e.latlng;
     
     map.on('mousemove', onAngleDrawMove);
@@ -190,15 +281,21 @@ function onAngleDrawMove(e) {
 function onAngleDrawEnd(e) {
     if (!isDrawingGridAngle || !angleDrawStartPoint) return;
     
+    e.originalEvent.preventDefault();
+    e.originalEvent.stopPropagation();
+    
     const endPoint = e.latlng;
     const bearing = calculateBearing(angleDrawStartPoint, endPoint);
     
-    const gridAngle = Math.round(bearing);
+    // Normalize angle to 0-360 range
+    const gridAngle = ((bearing % 360) + 360) % 360;
+    const displayAngle = Math.round(gridAngle > 180 ? gridAngle - 360 : gridAngle);
 
     if (surveyGridAngleInputEl) {
-        surveyGridAngleInputEl.value = gridAngle;
+        surveyGridAngleInputEl.value = displayAngle;
     }
     
+    // Cleanup
     isDrawingGridAngle = false;
     angleDrawStartPoint = null;
     map.dragging.enable();
@@ -220,6 +317,8 @@ function onAngleDrawEnd(e) {
     if (surveyGridModalOverlayEl) {
         surveyGridModalOverlayEl.style.display = 'flex';
     }
+    
+    showCustomAlert(`Grid angle set to ${displayAngle}°`, 'Success');
 }
 
 function handleSurveyAreaMapClick(e) {
@@ -227,12 +326,21 @@ function handleSurveyAreaMapClick(e) {
 
     const clickedLatLng = e.latlng;
     
+    // Check if clicking near the first point to close polygon
     if (currentPolygonPoints.length >= MIN_POLYGON_POINTS && tempVertexMarkers.length > 0) {
         const firstPointMarker = tempVertexMarkers[0];
-        if (firstPointMarker.getLatLng().distanceTo(clickedLatLng) < 10 * map.getZoomScale(map.getZoom(), 18)) {
+        const clickThreshold = 10 * map.getZoomScale(map.getZoom(), 18);
+        
+        if (firstPointMarker.getLatLng().distanceTo(clickedLatLng) < clickThreshold) {
             handleFinalizeSurveyArea();
             return;
         }
+    }
+    
+    // Prevent too many points
+    if (currentPolygonPoints.length >= MAX_POLYGON_POINTS) {
+        showCustomAlert(`Maximum ${MAX_POLYGON_POINTS} points allowed for survey area.`, 'Warning');
+        return;
     }
     
     currentPolygonPoints.push(clickedLatLng);
@@ -245,8 +353,10 @@ function handleSurveyAreaMapClick(e) {
         pane: 'markerPane' 
     }).addTo(map);
 
+    // Add click handler to first point for closing polygon
     if (currentPolygonPoints.length === 1) {
-        vertexMarker.on('click', () => {
+        vertexMarker.on('click', (clickEvent) => {
+             clickEvent.originalEvent.stopPropagation();
              if (isDrawingSurveyArea && currentPolygonPoints.length >= MIN_POLYGON_POINTS) {
                 handleFinalizeSurveyArea();
             }
@@ -255,30 +365,61 @@ function handleSurveyAreaMapClick(e) {
 
     tempVertexMarkers.push(vertexMarker);
     updateTempPolygonDisplay();
+    
+    // Update status
+    if (surveyAreaStatusEl) {
+        const areaInfo = currentPolygonPoints.length >= MIN_POLYGON_POINTS ? 
+            ` (${(calculatePolygonArea(currentPolygonPoints) / 10000).toFixed(2)} ha)` : '';
+        surveyAreaStatusEl.innerHTML = `${currentPolygonPoints.length} points selected${areaInfo}`;
+    }
 }
 
 function handleFinalizeSurveyArea() {
-    if (!isDrawingSurveyArea) return;
+    if (!isDrawingSurveyArea || currentPolygonPoints.length < MIN_POLYGON_POINTS) return;
     
     map.getContainer().style.cursor = '';
     isDrawingSurveyArea = false;
+    
+    // Clean up event listeners
     map.off('click', handleSurveyAreaMapClick);
     if (typeof handleMapClick === 'function' && !map.hasEventListeners('click')) {
         map.on('click', handleMapClick);
     }
     
+    // Update UI
     if (surveyGridModalOverlayEl) {
         surveyGridModalOverlayEl.style.display = 'flex';
     }
     if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
     if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false;
-    if (surveyAreaStatusEl) surveyAreaStatusEl.innerHTML = translate('surveyAreaStatusDefined', { points: currentPolygonPoints.length });
-    if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = translate('surveyGridInstructionsFinalized');
     
-    if (tempPolygonLayer) {
-        tempPolygonLayer.setStyle({ color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' });
+    // Calculate and display area info
+    const area = calculatePolygonArea(currentPolygonPoints);
+    const areaHa = (area / 10000).toFixed(2);
+    
+    if (surveyAreaStatusEl) {
+        surveyAreaStatusEl.innerHTML = translate('surveyAreaStatusDefined', { 
+            points: currentPolygonPoints.length,
+            area: areaHa
+        });
     }
+    if (surveyGridInstructionsEl) {
+        surveyGridInstructionsEl.innerHTML = translate('surveyGridInstructionsFinalized');
+    }
+    
+    // Style the finalized polygon
+    if (tempPolygonLayer) {
+        tempPolygonLayer.setStyle({ 
+            color: 'rgba(0, 150, 0, 0.9)', 
+            fillColor: 'rgba(0, 150, 0, 0.3)',
+            weight: 3
+        });
+    }
+    
+    // Remove click handlers from vertex markers
     tempVertexMarkers.forEach(marker => marker.off('click'));
+    
+    showCustomAlert(`Survey area defined: ${areaHa} hectares`, 'Success');
 }
 
 function handleCancelSurveyGrid() {
@@ -286,80 +427,105 @@ function handleCancelSurveyGrid() {
     if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none';
 }
 
-/**
- * Generates survey waypoints within a polygon.
- * This is the corrected implementation.
- */
 function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapPercent, frontlapPercent, gridAngleDeg, flightSpeed) {
     const finalWaypointsData = [];
+    
     if (!polygonLatLngs || polygonLatLngs.length < MIN_POLYGON_POINTS) {
         showCustomAlert(translate('alert_surveyGridInvalidPoly'), "Error");
         return finalWaypointsData;
     }
 
     const footprint = calculateFootprint(flightAltitudeAGL, FIXED_CAMERA_PARAMS);
+    
+    if (footprint.width === 0 || footprint.height === 0) {
+        showCustomAlert('Invalid camera footprint calculation', 'Error');
+        return finalWaypointsData;
+    }
+    
+    console.log("=== SURVEY GRID GENERATION DEBUG ===");
+    console.log("Input angle:", gridAngleDeg, "°");
+    console.log("Footprint:", footprint, "meters");
+    console.log("Polygon points:", polygonLatLngs.length);
 
-    // --- Corrected Angle & Rotation Logic ---
-    // We rotate the coordinate system so that the flight lines (at gridAngleDeg) become horizontal (East, 90° in geographic terms).
-    // This simplifies iteration. To do this, we rotate all polygon points by an angle of (90 - gridAngleDeg).
-    const rotationAngleDeg = 90 - gridAngleDeg;
-    const fixedGridHeading = gridAngleDeg; // The drone's real-world heading remains the user-specified angle.
+    // Flight lines parallel to the drawn angle
+    const flightLineDirection = gridAngleDeg;
+    const fixedGridHeading = flightLineDirection;
+    
+    // Rotation angle for coordinate system (perpendicular to flight lines)
+    const rotationAngleDeg = -(flightLineDirection + 90) % 360;
+    
+    console.log("Flight line direction:", flightLineDirection, "°");
+    console.log("Drone heading:", fixedGridHeading, "°");
+    console.log("Coordinate rotation:", rotationAngleDeg, "°");
 
-    // Spacing between lines (cross-track) is based on sensor width and sidelap.
     const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
-    // Spacing between photos on a line (in-track) is based on sensor height and frontlap.
     const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
-
+    
+    console.log("Line spacing:", actualLineSpacing.toFixed(2), "m");
+    console.log("Photo spacing:", actualDistanceBetweenPhotos.toFixed(2), "m");
+    
     const rotationCenter = polygonLatLngs[0];
     const angleRad = toRad(rotationAngleDeg);
-
-    // 1. Rotate the polygon into the new, simplified coordinate system.
-    const rotatedPolygonLatLngs = polygonLatLngs.map(p => rotateLatLng(p, rotationCenter, angleRad));
+    const rotatedPolygonLatLngs = polygonLatLngs.map(p => rotateLatLng(p, rotationCenter, -angleRad));
     const rotatedBounds = L.latLngBounds(rotatedPolygonLatLngs);
     const rNE = rotatedBounds.getNorthEast();
     const rSW = rotatedBounds.getSouthWest();
+    
     const earthR = (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000;
-
-    // 2. Iterate in the rotated system. Flight lines are now horizontal, so we step vertically (in latitude).
-    const lineSpacingRotLat = (actualLineSpacing / earthR) * (180 / Math.PI); // Spacing between lines is now in Latitude degrees.
-
+    const lineSpacingRotLat = (actualLineSpacing / earthR) * (180 / Math.PI);
+    
     let currentRotLat = rSW.lat;
-    let scanDir = 1; // Serpentine direction: 1 for East-ward, -1 for West-ward flight.
+    let scanDir = 1;
+    let lineCount = 0;
 
     while (currentRotLat <= rNE.lat + lineSpacingRotLat * 0.5) {
-        // Photo spacing is along the horizontal lines. Its degree-equivalent in longitude depends on the current latitude.
         const photoSpacingRotLng = (actualDistanceBetweenPhotos / (earthR * Math.cos(toRad(currentRotLat)))) * (180 / Math.PI);
         const lineCandRot = [];
-
-        if (scanDir === 1) { // Fly "right" (East in the rotated frame)
-            for (let curRotLng = rSW.lng; curRotLng <= rNE.lng; curRotLng += photoSpacingRotLng) lineCandRot.push(L.latLng(currentRotLat, curRotLng));
-            if (!lineCandRot.length || lineCandRot[lineCandRot.length - 1].lng < rNE.lng - 1e-7) lineCandRot.push(L.latLng(currentRotLat, rNE.lng));
-        } else { // Fly "left" (West in the rotated frame)
-            for (let curRotLng = rNE.lng; curRotLng >= rSW.lng; curRotLng -= photoSpacingRotLng) lineCandRot.push(L.latLng(currentRotLat, curRotLng));
-            if (!lineCandRot.length || lineCandRot[lineCandRot.length - 1].lng > rSW.lng + 1e-7) lineCandRot.push(L.latLng(currentRotLat, rSW.lng));
+        
+        if (scanDir === 1) {
+            for (let curRotLng = rSW.lng; curRotLng <= rNE.lng; curRotLng += photoSpacingRotLng) {
+                lineCandRot.push(L.latLng(currentRotLat, curRotLng));
+            }
+            if (lineCandRot.length === 0 || lineCandRot[lineCandRot.length - 1].lng < rNE.lng - 1e-7) {
+                lineCandRot.push(L.latLng(currentRotLat, rNE.lng));
+            }
+        } else {
+            for (let curRotLng = rNE.lng; curRotLng >= rSW.lng; curRotLng -= photoSpacingRotLng) {
+                lineCandRot.push(L.latLng(currentRotLat, curRotLng));
+            }
+            if (lineCandRot.length === 0 || lineCandRot[lineCandRot.length - 1].lng > rSW.lng + 1e-7) {
+                lineCandRot.push(L.latLng(currentRotLat, rSW.lng));
+            }
         }
-
-        const wpOptions = {
-            altitude: flightAltitudeAGL,
-            cameraAction: 'takePhoto',
-            headingControl: 'fixed',
+        
+        const wpOptions = { 
+            altitude: flightAltitudeAGL, 
+            cameraAction: 'takePhoto', 
+            headingControl: 'fixed', 
             fixedHeading: fixedGridHeading,
-            waypointType: 'grid'
+            waypointType: 'grid',
+            speed: flightSpeed
         };
 
-        // 3. Rotate generated points back to the real world and check if they are inside the original polygon.
+        let lineWaypointCount = 0;
         lineCandRot.forEach(rotPt => {
-            const actualGeoPt = rotateLatLng(rotPt, rotationCenter, -angleRad);
+            const actualGeoPt = rotateLatLng(rotPt, rotationCenter, angleRad);
             if (isPointInPolygon(actualGeoPt, polygonLatLngs)) {
                 finalWaypointsData.push({ latlng: actualGeoPt, options: wpOptions });
+                lineWaypointCount++;
             }
         });
-
+        
+        if (lineWaypointCount > 0) {
+            console.log(`Line ${lineCount}: ${lineWaypointCount} waypoints`);
+            lineCount++;
+        }
+        
         currentRotLat += lineSpacingRotLat;
-        scanDir *= -1; // Reverse direction for the next line.
+        scanDir *= -1;
     }
-
-    // 4. Remove duplicate waypoints that might have been generated at the edges.
+    
+    // Remove duplicate waypoints
     const uniqueWaypoints = [];
     const seenKeys = new Set();
     for (const wp of finalWaypointsData) {
@@ -369,10 +535,14 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
             seenKeys.add(key);
         }
     }
-
+    
+    console.log("Total waypoints generated:", uniqueWaypoints.length);
+    console.log("=====================================");
+    
     if (uniqueWaypoints.length === 0 && polygonLatLngs.length >= MIN_POLYGON_POINTS) {
         showCustomAlert(translate('alert_surveyGridNoWps'), translate('infoTitle'));
     }
+    
     return uniqueWaypoints;
 }
 
@@ -380,21 +550,80 @@ function handleConfirmSurveyGridGeneration() {
     const altitude = parseInt(surveyGridAltitudeInputEl.value);
     const sidelap = parseFloat(surveySidelapInputEl.value);
     const frontlap = parseFloat(surveyFrontlapInputEl.value);
-    const angle = parseFloat(surveyGridAngleInputEl.value);
+    const angle = parseFloat(surveyGridAngleInputEl.value) || 0;
     const speed = parseFloat(flightSpeedSlider.value);
 
-    if (isNaN(altitude) || altitude < 1) { showCustomAlert(translate('alert_surveyGridInvalidInput_altitude'), translate('inputErrorTitle')); return; }
-    if (isNaN(sidelap) || sidelap < 10 || sidelap > 95) { showCustomAlert(translate('alert_surveyGridInvalidInput_sidelap'), translate('inputErrorTitle')); return; }
-    if (isNaN(frontlap) || frontlap < 10 || frontlap > 95) { showCustomAlert(translate('alert_surveyGridInvalidInput_frontlap'), translate('inputErrorTitle')); return; }
-    if (isNaN(angle)) { showCustomAlert(translate('alert_surveyGridInvalidInput_angle'), translate('inputErrorTitle')); return; }
-    if (isNaN(speed) || speed <= 0) {showCustomAlert(translate('alert_surveyGridInvalidInput_speed'), translate('inputErrorTitle')); return; }
+    // Enhanced validation
+    const validationErrors = validateSurveyGridInputs(altitude, sidelap, frontlap, angle, speed);
+    if (validationErrors.length > 0) {
+        showCustomAlert(validationErrors.join('\n'), translate('inputErrorTitle'));
+        return;
+    }
 
-    const surveyWaypoints = generateSurveyGridWaypoints(currentPolygonPoints, altitude, sidelap, frontlap, angle, speed);
+    // Check if survey area is defined
+    if (!currentPolygonPoints || currentPolygonPoints.length < MIN_POLYGON_POINTS) {
+        showCustomAlert('Please define a survey area first.', translate('inputErrorTitle'));
+        return;
+    }
+
+    // Generate waypoints
+    const surveyWaypoints = generateSurveyGridWaypoints(
+        currentPolygonPoints, 
+        altitude, 
+        sidelap, 
+        frontlap, 
+        angle, 
+        speed
+    );
 
     if (surveyWaypoints && surveyWaypoints.length > 0) {
-       surveyWaypoints.forEach(wpData => addWaypoint(wpData.latlng, wpData.options));
-       updateWaypointList(); updateFlightPath(); updateFlightStatistics(); fitMapToWaypoints();
-       showCustomAlert(translate('alert_surveyGridSuccess', { count: surveyWaypoints.length }), translate('successTitle'));
-    } 
+        // Add waypoints to map
+        surveyWaypoints.forEach(wpData => {
+            addWaypoint(wpData.latlng, wpData.options);
+        });
+        
+        // Update UI
+        updateWaypointList();
+        updateFlightPath();
+        updateFlightStatistics();
+        fitMapToWaypoints();
+        
+        // Calculate estimated flight time and coverage
+        const area = calculatePolygonArea(currentPolygonPoints);
+        const estimatedTime = Math.ceil(surveyWaypoints.length * 2); // rough estimate
+        
+        showCustomAlert(
+            translate('alert_surveyGridSuccess', { 
+                count: surveyWaypoints.length,
+                area: (area / 10000).toFixed(2),
+                time: estimatedTime
+            }), 
+            translate('successTitle')
+        );
+    } else {
+        showCustomAlert('No waypoints could be generated for this configuration.', 'Warning');
+    }
+    
     handleCancelSurveyGrid();
+}
+
+// === UTILITY FUNCTIONS ===
+function toRad(degrees) {
+    return degrees * (Math.PI / 180);
+}
+
+function toDeg(radians) {
+    return radians * (180 / Math.PI);
+}
+
+function calculateBearing(from, to) {
+    const lat1 = toRad(from.lat);
+    const lat2 = toRad(to.lat);
+    const deltaLng = toRad(to.lng - from.lng);
+    
+    const y = Math.sin(deltaLng) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLng);
+    
+    const bearing = Math.atan2(y, x);
+    return (toDeg(bearing) + 360) % 360;
 }
