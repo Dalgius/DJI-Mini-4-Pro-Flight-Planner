@@ -296,18 +296,19 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
     
     // ======================= LOGICA CORRETTA =======================
-    // L'angolo disegnato rappresenta la direzione delle LINEE DI VOLO
-    // Il drone deve volare PERPENDICOLARMENTE alle linee di volo per una corretta sovrapposizione delle foto
+    // L'angolo disegnato rappresenta la direzione di VOLO del drone
+    // Il drone deve volare PARALLELO alla direzione disegnata
+    // Le linee di volo sono PERPENDICOLARI alla direzione di volo del drone
     
-    // Direzione delle linee di volo (quella disegnata dall'utente)
-    const flightLineDirection = Math.round(gridAngleDeg);
+    // Heading del drone (stesso della direzione disegnata)
+    const droneHeading = Math.round(gridAngleDeg);
     
-    // Heading del drone (perpendicolare alle linee di volo)
-    const droneHeading = Math.round(gridAngleDeg + 90) % 360;
+    // Le linee di survey sono perpendicolari alla direzione di volo
+    const surveyLinesDirection = Math.round(gridAngleDeg + 90) % 360;
     
     // Per l'algoritmo: ruotiamo il sistema di coordinate in modo che le linee orizzontali
-    // dell'algoritmo si allineino con la direzione desiderata delle linee di volo
-    const rotationAngleDeg = gridAngleDeg - 90; // Compensiamo perché l'algoritmo disegna a 90°
+    // dell'algoritmo si allineino con le linee di survey (perpendicolari al volo)
+    const rotationAngleDeg = surveyLinesDirection - 90;
     // ======================= FINE LOGICA CORRETTA =======================
     
     const rotationCenter = polygonLatLngs[0];
@@ -337,7 +338,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
             altitude: flightAltitudeAGL, 
             cameraAction: 'takePhoto', 
             headingControl: 'fixed', 
-            fixedHeading: droneHeading, // Usa l'heading perpendicolare alle linee di volo
+            fixedHeading: droneHeading, // Il drone vola nella direzione disegnata
             waypointType: 'grid'
         };
 
