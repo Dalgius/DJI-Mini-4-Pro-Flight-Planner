@@ -104,16 +104,16 @@ function openSurveyGridModal() {
 function cancelSurveyAreaDrawing() {
     const wasActive = isDrawingSurveyArea || nativeMapClickListener || isDrawingGridAngle;
     isDrawingSurveyArea = false;
-    isDrawingGridAngle = false; // Assicurati di resettare anche questo stato
+    isDrawingGridAngle = false;
     
     if (map) {
+        map.dragging.enable(); // <<< MODIFICA: Assicura che il drag sia riabilitato in ogni caso di cancellazione
         map.getContainer().style.cursor = '';
         if (nativeMapClickListener) {
             map.getContainer().removeEventListener('click', nativeMapClickListener, true);
             nativeMapClickListener = null;
         }
         map.off('click', handleSurveyAreaMapClick);
-        // Rimuovi anche i listener per il disegno dell'angolo
         map.off('mousedown', onAngleDrawStart);
         map.off('mousemove', onAngleDrawMove);
         map.off('mouseup', onAngleDrawEnd);
@@ -150,41 +150,30 @@ function handleStartDrawingSurveyArea() {
     showCustomAlert(translate('alert_surveyDrawingActive', {minPoints: MIN_POLYGON_POINTS}), translate('infoTitle'));
 }
 
-// === NUOVE FUNZIONI PER DISEGNARE L'ANGOLO ===
+// === NUOVE FUNZIONI PER DISEGNARE L'ANGOLO (CON CORREZIONI) ===
 
-/**
- * Inizia la modalità di disegno dell'angolo sulla mappa.
- */
 function handleDrawGridAngle() {
     isDrawingGridAngle = true;
     angleDrawStartPoint = null;
 
     if (typeof handleMapClick === 'function') map.off('click', handleMapClick);
     
+    map.dragging.disable(); // <<< MODIFICA: Disabilita il trascinamento della mappa
     map.on('mousedown', onAngleDrawStart);
     
     map.getContainer().style.cursor = 'crosshair';
-    surveyGridModalOverlayEl.style.display = 'none'; // Nasconde la modale
+    surveyGridModalOverlayEl.style.display = 'none';
     showCustomAlert(translate('infoTitle'), translate('alert_drawAngleInstruction'));
 }
 
-/**
- * Gestisce l'evento mousedown sulla mappa per iniziare a disegnare la linea dell'angolo.
- * @param {L.LeafletMouseEvent} e L'evento del mouse.
- */
 function onAngleDrawStart(e) {
     if (!isDrawingGridAngle) return;
     angleDrawStartPoint = e.latlng;
     
-    // Aggiungi i listener per il movimento e il rilascio del mouse
     map.on('mousemove', onAngleDrawMove);
     map.on('mouseup', onAngleDrawEnd);
 }
 
-/**
- * Gestisce l'evento mousemove per aggiornare la linea temporanea.
- * @param {L.LeafletMouseEvent} e L'evento del mouse.
- */
 function onAngleDrawMove(e) {
     if (!isDrawingGridAngle || !angleDrawStartPoint) return;
     
@@ -200,16 +189,10 @@ function onAngleDrawMove(e) {
     }).addTo(map);
 }
 
-/**
- * Gestisce l'evento mouseup per finalizzare il disegno, calcolare l'angolo e pulire.
- * @param {L.LeafletMouseEvent} e L'evento del mouse.
- */
 function onAngleDrawEnd(e) {
     if (!isDrawingGridAngle || !angleDrawStartPoint) return;
     
     const endPoint = e.latlng;
-
-    // Calcola l'angolo (bearing) dalla partenza alla fine
     const bearing = calculateBearing(angleDrawStartPoint, endPoint);
     const angle = Math.round(bearing);
 
@@ -220,6 +203,7 @@ function onAngleDrawEnd(e) {
     // Pulisci tutto
     isDrawingGridAngle = false;
     angleDrawStartPoint = null;
+    map.dragging.enable(); // <<< MODIFICA: Riabilita il trascinamento della mappa
     map.getContainer().style.cursor = '';
     
     if (tempAngleLineLayer) {
@@ -235,14 +219,13 @@ function onAngleDrawEnd(e) {
         map.on('click', handleMapClick);
     }
     
-    // Mostra di nuovo la modale
     if (surveyGridModalOverlayEl) {
         surveyGridModalOverlayEl.style.display = 'flex';
     }
 }
 
 
-// === FUNZIONI ESISTENTI (INVARIATE MA MOSTRATE PER CONTESTO) ===
+// === FUNZIONI ESISTENTI (INVARIATE) ===
 
 function handleSurveyAreaMapClick(e) {
     if (!isDrawingSurveyArea) return;
@@ -329,12 +312,9 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     
     let currentRotLat = rSW.lat;
     let scanDir = 1; let lines = 0;
-
-    // ======================= INIZIO BLOCCO LOGICA CORRETTO =======================
-    // L'orientamento è FISSO per tutta la griglia per garantire un volo a "strafe".
+    
     const fixedGridHeading = Math.round(gridAngleDeg);
-    // ======================= FINE BLOCCO LOGICA CORRETTO =======================
-
+    
     while (currentRotLat <= rNE.lat + lineSpacingRotLat * 0.5) {
         lines++;
         const lineCandRot = [];
@@ -350,7 +330,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
             altitude: flightAltitudeAGL, 
             cameraAction: 'takePhoto', 
             headingControl: 'fixed', 
-            fixedHeading: fixedGridHeading, // Usa sempre lo stesso orientamento
+            fixedHeading: fixedGridHeading,
             waypointType: 'grid'
         };
 
