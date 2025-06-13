@@ -1,7 +1,7 @@
 // ===================================================================================
 // File: surveyGridManager.js
 // Description: Manages the creation, editing, and deletion of survey grid missions.
-// Version: 5.0 (Corrected ID renumbering logic for mission updates)
+// Version: 5.1 (Fixed TypeError by ensuring latlng is a Leaflet object)
 // ===================================================================================
 
 // --- MODULE CONSTANTS ---
@@ -192,21 +192,12 @@ function generateSurveyGridWaypoints(polygonLatLngs, params) {
     return uniqueWaypoints;
 }
 
-/**
- * --- INIZIO MODIFICA: LOGICA DI SOSTITUZIONE WAYPOINT MIGLIORATA ---
- * Deletes old waypoints of a mission and inserts new ones at the correct position,
- * then renumbers all subsequent waypoints.
- * @private
- */
 function _updateMissionWaypoints(mission, newWaypointsData) {
-    // 1. Find the insertion index. It's the index of the first waypoint of the mission.
-    // If it's a new mission, it will be at the end.
     let insertionIndex = waypoints.findIndex(wp => wp.id === mission.waypointIds[0]);
     if (insertionIndex === -1) {
         insertionIndex = waypoints.length;
     }
 
-    // 2. Remove old waypoints of this mission from the global array and map.
     if (mission.waypointIds.length > 0) {
         const oldWpIds = new Set(mission.waypointIds);
         waypoints = waypoints.filter(wp => {
@@ -218,44 +209,39 @@ function _updateMissionWaypoints(mission, newWaypointsData) {
         });
     }
 
-    // 3. Prepare the new waypoints for insertion.
+    // --- INIZIO CORREZIONE: Assicurarsi che latlng sia un oggetto Leaflet ---
     const newWps = newWaypointsData.map(wpData => ({
-        // We create a temporary object without an ID for now
-        latlng: wpData.latlng,
+        latlng: L.latLng(wpData.latlng.lat, wpData.latlng.lng),
         ...wpData.options
     }));
+    // --- FINE CORREZIONE ---
 
-    // 4. Insert the new waypoints into the main array at the correct position.
     waypoints.splice(insertionIndex, 0, ...newWps);
 
-    // 5. Renumber ALL waypoints from the beginning to ensure sequence is correct.
-    // Also, update the mission's waypoint ID list.
     mission.waypointIds = [];
     waypoints.forEach((wp, index) => {
         const newId = index + 1;
         wp.id = newId;
 
-        // If the waypoint belongs to the mission we are updating, add its new ID to the list
         if (index >= insertionIndex && index < insertionIndex + newWps.length) {
             mission.waypointIds.push(newId);
         }
 
-        // Recreate or update marker (important for ID change)
         if (wp.marker) {
             map.removeLayer(wp.marker);
         }
-        // This part needs the addWaypoint's marker creation logic, simplified here
+        
+        // Recreate marker logic from addWaypoint
         const isHomeForIcon = index === 0;
         const marker = L.marker(wp.latlng, {
             draggable: true,
             icon: createWaypointIcon(wp, false, false, isHomeForIcon)
         }).addTo(map);
-        // Re-bind events (simplified for brevity)
         marker.on('click', () => selectWaypoint(wp));
+        // Add other events like dragend if necessary
         wp.marker = marker;
     });
 
-    // 6. Recalculate the global counter to be ready for the next manually added waypoint.
     if (typeof _recalculateGlobalWaypointCounter === 'function') {
         _recalculateGlobalWaypointCounter();
     }
@@ -266,13 +252,12 @@ function _createNewMission(params) {
         id: surveyMissionCounter++,
         polygon: surveyState.polygonPoints.map(p => ({ lat: p.lat, lng: p.lng })),
         parameters: params,
-        waypointIds: [], // Sarà popolato da _updateMissionWaypoints
+        waypointIds: [],
         polygonLayer: L.polygon(surveyState.polygonPoints, { color: CONSTANTS.COLORS.MISSION, weight: 2, fillOpacity: 0.1 }).addTo(map)
     };
     surveyMissions.push(mission);
     return mission;
 }
-// --- FINE MODIFICA ---
 
 
 // ===================================================================================
