@@ -32,8 +32,8 @@ function initializeMap() {
  * Handles click events on the map for general actions.
  */
 function handleMapClick(e) {
-    if (typeof isDrawingSurveyArea !== 'undefined' && isDrawingSurveyArea === true) {
-        console.log("[MapManager] handleMapClick: In survey area drawing mode, ignoring default map click.");
+    if (typeof isDrawingSurveyArea !== 'undefined' && (isDrawingSurveyArea === true || isDrawingGridAngle === true)) {
+        console.log("[MapManager] handleMapClick: In a drawing mode, ignoring default map click.");
         return; 
     }
 
