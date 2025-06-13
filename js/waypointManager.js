@@ -1,6 +1,6 @@
 // ===================================================================================
 // File: waypointManager.js
-// Version: 6.0 (Centralized waypoint replacement logic for robustness)
+// Version: 6.1 (Final robust implementation with centralized waypoint replacement)
 // ===================================================================================
 
 /**
@@ -8,38 +8,43 @@
  * @private
  */
 function _recalculateGlobalWaypointCounter() {
-    if (waypoints.length === 0) {
-        waypointCounter = 1;
-    } else {
-        const maxId = Math.max(0, ...waypoints.map(wp => wp.id));
-        waypointCounter = maxId + 1;
-    }
+    waypointCounter = waypoints.length > 0 ? Math.max(...waypoints.map(wp => wp.id)) + 1 : 1;
 }
 
 /**
- * Creates a new Leaflet marker for a waypoint, binds all necessary events, and assigns it.
+ * Re-draws all waypoint markers on the map based on the current `waypoints` array.
+ * This function is critical after any operation that re-numbers or replaces waypoints.
  * @private
  */
-function _createAndBindMarker(waypoint) {
-    const isHomeForIcon = waypoints.length > 0 && waypoint.id === waypoints[0].id;
-    const marker = L.marker(waypoint.latlng, {
-        draggable: true,
-        icon: createWaypointIcon(waypoint, false, false, isHomeForIcon)
-    }).addTo(map);
-
-    marker.on('click', (e) => { L.DomEvent.stopPropagation(e); selectWaypoint(waypoint); });
-    
-    // simplified drag/hover events for re-created markers
-    marker.on('dragend', () => { 
-        waypoint.latlng = marker.getLatLng();
-        updateAllUI();
+function _redrawAllWaypointMarkers() {
+    // First, remove all existing markers from the map to avoid duplicates
+    waypoints.forEach(wp => {
+        if (wp.marker) {
+            map.removeLayer(wp.marker);
+        }
     });
 
-    waypoint.marker = marker;
+    // Then, re-create each marker with updated data (like ID and correct events)
+    waypoints.forEach((wp, index) => {
+        const isHomeForIcon = index === 0;
+        const marker = L.marker(wp.latlng, {
+            draggable: true,
+            icon: createWaypointIcon(wp, false, false, isHomeForIcon)
+        }).addTo(map);
+        
+        // Re-bind essential events
+        marker.on('click', (e) => { L.DomEvent.stopPropagation(e); selectWaypoint(wp); });
+        marker.on('dragend', () => { 
+            wp.latlng = marker.getLatLng();
+            updateAllUI(); // A global update is safest after a drag
+        });
+        
+        wp.marker = marker;
+    });
 }
 
 /**
- * Replaces a set of waypoints with a new set, renumbering and redrawing everything.
+ * Replaces a set of waypoints with a new set at a specific position.
  * This is the master function for mission updates to ensure data integrity.
  * @param {number[]} idsToDelete - An array of waypoint IDs to remove.
  * @param {object[]} newWpsData - An array of new waypoint data objects to insert.
@@ -50,7 +55,6 @@ function replaceWaypointSet(idsToDelete, newWpsData) {
     if (idsToDelete && idsToDelete.length > 0) {
         insertionIndex = waypoints.findIndex(wp => wp.id === idsToDelete[0]);
         const oldWpIds = new Set(idsToDelete);
-        waypoints.forEach(wp => { if (oldWpIds.has(wp.id) && wp.marker) map.removeLayer(wp.marker); });
         waypoints = waypoints.filter(wp => !oldWpIds.has(wp.id));
     }
     if (insertionIndex === -1) {
@@ -58,9 +62,9 @@ function replaceWaypointSet(idsToDelete, newWpsData) {
     }
 
     const newWps = newWpsData.map(data => ({
+        // This creates a "raw" object, but crucially converts latlng
         latlng: L.latLng(data.latlng.lat, data.latlng.lng),
-        ...data.options,
-        marker: null // Ensure marker is null initially
+        ...data.options
     }));
 
     waypoints.splice(insertionIndex, 0, ...newWps);
@@ -69,18 +73,19 @@ function replaceWaypointSet(idsToDelete, newWpsData) {
     waypoints.forEach((wp, index) => {
         const newId = index + 1;
         wp.id = newId;
+        // Populate the list of new IDs that the survey mission needs to track
         if (index >= insertionIndex && index < insertionIndex + newWps.length) {
             newWaypointIds.push(newId);
         }
-        if (wp.marker) map.removeLayer(wp.marker); // Clean old marker if any
     });
 
-    waypoints.forEach(wp => _createAndBindMarker(wp));
-    
+    // Centralized redrawing and counter update
+    _redrawAllWaypointMarkers();
     _recalculateGlobalWaypointCounter();
     
     return newWaypointIds;
 }
+
 
 async function addWaypoint(latlng, options = {}) { 
     if (!map || !defaultAltitudeSlider || !gimbalPitchSlider) return;
@@ -96,17 +101,19 @@ async function addWaypoint(latlng, options = {}) {
         cameraAction: options.cameraAction || 'none',
         targetPoiId: options.targetPoiId || null,
         terrainElevationMSL: options.terrainElevationMSL !== undefined ? options.terrainElevationMSL : null, 
-        marker: null,
+        marker: null, // Will be created by _redrawAllWaypointMarkers or _createAndBindMarker
         waypointType: options.waypointType || 'generic' 
     };
     
+    // Only increment the global counter for brand new, manually added waypoints
     if (options.id === undefined) {
         waypointCounter++;
     }
     
     waypoints.push(newWaypoint);
-    _createAndBindMarker(newWaypoint);
+    _createAndBindMarker(newWaypoint); // Create and bind marker for this single new waypoint
     
+    // Update UI only if not called from a batch operation like import
     if (options.calledFromLoad !== true) { 
         updateAllUI();
         selectWaypoint(newWaypoint); 
@@ -117,14 +124,11 @@ function selectWaypoint(waypoint) {
     if (!waypoint) return;
     const previouslySelectedSingleId = selectedWaypoint ? selectedWaypoint.id : null;
     if (selectedForMultiEdit.size > 0) clearMultiSelection(); 
-    
     selectedWaypoint = waypoint;
-    
     if (previouslySelectedSingleId && previouslySelectedSingleId !== waypoint.id) {
         const prevWp = waypoints.find(wp => wp.id === previouslySelectedSingleId);
         if (prevWp) updateMarkerIconStyle(prevWp);
     }
-    
     updateMarkerIconStyle(selectedWaypoint);
     updateSingleWaypointEditControls(); 
     updateWaypointList();
@@ -134,7 +138,7 @@ function selectWaypoint(waypoint) {
 
 function deleteSelectedWaypoint() {
     if (!selectedWaypoint) return;
-    replaceWaypointSet([selectedWaypoint.id], []);
+    replaceWaypointSet([selectedWaypoint.id], []); // Use master function to delete and re-number
     selectedWaypoint = null;
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
     updateAllUI();
@@ -156,8 +160,8 @@ function clearWaypoints() {
     clearMultiSelection(); 
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
     
-    if(typeof clearPOIs === 'function') clearPOIs(); 
-    else { if(pois) pois.forEach(p => { if(p.marker) map.removeLayer(p.marker); }); pois = []; poiCounter = 1; if(typeof updatePOIList === 'function') updatePOIList(); }
+    // Clear POIs
+    if(pois) pois.forEach(p => { if(p.marker) map.removeLayer(p.marker); }); pois = []; poiCounter = 1; if(typeof updatePOIList === 'function') updatePOIList();
     
     lastAltitudeAdaptationMode = 'relative'; 
     if(typeof updatePathModeDisplay === 'function') updatePathModeDisplay();
