@@ -1,4 +1,4 @@
-// File: surveyGridManager.js - VERSIONE DEFINITIVA
+// File: surveyGridManager.js
 
 let currentPolygonPoints = [];
 let tempPolygonLayer = null;
@@ -295,16 +295,20 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
     const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
     
-    // ======================= INIZIO BLOCCO LOGICA CORRETTO =======================
-    // L'angolo `gridAngleDeg` definisce la DIREZIONE DELLE LINEE DI VOLO (es. 90° = Est).
-    // L'orientamento del drone (heading) è lo stesso.
-    const fixedGridHeading = Math.round(gridAngleDeg);
+    // ======================= LOGICA CORRETTA =======================
+    // L'angolo disegnato rappresenta la direzione delle LINEE DI VOLO
+    // Il drone deve volare PERPENDICOLARMENTE alle linee di volo per una corretta sovrapposizione delle foto
     
-    // L'algoritmo di base disegna linee orizzontali (a 90° Est).
-    // Per allineare queste linee con `gridAngleDeg`, dobbiamo ruotare il sistema
-    // di coordinate di (gridAngleDeg - 90).
-    const rotationAngleDeg = (gridAngleDeg - 90);
-    // ======================= FINE BLOCCO LOGICA CORRETTO =======================
+    // Direzione delle linee di volo (quella disegnata dall'utente)
+    const flightLineDirection = Math.round(gridAngleDeg);
+    
+    // Heading del drone (perpendicolare alle linee di volo)
+    const droneHeading = Math.round(gridAngleDeg + 90) % 360;
+    
+    // Per l'algoritmo: ruotiamo il sistema di coordinate in modo che le linee orizzontali
+    // dell'algoritmo si allineino con la direzione desiderata delle linee di volo
+    const rotationAngleDeg = gridAngleDeg - 90; // Compensiamo perché l'algoritmo disegna a 90°
+    // ======================= FINE LOGICA CORRETTA =======================
     
     const rotationCenter = polygonLatLngs[0];
     const angleRad = toRad(rotationAngleDeg);
@@ -333,7 +337,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
             altitude: flightAltitudeAGL, 
             cameraAction: 'takePhoto', 
             headingControl: 'fixed', 
-            fixedHeading: fixedGridHeading,
+            fixedHeading: droneHeading, // Usa l'heading perpendicolare alle linee di volo
             waypointType: 'grid'
         };
 
