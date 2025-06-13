@@ -192,14 +192,14 @@ function onAngleDrawEnd(e) {
     
     const endPoint = e.latlng;
     const bearing = calculateBearing(angleDrawStartPoint, endPoint);
-    // CORREZIONE: Aggiungiamo 90° per allineare correttamente il grid
-    const gridAngle = (bearing + 90) % 360;
-    const angle = Math.round(gridAngle);
+    
+    // Modifica qui: Usiamo direttamente l'angolo calcolato senza aggiungere 90°
+    const gridAngle = Math.round(bearing);
 
     if (surveyGridAngleInputEl) {
-        surveyGridAngleInputEl.value = angle;
+        surveyGridAngleInputEl.value = gridAngle;
     }
-
+    
     isDrawingGridAngle = false;
     angleDrawStartPoint = null;
     map.dragging.enable();
