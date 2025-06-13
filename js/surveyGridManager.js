@@ -299,16 +299,16 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     console.log("=== DEBUG ANGOLI ===");
     console.log("Angolo input (gridAngleDeg):", gridAngleDeg, "°");
 
-    // Le linee di volo sono PERPENDICOLARI all'angolo disegnato
+    // Linee di volo PERPENDICOLARI all'angolo disegnato (90° aggiunti qui)
     const flightLineDirection = (gridAngleDeg + 90) % 360;
     console.log("Direzione linee di volo (flightLineDirection):", flightLineDirection, "°");
 
-    // Orientamento del drone (perpendicolare alle linee di volo)
+    // Orientamento del drone (parallelo alle linee di volo)
     const fixedGridHeading = flightLineDirection;
     console.log("Orientamento drone (fixedGridHeading):", fixedGridHeading, "°");
 
-    // Angolo per ruotare il sistema di coordinate
-    const rotationAngleDeg = -gridAngleDeg;
+    // Angolo per ruotare il sistema di coordinate (perpendicolare alle linee)
+    const rotationAngleDeg = -flightLineDirection;
     console.log("Angolo rotazione sistema (rotationAngleDeg):", rotationAngleDeg, "°");
     console.log("====================");
 
