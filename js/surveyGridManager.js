@@ -503,6 +503,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
             cameraAction: 'takePhoto', 
             headingControl: 'fixed', 
             fixedHeading: fixedGridHeading,
+            gimbalPitch: -90, // <-- MODIFICA APPLICATA QUI
             waypointType: 'grid',
             speed: flightSpeed
         };
