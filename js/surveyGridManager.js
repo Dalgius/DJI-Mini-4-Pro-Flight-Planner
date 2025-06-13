@@ -292,19 +292,17 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     }
 
     const footprint = calculateFootprint(flightAltitudeAGL, FIXED_CAMERA_PARAMS);
-    const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
-    const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
+
+    // Correzione per orientare le linee di volo lungo l'angolo desiderato.
+    // Invertiamo il ruolo di larghezza e altezza del sensore nel calcolo delle spaziature.
+    const actualLineSpacing = footprint.height * (1 - frontlapPercent / 100);
+    const actualDistanceBetweenPhotos = footprint.width * (1 - sidelapPercent / 100);
     
-    // ======================= INIZIO BLOCCO LOGICA CORRETTO =======================
-    // L'angolo fornito dall'utente definisce la direzione del volo.
-    // Per avere le linee di volo parallele a questo angolo, dobbiamo ruotare il sistema
-    // di coordinate di 90 gradi, in modo che la "scansione" avvenga lungo questo asse.
-    const rotationAngleDeg = (gridAngleDeg + 90) % 360; // CAMBIO per Angolo
+    const rotationAngleDeg = gridAngleDeg;
     const fixedGridHeading = Math.round(gridAngleDeg);
-    // ======================= FINE BLOCCO LOGICA CORRETTO =======================
     
     const rotationCenter = polygonLatLngs[0];
-    const angleRad = toRad(rotationAngleDeg); // Usa l'angolo ruotato per la griglia
+    const angleRad = toRad(rotationAngleDeg);
     const rotatedPolygonLatLngs = polygonLatLngs.map(p => rotateLatLng(p, rotationCenter, -angleRad));
     const rotatedBounds = L.latLngBounds(rotatedPolygonLatLngs);
     const rNE = rotatedBounds.getNorthEast(); const rSW = rotatedBounds.getSouthWest();
@@ -330,7 +328,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
             altitude: flightAltitudeAGL, 
             cameraAction: 'takePhoto', 
             headingControl: 'fixed', 
-            fixedHeading: fixedGridHeading, // L'orientamento del drone segue l'angolo originale
+            fixedHeading: fixedGridHeading,
             waypointType: 'grid'
         };
 
