@@ -304,7 +304,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     // (che è orizzontale) si allinei con `gridAngleDeg`. L'algoritmo disegna
     // a 90 gradi nel suo sistema di riferimento, quindi dobbiamo ruotare di
     // (gridAngleDeg - 90) per compensare.
-    const rotationAngleDeg = (gridAngleDeg - 90);
+    const rotationAngleDeg = gridAngleDeg;
     // ======================= FINE BLOCCO LOGICA CORRETTO =======================
     
     const rotationCenter = polygonLatLngs[0];
