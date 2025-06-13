@@ -296,11 +296,14 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
     
     // ======================= INIZIO BLOCCO LOGICA CORRETTO =======================
-    // Per allineare le linee di volo con l'angolo fornito, dobbiamo ruotare il sistema
-    // di coordinate di (angolo + 90) gradi. Questo fa sì che l'asse di scansione
-    // orizzontale del nostro algoritmo, una volta ruotato indietro, corrisponda
-    // esattamente alla direzione desiderata.
-    const rotationAngleDeg = (gridAngleDeg + 90) % 360;
+    // Normalizziamo l'angolo per la geometria, ma conserviamo l'originale per l'orientamento.
+    const geometricAngle = gridAngleDeg % 180;
+    
+    // Ruotiamo il sistema di coordinate di (angolo normalizzato + 90) gradi
+    // per allineare l'asse di scansione con la direzione di volo desiderata.
+    const rotationAngleDeg = (geometricAngle + 90) % 360;
+    
+    // L'orientamento del drone rispetta la direzione originale disegnata dall'utente.
     const fixedGridHeading = Math.round(gridAngleDeg);
     // ======================= FINE BLOCCO LOGICA CORRETTO =======================
     
