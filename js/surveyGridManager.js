@@ -1,7 +1,7 @@
 // ===================================================================================
 // File: surveyGridManager.js
-// Description: Manages the creation, editing, and deletion of survey grid missions.
-// Version: 5.1 (Fixed TypeError by ensuring latlng is a Leaflet object)
+// Description: Manages survey grid missions. Relies on waypointManager for manipulation.
+// Version: 5.2 (Refactored to use waypointManager.replaceWaypointSet)
 // ===================================================================================
 
 // --- MODULE CONSTANTS ---
@@ -193,58 +193,13 @@ function generateSurveyGridWaypoints(polygonLatLngs, params) {
 }
 
 function _updateMissionWaypoints(mission, newWaypointsData) {
-    let insertionIndex = waypoints.findIndex(wp => wp.id === mission.waypointIds[0]);
-    if (insertionIndex === -1) {
-        insertionIndex = waypoints.length;
+    if (typeof replaceWaypointSet !== 'function') {
+        console.error("waypointManager.replaceWaypointSet is not available. Cannot update mission.");
+        return;
     }
-
-    if (mission.waypointIds.length > 0) {
-        const oldWpIds = new Set(mission.waypointIds);
-        waypoints = waypoints.filter(wp => {
-            if (oldWpIds.has(wp.id)) {
-                if (wp.marker) map.removeLayer(wp.marker);
-                return false;
-            }
-            return true;
-        });
-    }
-
-    // --- INIZIO CORREZIONE: Assicurarsi che latlng sia un oggetto Leaflet ---
-    const newWps = newWaypointsData.map(wpData => ({
-        latlng: L.latLng(wpData.latlng.lat, wpData.latlng.lng),
-        ...wpData.options
-    }));
-    // --- FINE CORREZIONE ---
-
-    waypoints.splice(insertionIndex, 0, ...newWps);
-
-    mission.waypointIds = [];
-    waypoints.forEach((wp, index) => {
-        const newId = index + 1;
-        wp.id = newId;
-
-        if (index >= insertionIndex && index < insertionIndex + newWps.length) {
-            mission.waypointIds.push(newId);
-        }
-
-        if (wp.marker) {
-            map.removeLayer(wp.marker);
-        }
-        
-        // Recreate marker logic from addWaypoint
-        const isHomeForIcon = index === 0;
-        const marker = L.marker(wp.latlng, {
-            draggable: true,
-            icon: createWaypointIcon(wp, false, false, isHomeForIcon)
-        }).addTo(map);
-        marker.on('click', () => selectWaypoint(wp));
-        // Add other events like dragend if necessary
-        wp.marker = marker;
-    });
-
-    if (typeof _recalculateGlobalWaypointCounter === 'function') {
-        _recalculateGlobalWaypointCounter();
-    }
+    // Call the master function from waypointManager to handle the complex replacement logic
+    const newIds = replaceWaypointSet(mission.waypointIds, newWaypointsData);
+    mission.waypointIds = newIds;
 }
 
 function _createNewMission(params) {
