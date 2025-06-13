@@ -1,4 +1,4 @@
-// File: surveyGridManager.js - VERSIONE CORRETTA
+// File: surveyGridManager.js
 
 let currentPolygonPoints = [];
 let tempPolygonLayer = null;
@@ -193,7 +193,6 @@ function onAngleDrawEnd(e) {
     const endPoint = e.latlng;
     const bearing = calculateBearing(angleDrawStartPoint, endPoint);
     
-    // Modifica qui: Usiamo direttamente l'angolo calcolato senza aggiungere 90°
     const gridAngle = Math.round(bearing);
 
     if (surveyGridAngleInputEl) {
@@ -287,76 +286,78 @@ function handleCancelSurveyGrid() {
     if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none';
 }
 
+/**
+ * Generates survey waypoints within a polygon.
+ * This is the corrected implementation.
+ */
 function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapPercent, frontlapPercent, gridAngleDeg, flightSpeed) {
     const finalWaypointsData = [];
     if (!polygonLatLngs || polygonLatLngs.length < MIN_POLYGON_POINTS) {
-        showCustomAlert(translate('alert_surveyGridInvalidPoly'), "Error"); return finalWaypointsData;
+        showCustomAlert(translate('alert_surveyGridInvalidPoly'), "Error");
+        return finalWaypointsData;
     }
 
     const footprint = calculateFootprint(flightAltitudeAGL, FIXED_CAMERA_PARAMS);
-    
-    // CORREZIONE DEFINITIVA DELLA LOGICA DI ROTAZIONE
-    console.log("=== DEBUG ANGOLI ===");
-    console.log("Angolo input (gridAngleDeg):", gridAngleDeg, "°");
 
-    // Linee di volo PARALLELE all'angolo disegnato
-    const flightLineDirection = gridAngleDeg;
-    console.log("Direzione linee di volo:", flightLineDirection, "°");
-
-    // Orientamento drone (uguale alla direzione delle linee)
-    const fixedGridHeading = flightLineDirection;
-    console.log("Orientamento drone:", fixedGridHeading, "°");
-
-    // Angolo per ruotare il sistema di coordinate (perpendicolare alle linee)
-    const rotationAngleDeg = -(flightLineDirection + 90) % 360;
-    console.log("Angolo rotazione sistema:", rotationAngleDeg, "°");
-    console.log("====================");
+    // --- Corrected Angle & Rotation Logic ---
+    // We rotate the coordinate system so that the flight lines (at gridAngleDeg) become horizontal (East, 90° in geographic terms).
+    // This simplifies iteration. To do this, we rotate all polygon points by an angle of (90 - gridAngleDeg).
+    const rotationAngleDeg = 90 - gridAngleDeg;
+    const fixedGridHeading = gridAngleDeg; // The drone's real-world heading remains the user-specified angle.
 
     const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
     const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
-    
+
     const rotationCenter = polygonLatLngs[0];
     const angleRad = toRad(rotationAngleDeg);
-    const rotatedPolygonLatLngs = polygonLatLngs.map(p => rotateLatLng(p, rotationCenter, -angleRad));
+
+    // 1. Rotate the polygon into the new, simplified coordinate system.
+    const rotatedPolygonLatLngs = polygonLatLngs.map(p => rotateLatLng(p, rotationCenter, angleRad));
     const rotatedBounds = L.latLngBounds(rotatedPolygonLatLngs);
-    const rNE = rotatedBounds.getNorthEast(); const rSW = rotatedBounds.getSouthWest();
+    const rNE = rotatedBounds.getNorthEast();
+    const rSW = rotatedBounds.getSouthWest();
     const earthR = (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000;
-    const lineSpacingRotLat = (actualLineSpacing / earthR) * (180 / Math.PI);
-    
+
+    // 2. Iterate in the rotated system. Flight lines are now horizontal, so we step vertically (in latitude).
+    const lineSpacingRotLat = (actualLineSpacing / earthR) * (180 / Math.PI); // Spacing between lines is now in Latitude degrees.
+
     let currentRotLat = rSW.lat;
-    let scanDir = 1;
+    let scanDir = 1; // Serpentine direction: 1 for East-ward, -1 for West-ward flight.
 
     while (currentRotLat <= rNE.lat + lineSpacingRotLat * 0.5) {
+        // Photo spacing is along the horizontal lines. Its degree-equivalent in longitude depends on the current latitude.
         const photoSpacingRotLng = (actualDistanceBetweenPhotos / (earthR * Math.cos(toRad(currentRotLat)))) * (180 / Math.PI);
         const lineCandRot = [];
-        
-        if (scanDir === 1) {
+
+        if (scanDir === 1) { // Fly "right" (East in the rotated frame)
             for (let curRotLng = rSW.lng; curRotLng <= rNE.lng; curRotLng += photoSpacingRotLng) lineCandRot.push(L.latLng(currentRotLat, curRotLng));
             if (!lineCandRot.length || lineCandRot[lineCandRot.length - 1].lng < rNE.lng - 1e-7) lineCandRot.push(L.latLng(currentRotLat, rNE.lng));
-        } else {
+        } else { // Fly "left" (West in the rotated frame)
             for (let curRotLng = rNE.lng; curRotLng >= rSW.lng; curRotLng -= photoSpacingRotLng) lineCandRot.push(L.latLng(currentRotLat, curRotLng));
             if (!lineCandRot.length || lineCandRot[lineCandRot.length - 1].lng > rSW.lng + 1e-7) lineCandRot.push(L.latLng(currentRotLat, rSW.lng));
         }
-        
-        const wpOptions = { 
-            altitude: flightAltitudeAGL, 
-            cameraAction: 'takePhoto', 
-            headingControl: 'fixed', 
+
+        const wpOptions = {
+            altitude: flightAltitudeAGL,
+            cameraAction: 'takePhoto',
+            headingControl: 'fixed',
             fixedHeading: fixedGridHeading,
             waypointType: 'grid'
         };
 
+        // 3. Rotate generated points back to the real world and check if they are inside the original polygon.
         lineCandRot.forEach(rotPt => {
-            const actualGeoPt = rotateLatLng(rotPt, rotationCenter, angleRad);
+            const actualGeoPt = rotateLatLng(rotPt, rotationCenter, -angleRad);
             if (isPointInPolygon(actualGeoPt, polygonLatLngs)) {
                 finalWaypointsData.push({ latlng: actualGeoPt, options: wpOptions });
             }
         });
-        
+
         currentRotLat += lineSpacingRotLat;
-        scanDir *= -1;
+        scanDir *= -1; // Reverse direction for the next line.
     }
-    
+
+    // 4. Remove duplicate waypoints that might have been generated at the edges.
     const uniqueWaypoints = [];
     const seenKeys = new Set();
     for (const wp of finalWaypointsData) {
@@ -366,7 +367,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
             seenKeys.add(key);
         }
     }
-    
+
     if (uniqueWaypoints.length === 0 && polygonLatLngs.length >= MIN_POLYGON_POINTS) {
         showCustomAlert(translate('alert_surveyGridNoWps'), translate('infoTitle'));
     }
