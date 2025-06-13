@@ -247,7 +247,20 @@ function clearWaypoints() {
     selectedWaypoint = null;
     waypointCounter = 1; 
     actionGroupCounter = 1; 
-    actionCounter = 1;    
+    actionCounter = 1;
+
+    // <-- INIZIO MODIFICA -->
+    // Cancella anche le missioni di rilievo e il loro stato visuale
+    surveyMissions.forEach(mission => {
+        if (mission.polygonLayer) {
+            map.removeLayer(mission.polygonLayer);
+        }
+    });
+    surveyMissions = [];
+    surveyMissionCounter = 1;
+    if(typeof updateSurveyMissionsList === "function") updateSurveyMissionsList();
+    // <-- FINE MODIFICA -->
+
     clearMultiSelection(); 
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
     
