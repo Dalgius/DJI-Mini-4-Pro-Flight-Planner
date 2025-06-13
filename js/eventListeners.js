@@ -252,13 +252,31 @@ function setupEventListeners() {
     }
     if (createOrbitBtn) { createOrbitBtn.addEventListener('click', showOrbitDialog); }
 
-    // --- Survey Grid Modal ---
-    if (createSurveyGridBtn) { createSurveyGridBtn.addEventListener('click', openSurveyGridModal); }
+    // --- Survey Grid ---
+    if (createSurveyGridBtn) { createSurveyGridBtn.addEventListener('click', () => openSurveyGridModal()); } // <-- Modificato per non passare parametri
     if (startDrawingSurveyAreaBtnEl) { startDrawingSurveyAreaBtnEl.addEventListener('click', handleStartDrawingSurveyArea); }
     if (finalizeSurveyAreaBtnEl) { finalizeSurveyAreaBtnEl.addEventListener('click', handleFinalizeSurveyArea); }
     if (confirmSurveyGridBtnEl) { confirmSurveyGridBtnEl.addEventListener('click', handleConfirmSurveyGridGeneration); }
     if (cancelSurveyGridBtnEl) { cancelSurveyGridBtnEl.addEventListener('click', handleCancelSurveyGrid); }
     if (drawGridAngleBtnEl) { drawGridAngleBtnEl.addEventListener('click', handleDrawGridAngle); }
+    
+    // --- Listener per la lista delle missioni di rilievo (delegazione di eventi) ---
+    if (surveyMissionsListEl) {
+        surveyMissionsListEl.addEventListener('click', (event) => {
+            const target = event.target;
+            const missionId = parseInt(target.closest('.survey-mission-item')?.dataset.id);
+
+            if (isNaN(missionId)) return;
+
+            if (target.classList.contains('edit-survey-mission-btn')) {
+                // Funzione definita in surveyGridManager.js
+                if(typeof openSurveyGridModal === 'function') openSurveyGridModal(missionId);
+            } else if (target.classList.contains('delete-survey-mission-btn')) {
+                // Funzione definita in surveyGridManager.js
+                if(typeof deleteSurveyMission === 'function') deleteSurveyMission(missionId);
+            }
+        });
+    }
     
     // --- Import/Export Buttons ---
     if (importJsonBtn) { importJsonBtn.addEventListener('click', triggerImport); }
