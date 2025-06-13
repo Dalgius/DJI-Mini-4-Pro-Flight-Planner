@@ -127,6 +127,45 @@ function updateWaypointList() {
     }).join('');
 }
 
+/**
+ * Renders the list of survey missions in the sidebar.
+ * This is a new function.
+ */
+function updateSurveyMissionsList() {
+    if (!surveyMissionsListEl) return;
+    
+    if (surveyMissions.length === 0) {
+        surveyMissionsListEl.innerHTML = `<div style="text-align: center; color: #95a5a6; font-size: 12px; padding: 10px;">${translate("noSurveyMissions")}</div>`;
+        return;
+    }
+    
+    surveyMissionsListEl.innerHTML = surveyMissions.map(mission => {
+        return `
+        <div class="survey-mission-item" data-id="${mission.id}" style="background: rgba(44,62,80,0.6); border-radius: 6px; padding: 10px; margin-bottom: 8px; border-left: 3px solid #1abc9c;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight: bold; color: #ecf0f1;">${translate('missionLabel')} ${mission.id}</span>
+                <div>
+                    <button class="btn-secondary edit-survey-mission-btn" style="padding: 4px 8px; font-size: 11px; margin: 0 5px 0 0; width: auto;" data-i18n-key="editMissionBtn"></button>
+                    <button class="btn-danger delete-survey-mission-btn" style="padding: 4px 8px; font-size: 11px; margin: 0; width: auto;" data-i18n-key="deleteMissionBtn"></button>
+                </div>
+            </div>
+            <div style="font-size: 11px; color: #bdc3c7; line-height: 1.4;">
+                ${translate('statsWaypoints')} ${mission.waypointIds.length}<br>
+                ${translate('altitudeLabel').split('<')[0]}: ${mission.parameters.altitude} m |
+                Sidelap: ${mission.parameters.sidelap}% |
+                Angle: ${mission.parameters.angle}°
+            </div>
+        </div>`;
+    }).join('');
+    
+    // Re-apply translations for the newly created buttons
+    surveyMissionsListEl.querySelectorAll('[data-i18n-key]').forEach(element => {
+        const key = element.getAttribute('data-i18n-key');
+        element.textContent = translate(key);
+    });
+}
+
+
 function updateMultiEditPanelTitle(count) {
     const titleEl = multiWaypointEditControlsDiv.querySelector('.section-title');
     if (titleEl) {
