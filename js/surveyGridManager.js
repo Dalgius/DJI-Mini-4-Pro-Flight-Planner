@@ -296,15 +296,15 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
     
     // ======================= INIZIO BLOCCO LOGICA CORRETTO =======================
-    // Normalizziamo l'angolo per la geometria, ma conserviamo l'originale per l'orientamento.
-    const geometricAngle = gridAngleDeg % 180;
-    
-    // Ruotiamo il sistema di coordinate di (angolo normalizzato + 90) gradi
-    // per allineare l'asse di scansione con la direzione di volo desiderata.
-    const rotationAngleDeg = (geometricAngle + 90) % 360;
-    
-    // L'orientamento del drone rispetta la direzione originale disegnata dall'utente.
+    // L'orientamento del drone (heading) rispetta la direzione disegnata dall'utente.
     const fixedGridHeading = Math.round(gridAngleDeg);
+    
+    // Per allineare le LINEE DI VOLO con l'orientamento, dobbiamo ruotare il sistema
+    // di coordinate di 90 gradi rispetto all'angolo di volo. Questo fa sì che l'algoritmo
+    // scansioni perpendicolarmente alla direzione di volo, creando linee parallele ad essa.
+    // Usiamo l'angolo normalizzato per la geometria, così 75° e 255° danno la stessa forma.
+    const geometricAngle = gridAngleDeg % 180;
+    const rotationAngleDeg = (geometricAngle + 90) % 360;
     // ======================= FINE BLOCCO LOGICA CORRETTO =======================
     
     const rotationCenter = polygonLatLngs[0];
@@ -361,7 +361,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     if (uniqueWaypoints.length === 0 && polygonLatLngs.length >= MIN_POLYGON_POINTS) {
         showCustomAlert(translate('alert_surveyGridNoWps'), translate('infoTitle'));
     }
-    return uniqueWaypoints;
+    return finalWaypointsData;
 }
 
 function handleConfirmSurveyGridGeneration() {
