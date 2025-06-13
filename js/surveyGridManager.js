@@ -299,12 +299,12 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     // L'orientamento del drone (heading) rispetta la direzione disegnata dall'utente.
     const fixedGridHeading = Math.round(gridAngleDeg);
     
-    // Per allineare le LINEE DI VOLO con l'orientamento, dobbiamo ruotare il sistema
-    // di coordinate di 90 gradi rispetto all'angolo di volo. Questo fa sì che l'algoritmo
-    // scansioni perpendicolarmente alla direzione di volo, creando linee parallele ad essa.
-    // Usiamo l'angolo normalizzato per la geometria, così 75° e 255° danno la stessa forma.
-    const geometricAngle = gridAngleDeg % 180;
-    const rotationAngleDeg = (geometricAngle + 90) % 360;
+    // Per creare linee di volo PARALLELE all'angolo `gridAngleDeg`, dobbiamo ruotare
+    // il sistema di coordinate in modo che l'asse di disegno dell'algoritmo
+    // (che è orizzontale) si allinei con `gridAngleDeg`. L'algoritmo disegna
+    // a 90 gradi nel suo sistema di riferimento, quindi dobbiamo ruotare di
+    // (gridAngleDeg - 90) per compensare.
+    const rotationAngleDeg = (gridAngleDeg - 90);
     // ======================= FINE BLOCCO LOGICA CORRETTO =======================
     
     const rotationCenter = polygonLatLngs[0];
@@ -314,13 +314,14 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     const rNE = rotatedBounds.getNorthEast(); const rSW = rotatedBounds.getSouthWest();
     const earthR = (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000;
     const lineSpacingRotLat = (actualLineSpacing / earthR) * (180 / Math.PI);
-    const photoSpacingRotLng = (actualDistanceBetweenPhotos / (earthR * Math.cos(toRad(rNE.lat)))) * (180 / Math.PI);
     
     let currentRotLat = rSW.lat;
     let scanDir = 1;
 
     while (currentRotLat <= rNE.lat + lineSpacingRotLat * 0.5) {
+        const photoSpacingRotLng = (actualDistanceBetweenPhotos / (earthR * Math.cos(toRad(currentRotLat)))) * (180 / Math.PI);
         const lineCandRot = [];
+        
         if (scanDir === 1) {
             for (let curRotLng = rSW.lng; curRotLng <= rNE.lng; curRotLng += photoSpacingRotLng) lineCandRot.push(L.latLng(currentRotLat, curRotLng));
             if (!lineCandRot.length || lineCandRot[lineCandRot.length - 1].lng < rNE.lng - 1e-7) lineCandRot.push(L.latLng(currentRotLat, rNE.lng));
@@ -361,7 +362,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     if (uniqueWaypoints.length === 0 && polygonLatLngs.length >= MIN_POLYGON_POINTS) {
         showCustomAlert(translate('alert_surveyGridNoWps'), translate('infoTitle'));
     }
-    return finalWaypointsData;
+    return uniqueWaypoints;
 }
 
 function handleConfirmSurveyGridGeneration() {
