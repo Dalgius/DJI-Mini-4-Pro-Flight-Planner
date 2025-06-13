@@ -1,4 +1,4 @@
-// File: surveyGridManager.js - VERSIONE CORRETTA E FORMATA
+// File: surveyGridManager.js - VERSIONE DEFINITIVA
 
 let currentPolygonPoints = [];
 let tempPolygonLayer = null;
@@ -151,11 +151,7 @@ function handleStartDrawingSurveyArea() {
 }
 
 function handleDrawGridAngle() {
-    // ======================= CORREZIONE CHIAVE =======================
-    // Imposta la variabile corretta per attivare la modalità di disegno dell'angolo.
     isDrawingGridAngle = true;
-    // =================================================================
-
     angleDrawStartPoint = null;
 
     if (typeof handleMapClick === 'function') map.off('click', handleMapClick);
@@ -299,8 +295,16 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
     const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
     
+    // ======================= INIZIO BLOCCO LOGICA CORRETTO =======================
+    // L'angolo `gridAngleDeg` definisce la DIREZIONE DELLE LINEE DI VOLO (es. 90° = Est).
+    // L'orientamento del drone (heading) è lo stesso.
     const fixedGridHeading = Math.round(gridAngleDeg);
-    const rotationAngleDeg = (gridAngleDeg + 90) % 360;
+    
+    // L'algoritmo di base disegna linee orizzontali (a 90° Est).
+    // Per allineare queste linee con `gridAngleDeg`, dobbiamo ruotare il sistema
+    // di coordinate di (gridAngleDeg - 90).
+    const rotationAngleDeg = (gridAngleDeg - 90);
+    // ======================= FINE BLOCCO LOGICA CORRETTO =======================
     
     const rotationCenter = polygonLatLngs[0];
     const angleRad = toRad(rotationAngleDeg);
