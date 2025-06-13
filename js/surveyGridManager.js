@@ -297,14 +297,9 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     // Se l'utente disegna il LATO CORTO, si aspetta che le linee di volo siano LUNGO IL LATO LUNGO.
     // L'angolo disegnato (gridAngleDeg) definisce l'asse di scansione.
     // Le linee di volo devono essere PERPENDICOLARI all'asse di scansione.
-    const flightLineDirection = (gridAngleDeg + 90) % 360;
-
-    // L'orientamento del drone (HEADING) è PARALLELO alle linee di volo.
-    const fixedGridHeading = Math.round(flightLineDirection);
-    
-    // Per generare linee di volo PARALLELE a `flightLineDirection`,
-    // dobbiamo ruotare il sistema di coordinate di (flightLineDirection - 90).
-    const rotationAngleDeg = (flightLineDirection - 90);
+    const flightLineDirection = gridAngleDeg; // Le linee sono perpendicolari all'angolo disegnato
+    const fixedGridHeading = Math.round((gridAngleDeg + 90) % 360); // Heading è perpendicolare all'angolo
+    const rotationAngleDeg = -gridAngleDeg; // Ruotiamo il sistema di coordinate dell'angolo opposto
     // ======================= FINE BLOCCO LOGICA CORRETTO =======================
 
     const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
