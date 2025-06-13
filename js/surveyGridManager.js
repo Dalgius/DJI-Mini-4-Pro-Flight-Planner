@@ -297,16 +297,22 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     // Se l'utente disegna il LATO CORTO, si aspetta che le linee di volo siano LUNGO IL LATO LUNGO.
     // L'angolo disegnato (gridAngleDeg) definisce l'asse di scansione.
     // Le linee di volo devono essere PERPENDICOLARI all'asse di scansione.
-    console.log("=== DEBUG ANGOLI ===");
-    console.log("Angolo input (gridAngleDeg):", gridAngleDeg, "°");
-    
-    const flightLineDirection = gridAngleDeg; // Le linee sono perpendicolari all'angolo disegnato
-    console.log("Direzione linee di volo (flightLineDirection):", flightLineDirection, "°");
-    const fixedGridHeading = Math.round((gridAngleDeg + 90) % 360); // Heading è perpendicolare all'angolo
-    console.log("Orientamento drone (fixedGridHeading):", fixedGridHeading, "°");
-    const rotationAngleDeg = -gridAngleDeg; // Ruotiamo il sistema di coordinate dell'angolo opposto
-    console.log("Angolo rotazione sistema (rotationAngleDeg):", rotationAngleDeg, "°");
-    console.log("====================");
+    // CORREZIONE DEFINITIVA
+console.log("=== DEBUG ANGOLI ===");
+console.log("Angolo input (gridAngleDeg):", gridAngleDeg, "°");
+
+// Linee PERPENDICOLARI all'angolo disegnato (per survey grid standard)
+const flightLineDirection = gridAngleDeg; 
+console.log("Direzione linee di volo (flightLineDirection):", flightLineDirection, "°");
+
+// Drone orientato PERPENDICOLARE alle linee di volo
+const fixedGridHeading = (flightLineDirection + 90) % 360; 
+console.log("Orientamento drone (fixedGridHeading):", fixedGridHeading, "°");
+
+// Ruotiamo il sistema di coordinate dell'angolo opposto alle linee
+const rotationAngleDeg = -flightLineDirection; 
+console.log("Angolo rotazione sistema (rotationAngleDeg):", rotationAngleDeg, "°");
+console.log("====================");
     // ======================= FINE BLOCCO LOGICA CORRETTO =======================
 
     const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
