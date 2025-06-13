@@ -136,6 +136,7 @@ const translations = {
         "surveyFrontlapTitle": "Overlap between consecutive photos along a flight line (e.g., 70-90%)",
         "surveyGridAngleLabel": "Grid Angle (°):",
         "surveyGridAngleDesc": "Flight line direction: 0° for E-W lines, 90° for N-S lines.",
+        "drawGridAngleBtn": "Set Angle by Drawing", // <-- NUOVA TRADUZIONE
         "surveyAreaStatusDefault": "Area not defined.",
         "surveyAreaStatusDefined": "Area defined: {points} points.",
         "startDrawingSurveyAreaBtn": "Start Drawing Area",
@@ -186,6 +187,9 @@ const translations = {
         "alert_surveyGridNoWps": "No waypoints generated within the polygon. Check parameters.",
         "alert_surveyGridSuccess": "{count} survey waypoints generated!",
         "alert_surveyGridError": "Error during grid generation.",
+        "alert_surveyGridInvalidInput_angle": "Invalid grid angle.",
+        "alert_drawAngleInstruction": "Click and drag on the map to draw a line that defines the grid angle.", // <-- NUOVA TRADUZIONE
+        "alert_surveyGridInvalidInput_speed": "Invalid flight speed.",
         "alert_surveyGridInvalidPoly": "Invalid polygon for generation.",
         "alert_surveyGridInvalidParams": "Invalid survey grid parameters. Check spacing values.",
         "alert_surveyGridTooManyLines": "Too many flight lines generated (>2000). Please check your parameters (sidelap, area size).",
@@ -340,6 +344,7 @@ const translations = {
         "surveyFrontlapTitle": "Sovrapposizione tra foto consecutive lungo una linea di volo (es. 70-90%)",
         "surveyGridAngleLabel": "Angolo Griglia (°):",
         "surveyGridAngleDesc": "Direzione linee di volo: 0° per linee E-O, 90° per linee N-S.",
+        "drawGridAngleBtn": "Imposta Angolo Disegnando", // <-- NUOVA TRADUZIONE
         "surveyAreaStatusDefault": "Area non definita.",
         "surveyAreaStatusDefined": "Area definita: {points} punti.",
         "startDrawingSurveyAreaBtn": "Inizia a Disegnare",
@@ -379,6 +384,9 @@ const translations = {
         "alert_adaptAglFail": "Impossibile adattare le altitudini. Dati terreno non recuperati.",
         "alert_invalidDesiredAMSL": "Valore AMSL Desiderato non valido. Inserire un numero valido.",
         "alert_adaptingAmslAlts": "Adattamento altitudini a AMSL costante...",
+        "alert_surveyGridInvalidInput_angle": "Angolo griglia non valido.",
+        "alert_drawAngleInstruction": "Clicca e trascina sulla mappa per disegnare una linea che definisca l'angolo della griglia.", // <-- NUOVA TRADUZIONE
+        "alert_surveyGridInvalidInput_speed": "Velocità di volo non valida.",
         "alert_adaptAmslSuccess": "Tutte le altitudini dei waypoint impostate per un volo a {amslTarget}m AMSL.",
         "alert_invalidPoiObjectHeight": "Altezza oggetto non valida. Inserire un numero non negativo.",
         "invalidPoiTerrainElev": "Elevazione terreno non valida. Inserire un numero.",
