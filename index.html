@@ -246,86 +246,15 @@
                 <div class="poi-list" id="poiList"></div>
             </div>
 
+            <!-- NUOVA SEZIONE PER LE MISSIONI DI RILIEVO -->
+            <div class="section" id="surveyMissionsSection">
+                <div class="section-title" data-i18n-key="surveyMissionsTitle"></div>
+                <div class="survey-missions-list" id="surveyMissionsList"></div>
+            </div>
+
             <div class="section">
                 <div class="section-title" data-i18n-key="terrainOrbitTitle"></div>
                 <div class="control-group">
                     <label class="control-label" data-i18n-key="takeoffElevationLabel"></label>
                     <input type="number" class="control-input-small" id="homeElevationMsl" value="0" step="1">
-                    <button class="btn-secondary" id="getHomeElevationBtn" style="width:auto; padding: 5px 10px; margin-left:10px; font-size:11px;" data-i18n-key="useWp1ElevationBtn"></button>
-                </div>
-                <hr style="border-color: #34495e; margin: 15px 0;">
-
-                <div class="section-title" style="font-size: 1em; margin-top:10px; margin-bottom:8px;" data-i18n-key="adaptPathAltTitle"></div>
-                
-                <div class="control-group">
-                    <label class="control-label" data-i18n-key="desiredAGLLabel"></label>
-                    <input type="number" class="control-input-small" id="desiredAGL" value="50" min="1">
-                </div>
-                <button class="btn" id="adaptToAGLBtn" data-i18n-key="adaptAGLBtn" style="margin-bottom:10px;"></button>
-
-                <div class="control-group">
-                    <label class="control-label" data-i18n-key="desiredAMSLLabel"></label>
-                    <input type="number" class="control-input-small" id="desiredAMSL" value="100" min="0">
-                </div>
-                <button class="btn" id="adaptToAMSLBtn" data-i18n-key="adaptAMSLBtn" style="margin-bottom:10px;"></button>
-                
-                <hr style="border-color: #34495e; margin: 15px 0;">
-                 <div id="currentPathModeInfo" style="font-size: 0.85em; color: #bdc3c7; margin-bottom: 10px; text-align: center;">
-                    <span data-i18n-key="currentPathModeLabel"></span> <strong id="currentPathModeValue" data-i18n-key="pathModeRelative"></strong>
-                </div>
-                <button class="btn" id="createOrbitBtn" data-i18n-key="createOrbitBtn"></button>
-                <button id="createSurveyGridBtn" class="sidebar-btn btn" data-i18n-key="createSurveyGridBtn"></button>
-            </div>
-
-            <div class="section">
-                <div class="section-title" data-i18n-key="fileOpsTitle"></div>
-                <button class="btn btn-secondary" id="importJsonBtn" data-i18n-key="importJsonBtn"></button>
-                <button class="btn btn-secondary" id="exportJsonBtn" data-i18n-key="exportJsonBtn"></button>
-                <button class="btn btn-secondary" id="exportKmzBtn" data-i18n-key="exportKmzBtn"></button>
-                <button class="btn btn-secondary" id="exportGoogleEarthBtn" data-i18n-key="exportGoogleEarthBtn"></button>
-            </div>
-            
-            <div class="section">
-                <div class="section-title" data-i18n-key="statsTitle"></div>
-                <div class="flight-stats">
-                    <div class="stat-row"><span class="stat-label" data-i18n-key="statsTotalDistance"></span><span class="stat-value" id="totalDistance">0 m</span></div>
-                    <div class="stat-row"><span class="stat-label" data-i18n-key="statsEstFlightTime"></span><span class="stat-value" id="flightTime">0 min 0 sec</span></div>
-                    <div class="stat-row"><span class="stat-label" data-i18n-key="statsWaypoints"></span><span class="stat-value" id="waypointCount">0</span></div>
-                    <div class="stat-row"><span class="stat-label" data-i18n-key="statsPOIs"></span><span class="stat-value" id="poiCount">0</span></div>
-                </div>
-            </div>
-        </div> 
-
-        <div class="map-container">
-            <div id="map"></div>
-            <div class="map-controls">
-                <button class="map-btn" id="satelliteToggleBtn" data-i18n-key="mapBtnSatellite"></button>
-                <button class="map-btn" id="fitMapBtn" data-i18n-key="mapBtnFitView"></button>
-                <button class="map-btn" id="myLocationBtn" data-i18n-key="mapBtnMyLocation"></button>
-            </div>
-        </div> 
-    </div> 
-
-    <input type="file" id="fileInput" accept=".json" style="display: none;">
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    
-    <!-- Script Modularizzati -->
-    <script src="js/config.js"></script>
-    <script src="js/utils.js"></script> 
-    <script src="js/i18n.js"></script>   <!-- << I18N PRIMA DEGLI ALTRI CHE LO USANO -->
-    <script src="js/domCache.js"></script>
-    <script src="js/mapManager.js"></script>
-    <script src="js/uiUpdater.js"></script>
-    <script src="js/flightPathManager.js"></script>
-    <script src="js/poiManager.js"></script>
-    <script src="js/waypointManager.js"></script>
-    <script src="js/orbitManager.js"></script>
-    <script src="js/terrainManager.js"></script>
-    <script src="js/surveyGridManager.js?v=2.0"></script> <!-- MODIFICATO -->
-    <script src="js/importExportManager.js"></script>
-    <script src="js/eventListeners.js"></script>
-    <script src="js/app.js"></script>
-</body>
-</html>
+                    <button class="btn-secondary" id="getHomeElevationBtn" style="width:auto; pa
