@@ -234,7 +234,8 @@ function exportFlightPlanToJson() {
     dl.click(); 
     document.body.removeChild(dl);
     
-    showCustomAlert(translate('successTitle'), translate('export_json_success'));
+    // --- MODIFICA: Rimossa notifica di successo automatica ---
+    // showCustomAlert(translate('successTitle'), translate('export_json_success'));
 }
 
 function exportToGoogleEarthKml() { 
@@ -292,7 +293,8 @@ function exportToGoogleEarthKml() {
     dl.click(); 
     document.body.removeChild(dl);
     
-    showCustomAlert(translate('successTitle'), translate('export_ge_success'));
+    // --- MODIFICA: Rimossa notifica di successo automatica ---
+    // showCustomAlert(translate('successTitle'), translate('export_ge_success'));
 }
 
 function exportToDjiWpmlKmz() {
@@ -406,7 +408,8 @@ function exportToDjiWpmlKmz() {
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(link.href);
-            showCustomAlert(translate('successTitle'), translate('export_dji_success'));
+            // --- MODIFICA: Rimossa notifica di successo automatica ---
+            // showCustomAlert(translate('successTitle'), translate('export_dji_success'));
         })
         .catch(function(err) {
             showCustomAlert(`${translate('errorTitle')}: ${err.message}`, "KMZ Generation Error");
