@@ -5,6 +5,10 @@ let tempPolygonLayer = null;
 let tempVertexMarkers = [];
 let nativeMapClickListener = null;
 
+// Variabili per il disegno dell'angolo
+let angleDrawStartPoint = null;
+let tempAngleLineLayer = null;
+
 const MIN_POLYGON_POINTS = 3;
 
 const FIXED_CAMERA_PARAMS = {
@@ -21,6 +25,10 @@ function clearTemporaryDrawing() {
     }
     tempVertexMarkers.forEach(marker => map.removeLayer(marker));
     tempVertexMarkers = [];
+    if (tempAngleLineLayer) { // Pulisce anche la linea dell'angolo
+        map.removeLayer(tempAngleLineLayer);
+        tempAngleLineLayer = null;
+    }
 }
 
 function updateTempPolygonDisplay() {
@@ -94,8 +102,10 @@ function openSurveyGridModal() {
 }
 
 function cancelSurveyAreaDrawing() {
-    const wasActive = isDrawingSurveyArea || nativeMapClickListener;
+    const wasActive = isDrawingSurveyArea || nativeMapClickListener || isDrawingGridAngle;
     isDrawingSurveyArea = false;
+    isDrawingGridAngle = false; // Assicurati di resettare anche questo stato
+    
     if (map) {
         map.getContainer().style.cursor = '';
         if (nativeMapClickListener) {
@@ -103,12 +113,19 @@ function cancelSurveyAreaDrawing() {
             nativeMapClickListener = null;
         }
         map.off('click', handleSurveyAreaMapClick);
+        // Rimuovi anche i listener per il disegno dell'angolo
+        map.off('mousedown', onAngleDrawStart);
+        map.off('mousemove', onAngleDrawMove);
+        map.off('mouseup', onAngleDrawEnd);
+
         if (wasActive && !map.hasEventListeners('click')) {
              if (typeof handleMapClick === 'function') map.on('click', handleMapClick);
         }
     }
     clearTemporaryDrawing();
     currentPolygonPoints = [];
+    angleDrawStartPoint = null;
+
     if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
     if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
     if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
@@ -132,6 +149,100 @@ function handleStartDrawingSurveyArea() {
     surveyGridModalOverlayEl.style.display = 'none';
     showCustomAlert(translate('alert_surveyDrawingActive', {minPoints: MIN_POLYGON_POINTS}), translate('infoTitle'));
 }
+
+// === NUOVE FUNZIONI PER DISEGNARE L'ANGOLO ===
+
+/**
+ * Inizia la modalità di disegno dell'angolo sulla mappa.
+ */
+function handleDrawGridAngle() {
+    isDrawingGridAngle = true;
+    angleDrawStartPoint = null;
+
+    if (typeof handleMapClick === 'function') map.off('click', handleMapClick);
+    
+    map.on('mousedown', onAngleDrawStart);
+    
+    map.getContainer().style.cursor = 'crosshair';
+    surveyGridModalOverlayEl.style.display = 'none'; // Nasconde la modale
+    showCustomAlert(translate('infoTitle'), translate('alert_drawAngleInstruction'));
+}
+
+/**
+ * Gestisce l'evento mousedown sulla mappa per iniziare a disegnare la linea dell'angolo.
+ * @param {L.LeafletMouseEvent} e L'evento del mouse.
+ */
+function onAngleDrawStart(e) {
+    if (!isDrawingGridAngle) return;
+    angleDrawStartPoint = e.latlng;
+    
+    // Aggiungi i listener per il movimento e il rilascio del mouse
+    map.on('mousemove', onAngleDrawMove);
+    map.on('mouseup', onAngleDrawEnd);
+}
+
+/**
+ * Gestisce l'evento mousemove per aggiornare la linea temporanea.
+ * @param {L.LeafletMouseEvent} e L'evento del mouse.
+ */
+function onAngleDrawMove(e) {
+    if (!isDrawingGridAngle || !angleDrawStartPoint) return;
+    
+    if (tempAngleLineLayer) {
+        map.removeLayer(tempAngleLineLayer);
+    }
+    
+    const currentPoint = e.latlng;
+    tempAngleLineLayer = L.polyline([angleDrawStartPoint, currentPoint], {
+        color: '#f39c12',
+        weight: 3,
+        dashArray: '5, 10'
+    }).addTo(map);
+}
+
+/**
+ * Gestisce l'evento mouseup per finalizzare il disegno, calcolare l'angolo e pulire.
+ * @param {L.LeafletMouseEvent} e L'evento del mouse.
+ */
+function onAngleDrawEnd(e) {
+    if (!isDrawingGridAngle || !angleDrawStartPoint) return;
+    
+    const endPoint = e.latlng;
+
+    // Calcola l'angolo (bearing) dalla partenza alla fine
+    const bearing = calculateBearing(angleDrawStartPoint, endPoint);
+    const angle = Math.round(bearing);
+
+    if (surveyGridAngleInputEl) {
+        surveyGridAngleInputEl.value = angle;
+    }
+
+    // Pulisci tutto
+    isDrawingGridAngle = false;
+    angleDrawStartPoint = null;
+    map.getContainer().style.cursor = '';
+    
+    if (tempAngleLineLayer) {
+        map.removeLayer(tempAngleLineLayer);
+        tempAngleLineLayer = null;
+    }
+    
+    map.off('mousedown', onAngleDrawStart);
+    map.off('mousemove', onAngleDrawMove);
+    map.off('mouseup', onAngleDrawEnd);
+    
+    if (typeof handleMapClick === 'function' && !map.hasEventListeners('click')) {
+        map.on('click', handleMapClick);
+    }
+    
+    // Mostra di nuovo la modale
+    if (surveyGridModalOverlayEl) {
+        surveyGridModalOverlayEl.style.display = 'flex';
+    }
+}
+
+
+// === FUNZIONI ESISTENTI (INVARIATE MA MOSTRATE PER CONTESTO) ===
 
 function handleSurveyAreaMapClick(e) {
     if (!isDrawingSurveyArea) return;
