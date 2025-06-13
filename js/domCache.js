@@ -43,6 +43,7 @@ function cacheDOMElements() {
     // Sidebar Display - Lists
     waypointListEl = document.getElementById('waypointList');
     poiListEl = document.getElementById('poiList');
+    surveyMissionsListEl = document.getElementById('surveyMissionsList'); // <-- NUOVO
 
     // Sidebar Display - Flight Statistics
     totalDistanceEl = document.getElementById('totalDistance');
