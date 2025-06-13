@@ -104,6 +104,7 @@ function cacheDOMElements() {
     finalizeSurveyAreaBtnEl = document.getElementById('finalizeSurveyAreaBtn');
     confirmSurveyGridBtnEl = document.getElementById('confirmSurveyGridBtn');
     cancelSurveyGridBtnEl = document.getElementById('cancelSurveyGridBtn');
+    drawGridAngleBtnEl = document.getElementById('drawGridAngleBtn');
 
     // Map Control Buttons
     satelliteToggleBtn = document.getElementById('satelliteToggleBtn');
