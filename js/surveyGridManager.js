@@ -1,4 +1,4 @@
-// File: surveyGridManager.js - VERSIONE DEFINITIVA E CORRETTA
+// File: surveyGridManager.js - VERSIONE CORRETTA E FORMATA
 
 let currentPolygonPoints = [];
 let tempPolygonLayer = null;
@@ -80,18 +80,210 @@ function calculateFootprint(altitudeAGL, cameraParams) {
     return { width: footprintWidth, height: footprintHeight };
 }
 
-// === UI HANDLERS (invariati) ===
-function openSurveyGridModal(){if(!surveyGridModalOverlayEl){showCustomAlert(translate("errorTitle"),"Survey grid modal elements not found.");return}surveyGridAltitudeInputEl.value=defaultAltitudeSlider.value;if(!surveySidelapInputEl.value)surveySidelapInputEl.value=70;if(!surveyFrontlapInputEl.value)surveyFrontlapInputEl.value=80;if(surveyGridAngleInputEl&&!surveyGridAngleInputEl.value)surveyGridAngleInputEl.value=0;cancelSurveyAreaDrawing();confirmSurveyGridBtnEl.disabled=true;finalizeSurveyAreaBtnEl.style.display="none";startDrawingSurveyAreaBtnEl.style.display="inline-block";surveyAreaStatusEl.innerHTML=translate("surveyAreaStatusDefault");surveyGridInstructionsEl.innerHTML=translate("surveyGridInstructions");surveyGridModalOverlayEl.style.display="flex"}
-function cancelSurveyAreaDrawing(){const wasActive=isDrawingSurveyArea||nativeMapClickListener||isDrawingGridAngle;isDrawingSurveyArea=false;isDrawingGridAngle=false;if(map){map.dragging.enable();map.getContainer().style.cursor="";if(nativeMapClickListener){map.getContainer().removeEventListener("click",nativeMapClickListener,true);nativeMapClickListener=null}map.off("click",handleSurveyAreaMapClick);map.off("mousedown",onAngleDrawStart);map.off("mousemove",onAngleDrawMove);map.off("mouseup",onAngleDrawEnd);if(wasActive&&!map.hasEventListeners("click")){if(typeof handleMapClick==="function")map.on("click",handleMapClick)}}clearTemporaryDrawing();currentPolygonPoints=[];angleDrawStartPoint=null;if(startDrawingSurveyAreaBtnEl)startDrawingSurveyAreaBtnEl.style.display="inline-block";if(finalizeSurveyAreaBtnEl)finalizeSurveyAreaBtnEl.style.display="none";if(confirmSurveyGridBtnEl)confirmSurveyGridBtnEl.disabled=true;if(surveyAreaStatusEl)surveyAreaStatusEl.innerHTML=translate("surveyAreaStatusDefault");if(surveyGridInstructionsEl)surveyGridInstructionsEl.innerHTML=translate("surveyGridInstructions")}
-function handleStartDrawingSurveyArea(){if(!map||!surveyGridModalOverlayEl)return;isDrawingSurveyArea=true;currentPolygonPoints=[];clearTemporaryDrawing();if(typeof handleMapClick==="function"){map.off("click",handleMapClick)}map.off("click",handleSurveyAreaMapClick);map.on("click",handleSurveyAreaMapClick);map.getContainer().style.cursor="crosshair";surveyGridModalOverlayEl.style.display="none";showCustomAlert(translate("alert_surveyDrawingActive",{minPoints:MIN_POLYGON_POINTS}),translate("infoTitle"))}
-function handleDrawGridAngle(){isDrawingGridAngle=true;angleDrawStartPoint=null;if(typeof handleMapClick==="function")map.off("click",handleMapClick);map.dragging.disable();map.on("mousedown",onAngleDrawStart);map.getContainer().style.cursor="crosshair";surveyGridModalOverlayEl.style.display="none";showCustomAlert(translate("infoTitle"),translate("alert_drawAngleInstruction"))}
-function onAngleDrawStart(e){if(!isDrawingGridAngle)return;angleDrawStartPoint=e.latlng;map.on("mousemove",onAngleDrawMove);map.on("mouseup",onAngleDrawEnd)}
-function onAngleDrawMove(e){if(!isDrawingGridAngle||!angleDrawStartPoint)return;if(tempAngleLineLayer){map.removeLayer(tempAngleLineLayer)}const currentPoint=e.latlng;tempAngleLineLayer=L.polyline([angleDrawStartPoint,currentPoint],{color:"#f39c12",weight:3,dashArray:"5, 10"}).addTo(map)}
-function onAngleDrawEnd(e){if(!isDrawingGridAngle||!angleDrawStartPoint)return;const endPoint=e.latlng;const bearing=calculateBearing(angleDrawStartPoint,endPoint);const angle=Math.round(bearing);if(surveyGridAngleInputEl){surveyGridAngleInputEl.value=angle}isDrawingGridAngle=false;angleDrawStartPoint=null;map.dragging.enable();map.getContainer().style.cursor="";if(tempAngleLineLayer){map.removeLayer(tempAngleLineLayer);tempAngleLineLayer=null}map.off("mousedown",onAngleDrawStart);map.off("mousemove",onAngleDrawMove);map.off("mouseup",onAngleDrawEnd);if(typeof handleMapClick==="function"&&!map.hasEventListeners("click")){map.on("click",handleMapClick)}if(surveyGridModalOverlayEl){surveyGridModalOverlayEl.style.display="flex"}}
-function handleSurveyAreaMapClick(e){if(!isDrawingSurveyArea)return;const clickedLatLng=e.latlng;if(currentPolygonPoints.length>=MIN_POLYGON_POINTS&&tempVertexMarkers.length>0){const firstPointMarker=tempVertexMarkers[0];if(firstPointMarker.getLatLng().distanceTo(clickedLatLng)<10*map.getZoomScale(map.getZoom(),18)){handleFinalizeSurveyArea();return}}currentPolygonPoints.push(clickedLatLng);const vertexMarker=L.circleMarker(clickedLatLng,{radius:6,color:"rgba(255,0,0,0.8)",fillColor:"rgba(255,0,0,0.5)",fillOpacity:.7,pane:"markerPane"}).addTo(map);if(currentPolygonPoints.length===1){vertexMarker.on("click",()=>{if(isDrawingSurveyArea&¤tPolygonPoints.length>=MIN_POLYGON_POINTS){handleFinalizeSurveyArea()}})}tempVertexMarkers.push(vertexMarker);updateTempPolygonDisplay()}
-function handleFinalizeSurveyArea(){if(!isDrawingSurveyArea)return;map.getContainer().style.cursor="";isDrawingSurveyArea=false;map.off("click",handleSurveyAreaMapClick);if(typeof handleMapClick==="function"&&!map.hasEventListeners("click")){map.on("click",handleMapClick)}if(surveyGridModalOverlayEl){surveyGridModalOverlayEl.style.display="flex"}if(finalizeSurveyAreaBtnEl)finalizeSurveyAreaBtnEl.style.display="none";if(confirmSurveyGridBtnEl)confirmSurveyGridBtnEl.disabled=false;if(surveyAreaStatusEl)surveyAreaStatusEl.innerHTML=translate("surveyAreaStatusDefined",{points:currentPolygonPoints.length});if(surveyGridInstructionsEl)surveyGridInstructionsEl.innerHTML=translate("surveyGridInstructionsFinalized");if(tempPolygonLayer){tempPolygonLayer.setStyle({color:"rgba(0, 50, 200, 0.9)",fillColor:"rgba(0, 50, 200, 0.4)"})}tempVertexMarkers.forEach(marker=>marker.off("click"))}
-function handleCancelSurveyGrid(){cancelSurveyAreaDrawing();if(surveyGridModalOverlayEl)surveyGridModalOverlayEl.style.display="none"}
+// === UI HANDLERS ===
+function openSurveyGridModal() {
+    if (!surveyGridModalOverlayEl) {
+        showCustomAlert(translate('errorTitle'), "Survey grid modal elements not found.");
+        return;
+    }
+    surveyGridAltitudeInputEl.value = defaultAltitudeSlider.value;
+    if (!surveySidelapInputEl.value) surveySidelapInputEl.value = 70;
+    if (!surveyFrontlapInputEl.value) surveyFrontlapInputEl.value = 80;
+    if (surveyGridAngleInputEl && !surveyGridAngleInputEl.value) surveyGridAngleInputEl.value = 0;
 
+    cancelSurveyAreaDrawing();
+    confirmSurveyGridBtnEl.disabled = true;
+    finalizeSurveyAreaBtnEl.style.display = 'none';
+    startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
+    
+    surveyAreaStatusEl.innerHTML = translate('surveyAreaStatusDefault');
+    surveyGridInstructionsEl.innerHTML = translate('surveyGridInstructions');
+    surveyGridModalOverlayEl.style.display = 'flex';
+}
+
+function cancelSurveyAreaDrawing() {
+    const wasActive = isDrawingSurveyArea || nativeMapClickListener || isDrawingGridAngle;
+    isDrawingSurveyArea = false;
+    isDrawingGridAngle = false;
+    
+    if (map) {
+        map.dragging.enable();
+        map.getContainer().style.cursor = '';
+        if (nativeMapClickListener) {
+            map.getContainer().removeEventListener('click', nativeMapClickListener, true);
+            nativeMapClickListener = null;
+        }
+        map.off('click', handleSurveyAreaMapClick);
+        map.off('mousedown', onAngleDrawStart);
+        map.off('mousemove', onAngleDrawMove);
+        map.off('mouseup', onAngleDrawEnd);
+
+        if (wasActive && !map.hasEventListeners('click')) {
+             if (typeof handleMapClick === 'function') map.on('click', handleMapClick);
+        }
+    }
+    clearTemporaryDrawing();
+    currentPolygonPoints = [];
+    angleDrawStartPoint = null;
+
+    if (startDrawingSurveyAreaBtnEl) startDrawingSurveyAreaBtnEl.style.display = 'inline-block';
+    if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
+    if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = true;
+    if (surveyAreaStatusEl) surveyAreaStatusEl.innerHTML = translate('surveyAreaStatusDefault');
+    if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = translate('surveyGridInstructions');
+}
+
+function handleStartDrawingSurveyArea() {
+    if (!map || !surveyGridModalOverlayEl) return;
+    isDrawingSurveyArea = true;
+    currentPolygonPoints = [];
+    clearTemporaryDrawing();
+
+    if (typeof handleMapClick === 'function') {
+        map.off('click', handleMapClick);
+    }
+    map.off('click', handleSurveyAreaMapClick);
+    map.on('click', handleSurveyAreaMapClick);
+
+    map.getContainer().style.cursor = 'crosshair';
+    surveyGridModalOverlayEl.style.display = 'none';
+    showCustomAlert(translate('alert_surveyDrawingActive', {minPoints: MIN_POLYGON_POINTS}), translate('infoTitle'));
+}
+
+function handleDrawGridAngle() {
+    isDrawingGridAngle = true;
+    angleDrawStartPoint = null;
+
+    if (typeof handleMapClick === 'function') map.off('click', handleMapClick);
+    
+    map.dragging.disable();
+    map.on('mousedown', onAngleDrawStart);
+    
+    map.getContainer().style.cursor = 'crosshair';
+    surveyGridModalOverlayEl.style.display = 'none';
+    showCustomAlert(translate('infoTitle'), translate('alert_drawAngleInstruction'));
+}
+
+function onAngleDrawStart(e) {
+    if (!isDrawingGridAngle) return;
+    angleDrawStartPoint = e.latlng;
+    
+    map.on('mousemove', onAngleDrawMove);
+    map.on('mouseup', onAngleDrawEnd);
+}
+
+function onAngleDrawMove(e) {
+    if (!isDrawingGridAngle || !angleDrawStartPoint) return;
+    
+    if (tempAngleLineLayer) {
+        map.removeLayer(tempAngleLineLayer);
+    }
+    
+    const currentPoint = e.latlng;
+    tempAngleLineLayer = L.polyline([angleDrawStartPoint, currentPoint], {
+        color: '#f39c12',
+        weight: 3,
+        dashArray: '5, 10'
+    }).addTo(map);
+}
+
+function onAngleDrawEnd(e) {
+    if (!isDrawingGridAngle || !angleDrawStartPoint) return;
+    
+    const endPoint = e.latlng;
+    const bearing = calculateBearing(angleDrawStartPoint, endPoint);
+    const angle = Math.round(bearing);
+
+    if (surveyGridAngleInputEl) {
+        surveyGridAngleInputEl.value = angle;
+    }
+
+    isDrawingGridAngle = false;
+    angleDrawStartPoint = null;
+    map.dragging.enable();
+    map.getContainer().style.cursor = '';
+    
+    if (tempAngleLineLayer) {
+        map.removeLayer(tempAngleLineLayer);
+        tempAngleLineLayer = null;
+    }
+    
+    map.off('mousedown', onAngleDrawStart);
+    map.off('mousemove', onAngleDrawMove);
+    map.off('mouseup', onAngleDrawEnd);
+    
+    if (typeof handleMapClick === 'function' && !map.hasEventListeners('click')) {
+        map.on('click', handleMapClick);
+    }
+    
+    if (surveyGridModalOverlayEl) {
+        surveyGridModalOverlayEl.style.display = 'flex';
+    }
+}
+
+function handleSurveyAreaMapClick(e) {
+    if (!isDrawingSurveyArea) return;
+
+    const clickedLatLng = e.latlng;
+    
+    if (currentPolygonPoints.length >= MIN_POLYGON_POINTS && tempVertexMarkers.length > 0) {
+        const firstPointMarker = tempVertexMarkers[0];
+        if (firstPointMarker.getLatLng().distanceTo(clickedLatLng) < 10 * map.getZoomScale(map.getZoom(), 18)) {
+            handleFinalizeSurveyArea();
+            return;
+        }
+    }
+    
+    currentPolygonPoints.push(clickedLatLng);
+
+    const vertexMarker = L.circleMarker(clickedLatLng, { 
+        radius: 6, 
+        color: 'rgba(255,0,0,0.8)', 
+        fillColor: 'rgba(255,0,0,0.5)', 
+        fillOpacity: 0.7, 
+        pane: 'markerPane' 
+    }).addTo(map);
+
+    if (currentPolygonPoints.length === 1) {
+        vertexMarker.on('click', () => {
+             if (isDrawingSurveyArea && currentPolygonPoints.length >= MIN_POLYGON_POINTS) {
+                handleFinalizeSurveyArea();
+            }
+        });
+    }
+
+    tempVertexMarkers.push(vertexMarker);
+    updateTempPolygonDisplay();
+}
+
+function handleFinalizeSurveyArea() {
+    if (!isDrawingSurveyArea) return;
+    
+    map.getContainer().style.cursor = '';
+    isDrawingSurveyArea = false;
+    map.off('click', handleSurveyAreaMapClick);
+    if (typeof handleMapClick === 'function' && !map.hasEventListeners('click')) {
+        map.on('click', handleMapClick);
+    }
+    
+    if (surveyGridModalOverlayEl) {
+        surveyGridModalOverlayEl.style.display = 'flex';
+    }
+    if (finalizeSurveyAreaBtnEl) finalizeSurveyAreaBtnEl.style.display = 'none';
+    if (confirmSurveyGridBtnEl) confirmSurveyGridBtnEl.disabled = false;
+    if (surveyAreaStatusEl) surveyAreaStatusEl.innerHTML = translate('surveyAreaStatusDefined', { points: currentPolygonPoints.length });
+    if (surveyGridInstructionsEl) surveyGridInstructionsEl.innerHTML = translate('surveyGridInstructionsFinalized');
+    
+    if (tempPolygonLayer) {
+        tempPolygonLayer.setStyle({ color: 'rgba(0, 50, 200, 0.9)', fillColor: 'rgba(0, 50, 200, 0.4)' });
+    }
+    tempVertexMarkers.forEach(marker => marker.off('click'));
+}
+
+function handleCancelSurveyGrid() {
+    cancelSurveyAreaDrawing();
+    if (surveyGridModalOverlayEl) surveyGridModalOverlayEl.style.display = 'none';
+}
 
 function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapPercent, frontlapPercent, gridAngleDeg, flightSpeed) {
     const finalWaypointsData = [];
@@ -100,21 +292,23 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     }
 
     const footprint = calculateFootprint(flightAltitudeAGL, FIXED_CAMERA_PARAMS);
-    const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
-    const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
     
     // ======================= INIZIO BLOCCO LOGICA CORRETTO =======================
-    // L'angolo `gridAngleDeg` definisce l'ASSE DI SCANSIONE.
-    // Le linee di volo devono essere PERPENDICOLARI a questo asse.
+    // Se l'utente disegna il LATO CORTO, si aspetta che le linee di volo siano LUNGO IL LATO LUNGO.
+    // L'angolo disegnato (gridAngleDeg) definisce l'asse di scansione.
+    // Le linee di volo devono essere PERPENDICOLARI all'asse di scansione.
     const flightLineDirection = (gridAngleDeg + 90) % 360;
 
     // L'orientamento del drone (HEADING) è PARALLELO alle linee di volo.
     const fixedGridHeading = Math.round(flightLineDirection);
     
-    // L'algoritmo interno crea linee a 90°. Per allinearle con `flightLineDirection`,
+    // Per generare linee di volo PARALLELE a `flightLineDirection`,
     // dobbiamo ruotare il sistema di coordinate di (flightLineDirection - 90).
     const rotationAngleDeg = (flightLineDirection - 90);
     // ======================= FINE BLOCCO LOGICA CORRETTO =======================
+
+    const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
+    const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
     
     const rotationCenter = polygonLatLngs[0];
     const angleRad = toRad(rotationAngleDeg);
@@ -173,7 +367,6 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     }
     return uniqueWaypoints;
 }
-
 
 function handleConfirmSurveyGridGeneration() {
     const altitude = parseInt(surveyGridAltitudeInputEl.value);
