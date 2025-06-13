@@ -258,6 +258,7 @@ function setupEventListeners() {
     if (finalizeSurveyAreaBtnEl) { finalizeSurveyAreaBtnEl.addEventListener('click', handleFinalizeSurveyArea); }
     if (confirmSurveyGridBtnEl) { confirmSurveyGridBtnEl.addEventListener('click', handleConfirmSurveyGridGeneration); }
     if (cancelSurveyGridBtnEl) { cancelSurveyGridBtnEl.addEventListener('click', handleCancelSurveyGrid); }
+    if (drawGridAngleBtnEl) { drawGridAngleBtnEl.addEventListener('click', handleDrawGridAngle); }
     
     // --- Import/Export Buttons ---
     if (importJsonBtn) { importJsonBtn.addEventListener('click', triggerImport); }
