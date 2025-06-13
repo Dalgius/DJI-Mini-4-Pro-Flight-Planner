@@ -292,14 +292,17 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     }
 
     const footprint = calculateFootprint(flightAltitudeAGL, FIXED_CAMERA_PARAMS);
-
-    // Correzione per orientare le linee di volo lungo l'angolo desiderato.
-    // Invertiamo il ruolo di larghezza e altezza del sensore nel calcolo delle spaziature.
-    const actualLineSpacing = footprint.height * (1 - frontlapPercent / 100);
-    const actualDistanceBetweenPhotos = footprint.width * (1 - sidelapPercent / 100);
+    const actualLineSpacing = footprint.width * (1 - sidelapPercent / 100);
+    const actualDistanceBetweenPhotos = footprint.height * (1 - frontlapPercent / 100);
     
-    const rotationAngleDeg = gridAngleDeg;
+    // ======================= INIZIO BLOCCO LOGICA CORRETTO =======================
+    // Per allineare le linee di volo con l'angolo fornito, dobbiamo ruotare il sistema
+    // di coordinate di (angolo + 90) gradi. Questo fa sì che l'asse di scansione
+    // orizzontale del nostro algoritmo, una volta ruotato indietro, corrisponda
+    // esattamente alla direzione desiderata.
+    const rotationAngleDeg = (gridAngleDeg + 90) % 360;
     const fixedGridHeading = Math.round(gridAngleDeg);
+    // ======================= FINE BLOCCO LOGICA CORRETTO =======================
     
     const rotationCenter = polygonLatLngs[0];
     const angleRad = toRad(rotationAngleDeg);
@@ -308,13 +311,12 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     const rNE = rotatedBounds.getNorthEast(); const rSW = rotatedBounds.getSouthWest();
     const earthR = (typeof R_EARTH !== 'undefined') ? R_EARTH : 6371000;
     const lineSpacingRotLat = (actualLineSpacing / earthR) * (180 / Math.PI);
-    const photoSpacingRotLng = (actualDistanceBetweenPhotos / (earthR * Math.cos(toRad(rotationCenter.lat)))) * (180 / Math.PI);
+    const photoSpacingRotLng = (actualDistanceBetweenPhotos / (earthR * Math.cos(toRad(rNE.lat)))) * (180 / Math.PI);
     
     let currentRotLat = rSW.lat;
-    let scanDir = 1; let lines = 0;
+    let scanDir = 1;
 
     while (currentRotLat <= rNE.lat + lineSpacingRotLat * 0.5) {
-        lines++;
         const lineCandRot = [];
         if (scanDir === 1) {
             for (let curRotLng = rSW.lng; curRotLng <= rNE.lng; curRotLng += photoSpacingRotLng) lineCandRot.push(L.latLng(currentRotLat, curRotLng));
