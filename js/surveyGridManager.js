@@ -1,7 +1,7 @@
 // ===================================================================================
 // File: surveyGridManager.js
-// Description: Manages survey grid missions. Relies on waypointManager for manipulation.
-// Version: 5.2 (Refactored to use waypointManager.replaceWaypointSet)
+// Description: Manages the creation, editing, and deletion of survey grid missions.
+// Version: 4.2 (Fixed ReferenceError by restoring all helper functions)
 // ===================================================================================
 
 // --- MODULE CONSTANTS ---
@@ -40,9 +40,8 @@ const surveyState = {
     tempAngleLineLayer: null
 };
 
-
 // ===================================================================================
-//                        GEOMETRY & VALIDATION HELPERS
+//                        GEOMETRY & VALIDATION HELPERS (RESTORED)
 // ===================================================================================
 
 function clearTemporaryDrawing() {
@@ -192,14 +191,22 @@ function generateSurveyGridWaypoints(polygonLatLngs, params) {
     return uniqueWaypoints;
 }
 
-function _updateMissionWaypoints(mission, newWaypointsData) {
-    if (typeof replaceWaypointSet !== 'function') {
-        console.error("waypointManager.replaceWaypointSet is not available. Cannot update mission.");
-        return;
+function _updateMissionWaypoints(mission, waypointsData) {
+    if (mission.waypointIds.length > 0) {
+        const oldWpIds = new Set(mission.waypointIds);
+        waypoints = waypoints.filter(wp => {
+            if (oldWpIds.has(wp.id)) {
+                if (wp.marker) map.removeLayer(wp.marker);
+                return false;
+            }
+            return true;
+        });
     }
-    // Call the master function from waypointManager to handle the complex replacement logic
-    const newIds = replaceWaypointSet(mission.waypointIds, newWaypointsData);
-    mission.waypointIds = newIds;
+    mission.waypointIds = [];
+    waypointsData.forEach(wpData => {
+        addWaypoint(wpData.latlng, wpData.options);
+        mission.waypointIds.push(waypointCounter - 1);
+    });
 }
 
 function _createNewMission(params) {
