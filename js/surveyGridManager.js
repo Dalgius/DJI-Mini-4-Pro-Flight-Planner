@@ -192,7 +192,6 @@ function onAngleDrawEnd(e) {
     
     const endPoint = e.latlng;
     const bearing = calculateBearing(angleDrawStartPoint, endPoint);
-    console.log("calculateBearing - da:", startPoint, "a:", endPoint, "risultato:", bearing);
     const angle = Math.round(bearing);
 
     if (surveyGridAngleInputEl) {
