@@ -297,7 +297,7 @@ function generateSurveyGridWaypoints(polygonLatLngs, flightAltitudeAGL, sidelapP
     // Se l'utente disegna il LATO CORTO, si aspetta che le linee di volo siano LUNGO IL LATO LUNGO.
     // L'angolo disegnato (gridAngleDeg) definisce l'asse di scansione.
     // Le linee di volo devono essere PERPENDICOLARI all'asse di scansione.
-    const flightLineDirection = gridAngleDeg; // Le linee sono perpendicolari all'angolo disegnato
+    const flightLineDirection = (gridAngleDeg + 90); // Le linee sono perpendicolari all'angolo disegnato
     const fixedGridHeading = Math.round((gridAngleDeg + 90) % 360); // Heading è perpendicolare all'angolo
     const rotationAngleDeg = -gridAngleDeg; // Ruotiamo il sistema di coordinate dell'angolo opposto
     // ======================= FINE BLOCCO LOGICA CORRETTO =======================
