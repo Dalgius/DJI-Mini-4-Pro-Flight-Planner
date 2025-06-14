@@ -1,265 +1,128 @@
 // ===================================================================================
 // File: waypointManager.js
-// VersionmapManager.js`
-
-```javascript
-// ===================================================================================
-// File: mapManager.js
-// Version: 7.0 (Centralized marker creation logic)
-// ===================================================================================
-
-/**: 6.2 (Fixed ReferenceError for _createAndBindMarker)
+// Version: 7.0 (Final, Self-Contained and Corrected)
 // ===================================================================================
 
 /**
  * Recalculates the global waypoint counter to be one greater than the highest existing waypoint ID.
- *
- * Initializes the Leaflet map and its basic functionalities.
- */
-function initializeMap() {
-    map = @private
- */
-function _recalculateGlobalWaypointCounter() {
-    waypointCounter = waypoints.length L.map('map', { maxZoom: 22 }).setView([37.7749, -12 > 0 ? Math.max(...waypoints.map(wp => wp.id)) + 1 : 12.4194], 13);
-    defaultTileLayer = L.tileLayer('https://;
-}
-
-/**
- * Creates a new Leaflet marker for a waypoint, binds all necessary events, and assigns it.
-{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors', maxZoom: 22, maxNativeZoom: 19 }).addTo(map);
-    satelliteTileLayer = * This is a new helper function that was previously missing.
  * @private
  */
-function _createAndBindMarker(waypoint) {
-    const isHomeForIcon = waypoints.length > 0 && waypoint.id === way L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Worldpoints[0].id;
-    const marker = L.marker(waypoint.latlng, {
-        _Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles © Esri', maxdraggable: true,
-        icon: createWaypointIcon(waypoint, false, false, isHomeForIcon)Zoom: 22, maxNativeZoom: 21 });
-    map.on('click', handleMapClick);
-    map.on('contextmenu', e => e.originalEvent.preventDefault());
-    console.
-    }).addTo(map);
-
-    marker.on('click', (e) => { 
-        L.DomEvent.stopPropagation(e); 
-        selectWaypoint(waypoint); 
-    });
-    
-    log("[MapManager] Map initialized.");
+function _recalculateGlobalWaypointCounter() {
+    waypointCounter = waypoints.length > 0 ? Math.max(...waypoints.map(wp => wp.id)) + 1 : 1;
 }
 
 /**
- * Handles click events on the map for general actions.
- */marker.on('dragend', () => { 
-        waypoint.latlng = marker.getLatLng();
-function handleMapClick(e) {
-    if (surveyState.isDrawingArea || surveyState.isDrawingAngle) return;
-    if (e.originalEvent.target === map.getContainer() || e.originalEvent
-        updateAllUI(); // A global update is safest after a drag
-    });
-
-    marker.on('drag', () => { 
-        waypoint.latlng = marker.getLatLng();
-        updateFlightPath();.target.classList.contains('leaflet-container')) {
-        if (e.originalEvent.ctrlKey) addPOI(e.latlng);
-        else addWaypoint(e.latlng);
-    }
-}
-
- 
-        if(waypoint.headingControl === 'poi_track' && typeof updateGimbalForPoiTrack === "function"){ 
-             updateGimbalForPoiTrack(waypoint);
-             if(selected/**
- * Creates a new Leaflet marker for a waypoint, binds all necessary events, and assigns it.
- * This is nowWaypoint && selectedWaypoint.id === waypoint.id && gimbalPitchSlider && gimbalPitchValueEl){ 
-                g the single point of truth for creating waypoint markers.
+ * Creates a new Leaflet marker for a waypoint, binds all necessary events, and assigns it to the waypoint object.
  * @param {object} waypoint - The waypoint data object.
  * @private
  */
 function _createAndBindMarker(waypoint) {
-    const isHomeForIcon =imbalPitchSlider.value = waypoint.gimbalPitch;
-                gimbalPitchValueEl.textContent = waypoint.gimbalPitch + '°';
-             }
-        }
-    });
-    
-    // waypoints.length > 0 && waypoint.id === waypoints[0].id;
-    const marker = Add other events like mouseover if desired
-    marker.on('mouseover', function (e) {
-        // L.marker(waypoint.latlng, {
+    const isHomeForIcon = waypoints.length > 0 && waypoint.id === waypoints[0].id;
+    // createWaypointIcon is a global function from mapManager.js
+    const marker = L.marker(waypoint.latlng, {
         draggable: true,
         icon: createWaypointIcon(waypoint, false, false, isHomeForIcon)
     }).addTo(map);
 
-    marker.on('click This logic can be simplified or expanded as needed
-        const popupContent = `<strong>${translate('waypointLabel')} ${waypoint', (e) => { L.DomEvent.stopPropagation(e); selectWaypoint(waypoint); });
-    .id}</strong><br>Lat: ${waypoint.latlng.lat.toFixed(5)}, Lng
+    marker.on('click', (e) => { L.DomEvent.stopPropagation(e); selectWaypoint(waypoint); });
+    
     marker.on('dragend', () => { 
         waypoint.latlng = marker.getLatLng();
-: ${waypoint.latlng.lng.toFixed(5)}`;
-        if (!this.getPopup()) { this.bindPopup(popupContent).openPopup(); } 
-        else { this.setPopupContent(popup        if(typeof updateAllUI === 'function') updateAllUI();
+        // A global UI update is safest after a drag, as it affects distances, times, and path.
+        if(typeof updateAllUI === 'function') updateAllUI();
     });
-
-    waypoint.marker = marker;Content).openPopup(); }
+    
+    marker.on('drag', () => {
+        waypoint.latlng = marker.getLatLng();
+        updateFlightPath();
+        if (waypoint.headingControl === 'poi_track' && typeof updateGimbalForPoiTrack === 'function') {
+            updateGimbalForPoiTrack(waypoint, true); // forceUpdateUI to keep gimbal value fresh
+        }
     });
 
     waypoint.marker = marker;
 }
 
-
 /**
- * Re
-}
-
-
-/**
- * Toggles between default and satellite map views.
- */
-function toggleSatelliteView() {
-    if (!map || !defaultTileLayer || !satelliteTileLayer || !satelliteToggleBtn) return;
--draws all waypoint markers on the map based on the current `waypoints` array.
- * This function is critical after any operation that re-numbers or replaces waypoints.
+ * Re-draws all waypoint markers on the map based on the current `waypoints` array.
+ * This is critical after any operation that re-numbers or replaces waypoints.
  * @private
  */
-function _redrawAllWaypointMarkers()    if (satelliteView) {
-        map.removeLayer(satelliteTileLayer); map.addLayer(defaultTileLayer);
-        satelliteToggleBtn.textContent = '📡 Satellite'; 
-    } else {
-        map. {
-    // First, remove all existing markers from the map to avoid duplicates
+function _redrawAllWaypointMarkers() {
+    // First, remove all existing markers from the map to prevent duplicates.
     waypoints.forEach(wp => {
         if (wp.marker) {
             map.removeLayer(wp.marker);
-        }removeLayer(defaultTileLayer); map.addLayer(satelliteTileLayer);
-        satelliteToggleBtn.textContent = '🗺️ Map'; 
-    }
-    satelliteView = !satelliteView;
-}
-
-/**
- * Fits the
+        }
     });
 
-    // Then, re-create each marker with updated data and events
-    waypoints.forEach(wp => map view to show all waypoints/POIs.
- */
-function fitMapToWaypoints() {
-     _createAndBindMarker(wp));
+    // Then, re-create each marker with updated data and events.
+    waypoints.forEach(wp => _createAndBindMarker(wp));
 }
 
 /**
- * Replaces a set of waypoints with a newif (!map) return;
-    let boundsToFit = null;
-    const allLatLngs = [];
-
- set, renumbering and redrawing everything.
- * This is the master function for mission updates to ensure data integrity.    waypoints.forEach(wp => allLatLngs.push(wp.latlng));
-    pois.forEach(p =>
+ * Replaces a set of waypoints with a new set, renumbering and redrawing everything.
+ * This is the master function for mission updates to ensure data integrity.
  * @param {number[]} idsToDelete - An array of waypoint IDs to remove.
- * @param {object allLatLngs.push(p.latlng));
-
-    if (allLatLngs.length > 0)[]} newWpsData - An array of new waypoint data objects to insert.
- * @returns {number[]} An array of the {
-        boundsToFit = L.latLngBounds(allLatLngs);
-        map.fitBounds( new IDs assigned to the inserted waypoints.
+ * @param {object[]} newWpsData - An array of new waypoint data objects to insert.
+ * @returns {number[]} An array of the new IDs assigned to the inserted waypoints.
  */
-function replaceWaypointSet(idsToDelete, newWpsDataboundsToFit.pad(0.1));
-    } else {
-        map.setView([37.) {
+function replaceWaypointSet(idsToDelete, newWpsData) {
     let insertionIndex = -1;
-    if (idsToDelete && idsToDelete.length > 7749, -122.4194], 13); 
-    }
-0) {
-        insertionIndex = waypoints.findIndex(wp => wp.id === idsToDelete[0]);}
-
-/**
- * Tries to show the user's current location on the map.
- */
-function show
-        const oldWpIds = new Set(idsToDelete);
-        waypoints = waypoints.filter(wp => !oldCurrentLocation() {
-    if (!map || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(WpIds.has(wp.id));
+    if (idsToDelete && idsToDelete.length > 0) {
+        insertionIndex = waypoints.findIndex(wp => wp.id === idsToDelete[0]);
     }
     if (insertionIndex === -1) {
-        (position) => {
-            const latlng = L.latLng(position.coords.latitude, position.coords.longitude);
-            if (userLocationMarker) {
-                userLocationMarker.setLatLng(
         insertionIndex = waypoints.length;
     }
+    
+    // Remove old waypoints from the main array
+    const oldWpIds = new Set(idsToDelete);
+    waypoints = waypoints.filter(wp => !oldWpIds.has(wp.id));
 
+    // Prepare new waypoint objects
     const newWps = newWpsData.map(data => ({
-        latlng: L.latLng(data.latlng.lat, datalatlng);
-            } else {
-                userLocationMarker = L.marker(latlng, { icon: L.div.latlng.lng),
+        latlng: L.latLng(data.latlng.lat, data.latlng.lng),
         ...data.options,
-        marker: null
+        marker: null // Ensure marker is null initially
     }));
 
-    waypoints.spliceIcon({ className: 'user-location-marker', html: '<div style="background:red;border-radius:50(insertionIndex, 0, ...newWps);
+    // Insert new waypoint data into the main array at the correct position
+    waypoints.splice(insertionIndex, 0, ...newWps);
 
+    // Renumber all waypoints sequentially and collect new IDs
     const newWaypointIds = [];
-    waypoints.%;width:16px;height:16px;border:2px solid white;box-shadow:forEach((wp, index) => {
+    waypoints.forEach((wp, index) => {
         const newId = index + 1;
-        wp.id 0 0 5px #333;"></div>', iconSize: [16, 16 = newId;
-        if (index >= insertionIndex && index < insertionIndex + newWps.length)], iconAnchor: [8, 8] }) }).addTo(map);
-            }
-            map.setView {
+        wp.id = newId;
+        if (index >= insertionIndex && index < insertionIndex + newWps.length) {
             newWaypointIds.push(newId);
         }
     });
 
-    _redrawAllWaypointMarkers();(latlng, 15);
-        },
-        (error) => { /* ... error handling ... */
+    // Centralized redrawing and counter update
+    _redrawAllWaypointMarkers();
     _recalculateGlobalWaypointCounter();
     
     return newWaypointIds;
 }
 
-
-async function add }
-    );
-}
-
-/**
- * Creates a Leaflet DivIcon for a waypoint marker.
- */
-function createWaypointWaypoint(latlng, options = {}) { 
-    if (!map || !defaultAltitudeSlider || !gimbalPitchIcon(waypointObject, isSelectedSingle, isMultiSelected = false, isHomePoint = false) {
-    letSlider) return;
+async function addWaypoint(latlng, options = {}) { 
+    if (!map || !defaultAltitudeSlider || !gimbalPitchSlider) return;
     
     const newWaypoint = {
-        id: options.id !== undefined ? options bgColor = '#3498db'; 
-    let iconHtmlContent = String(waypointObject.id); .id : waypointCounter,
-        latlng: L.latLng(latlng.lat, latlng.
-    let borderStyle = '2px solid white';
-    let currentSize = 24; 
-lng),
-        altitude: options.altitude !== undefined ? options.altitude : parseInt(defaultAltitudeSlider.value),    let currentFontSize = 12; 
-
-    if (isHomePoint) {
-        bgColor = '#
+        id: options.id !== undefined ? options.id : waypointCounter,
+        latlng: L.latLng(latlng.lat, latlng.lng),
+        altitude: options.altitude !== undefined ? options.altitude : parseInt(defaultAltitudeSlider.value),
         hoverTime: options.hoverTime !== undefined ? options.hoverTime : 0,
-        gim27ae60'; iconHtmlContent = '🏠'; currentSize = 28; currentFontSize = 16;balPitch: options.gimbalPitch !== undefined ? options.gimbalPitch : parseInt(gimbalPitchSlider.value),
+        gimbalPitch: options.gimbalPitch !== undefined ? options.gimbalPitch : parseInt(gimbalPitchSlider.value),
         headingControl: options.headingControl || 'auto',
-        fixedHeading: options
-    } else if (isSelectedSingle) {
-        bgColor = '#e74c3c'; currentSize = 28; currentFontSize = 14;
-        if (isMultiSelected) borderStyle = '.fixedHeading || 0,
+        fixedHeading: options.fixedHeading || 0,
         cameraAction: options.cameraAction || 'none',
         targetPoiId: options.targetPoiId || null,
-        terrainElevationMSL: options.terrainElevationMSL !==3px solid #f39c12';
-    } else if (isMultiSelected) {
-        bgColor = '#f39c12'; currentSize = 26; borderStyle = '2px solid #ff undefined ? options.terrainElevationMSL : null, 
+        terrainElevationMSL: options.terrainElevationMSL !== undefined ? options.terrainElevationMSL : null, 
         marker: null,
-        waypointType: optionseb3b';
-    }
-    
-    let headingAngleDeg = 0;
-    let arrowColor.waypointType || 'generic' 
+        waypointType: options.waypointType || 'generic' 
     };
     
     if (options.id === undefined) {
@@ -267,156 +130,153 @@ lng),
     }
     
     waypoints.push(newWaypoint);
-    _ = 'transparent'; 
-    const wpIndex = waypoints.findIndex(w => w.id === waypointObjectcreateAndBindMarker(newWaypoint); // Use the helper to create the marker
+    _createAndBindMarker(newWaypoint);
     
-    if (options..id);
-
-    if (waypointObject.headingControl === 'auto') {
-        arrowColor = '#3498db';
-        if (wpIndex < waypoints.length - 1) headingAngleDeg = calculatecalledFromLoad !== true) { 
-        updateAllUI();
+    if (options.calledFromLoad !== true) { 
+        if (typeof updateAllUI === 'function') {
+             updateAllUI();
+        } else {
+             updateWaypointList();
+             updateFlightPath();
+             updateFlightStatistics();
+        }
         if (options.select !== false) {
-             selectWaypoint(newWaypoint); 
+            selectWaypoint(newWaypoint); 
         }
     }
 }
 
 function selectWaypoint(waypoint) {
-Bearing(waypointObject.latlng, waypoints[wpIndex + 1].latlng);
-        else if (wpIndex > 0) headingAngleDeg = calculateBearing(waypoints[wpIndex - 1].latlng, waypoint    if (!waypoint) return;
-    const previouslySelectedSingleId = selectedWaypoint ? selectedWaypoint.id :Object.latlng);
-        else arrowColor = 'transparent';
-    } else if (waypointObject.heading null;
+    if (!waypoint) return;
+    const previouslySelectedSingleId = selectedWaypoint ? selectedWaypoint.id : null;
     if (selectedForMultiEdit.size > 0) clearMultiSelection(); 
-    
-    Control === 'fixed') {
-        headingAngleDeg = waypointObject.fixedHeading;
-        arrowColor = '#selectedWaypoint = waypoint;
-    
-    if (previouslySelectedSingleId && previouslySelectedSingleId !== waypoint.id607d8b';
-    } else if (waypointObject.headingControl === 'poi_track) {
+    selectedWaypoint = waypoint;
+    if (previouslySelectedSingleId && previouslySelectedSingleId !== waypoint.id) {
         const prevWp = waypoints.find(wp => wp.id === previouslySelectedSingleId);
         if (prevWp) updateMarkerIconStyle(prevWp);
     }
-    
-' && waypointObject.targetPoiId != null) {
-        const targetPoi = pois.find(p => p.id === waypointObject.targetPoiId);
-        if (targetPoi) {
-            headingAngleDeg =    updateMarkerIconStyle(selectedWaypoint);
+    updateMarkerIconStyle(selectedWaypoint);
     updateSingleWaypointEditControls(); 
     updateWaypointList();
- calculateBearing(waypointObject.latlng, targetPoi.latlng);
-            arrowColor = '#4CAF50';    if (selectedWaypoint.marker) map.panTo(selectedWaypoint.latlng);
-    updateMultiEdit
-        } else {
-            arrowColor = 'transparent';
-        }
-    } else {
-        arrowPanelVisibility(); 
+    if (selectedWaypoint.marker) map.panTo(selectedWaypoint.latlng);
+    updateMultiEditPanelVisibility(); 
 }
 
 function deleteSelectedWaypoint() {
     if (!selectedWaypoint) return;
     replaceWaypointSet([selectedWaypoint.id], []);
     selectedWaypoint = null;
-    if (waypointControlsColor = 'transparent';
-    }
-    
-    let headingIndicatorSvg = '';
-    if (arrowColor !==Div) waypointControlsDiv.style.display = 'none';
-    updateAllUI();
+    if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
+    if(typeof updateAllUI === 'function') updateAllUI();
 }
 
-function clear 'transparent') {
-        const arrowheadLength = 8, arrowheadWidth = 7, gapFromCircle = Waypoints() {
-    waypoints.forEach(wp => { if (wp.marker) map.removeLayer(2;
-        const arrowBaseY = -(currentSize / 2 + gapFromCircle);
-        const arrowTipY =wp.marker); });
+function clearWaypoints() {
+    waypoints.forEach(wp => { if (wp.marker) map.removeLayer(wp.marker); });
     waypoints = [];
     selectedWaypoint = null;
-    waypointCounter = 1; 
-    actionGroupCounter = 1; 
-    actionCounter = 1;    
-
-     -(currentSize / 2 + gapFromCircle + arrowheadLength);
-        const svgContainerSize = (currentSize / 2 + gapFromCircle + arrowheadLength) * 2;
-        const svgCenterX = svgContainerSize / 2surveyMissions.forEach(mission => { if (mission.polygonLayer) map.removeLayer(mission.polygonLayer);, svgCenterY = svgContainerSize / 2;
-        headingIndicatorSvg = `<svg width="${svgContainer });
+    waypointCounter = 1;
+    actionGroupCounter = 1;
+    actionCounter = 1;
+    surveyMissions.forEach(mission => { if (mission.polygonLayer) map.removeLayer(mission.polygonLayer); });
     surveyMissions = [];
     surveyMissionCounter = 1;
-    if(typeof updateSurveySize}" height="${svgContainerSize}" style="position: absolute; top: 50%; left: 5MissionsList === 'function') updateSurveyMissionsList();
-
-    clearMultiSelection(); 
-    if (0%; transform: translate(-50%, -50%);"><g transform="translate(${svgCenterX}, ${svgCenterYwaypointControlsDiv) waypointControlsDiv.style.display = 'none';
-    
-    if(pois) { pois.forEach(p => { if(p.marker) map.removeLayer(p.marker); }); pois =}) rotate(${headingAngleDeg})"><polygon points="${arrowheadWidth/2},${arrowBaseY} ${-arrowheadWidth []; poiCounter = 1; if(typeof updatePOIList === 'function') updatePOIList(); }
-    
-/2},${arrowBaseY} 0,${arrowTipY}" fill="${arrowColor}"/></g></svg>`;
-    }
-
-    return L.divIcon({
-        className: 'waypoint-marker',
-            lastAltitudeAdaptationMode = 'relative'; 
-    if(typeof updatePathModeDisplay === 'function')html: `<div style="position: relative; width: 100%; height: 100%;">< updatePathModeDisplay();
-    updateAllUI();
+    if (typeof updateSurveyMissionsList === 'function') updateSurveyMissionsList();
+    clearMultiSelection();
+    if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
+    if (pois) { pois.forEach(p => { if (p.marker) map.removeLayer(p.marker); }); pois = []; poiCounter = 1; if (typeof updatePOIList === 'function') updatePOIList(); }
+    lastAltitudeAdaptationMode = 'relative';
+    if (typeof updatePathModeDisplay === 'function') updatePathModeDisplay();
+    if(typeof updateAllUI === 'function') updateAllUI();
 }
 
 function toggleMultiSelectWaypoint(waypointId, isChecked) {
     const waypoint = waypoints.find(wp => wp.id === waypointId);
-div style="background:${bgColor};color:white;border-radius:50%;width:${currentSize}px    if (!waypoint) return;
+    if (!waypoint) return;
     if (isChecked) {
-        selectedForMultiEdit.add(;height:${currentSize}px;display:flex;align-items:center;justify-content:center;waypointId);
+        selectedForMultiEdit.add(waypointId);
         if (selectedWaypoint) {
-            const oldSelectedWpObject = selectedWaypoint;font-size:${currentFontSize}px;font-weight:bold;border:${borderStyle};box-shadow:0  
-            selectedWaypoint = null; 
-            if (waypointControlsDiv) waypointControlsDiv.style.display = 'none'; 
-            updateMarkerIconStyle(oldSelectedWpObject); 
+            const oldSelectedWpObject = selectedWaypoint;
+            selectedWaypoint = null;
+            if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
+            updateMarkerIconStyle(oldSelectedWpObject);
         }
-2px 4px rgba(0,0,0,0.3);position:relative;z-index:10;">${iconHtmlContent}</div>${headingIndicatorSvg}</div>`,
-        iconSize: [currentSize    } else {
+    } else {
         selectedForMultiEdit.delete(waypointId);
     }
-    updateMarker, currentSize], iconAnchor: [currentSize / 2, currentSize / 2],
-    });
-IconStyle(waypoint); 
-    if (selectAllWaypointsCheckboxEl) selectAllWaypointsCheckboxEl.checked = waypoints.length > 0 && waypoints.every(wp => selectedForMultiEdit.has(}
-
-/**
- * Updates the visual style of a single waypoint marker.
- */
-function updateMarkerIconStyle(wp.id));
-    updateWaypointList(); 
-    updateMultiEditPanelVisibility(); 
+    updateMarkerIconStyle(waypoint);
+    if (selectAllWaypointsCheckboxEl) selectAllWaypointsCheckboxEl.checked = waypoints.length > 0 && waypoints.every(wp => selectedForMultiEdit.has(wp.id));
+    updateWaypointList();
+    updateMultiEditPanelVisibility();
 }
 
-functionwaypointObject) {
-    if (waypointObject && waypointObject.marker) {
-        const isSelectedSingle = selected toggleSelectAllWaypoints(isChecked) {
-    if (selectedWaypoint) { 
-        const oldSelectedWWaypoint && selectedWaypoint.id === waypointObject.id;
-        const isMultiSelected = selectedForMultiEdit.pObject = selectedWaypoint;
+function toggleSelectAllWaypoints(isChecked) {
+    if (selectedWaypoint) {
+        const oldSelectedWpObject = selectedWaypoint;
         selectedWaypoint = null;
-        if (waypointControlsDiv) waypointControlshas(waypointObject.id);
-        const isHome = waypoints.length > 0 && waypoints[0].Div.style.display = 'none';
-        updateMarkerIconStyle(oldSelectedWpObject); 
-id === waypointObject.id;
-        waypointObject.marker.setIcon(createWaypointIcon(waypointObject    }
-    selectedForMultiEdit.clear(); 
-    if (isChecked && waypoints.length > , isSelectedSingle, isMultiSelected, isHome));
-        let zOffset = 0;
-        if (is0) {
+        if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
+        updateMarkerIconStyle(oldSelectedWpObject);
+    }
+    selectedForMultiEdit.clear();
+    if (isChecked && waypoints.length > 0) {
         waypoints.forEach(wp => selectedForMultiEdit.add(wp.id));
-    Home) zOffset = 1500; 
-        else if (isSelectedSingle) zOffset = }
-    waypoints.forEach(wp => updateMarkerIconStyle(wp)); 
-    updateWaypointList(); 1000;
-        else if (isMultiSelected) zOffset = 500;
-        
-    updateMultiEditPanelVisibility(); 
+    }
+    waypoints.forEach(wp => updateMarkerIconStyle(wp));
+    updateWaypointList();
+    updateMultiEditPanelVisibility();
 }
 
 function clearMultiSelection() {
-    const previouslyMultiSelectedwaypointObject.marker.setZIndexOffset(zOffset);
+    const previouslyMultiSelectedIds = new Set(selectedForMultiEdit);
+    selectedForMultiEdit.clear();
+    if (selectAllWaypointsCheckboxEl) selectAllWaypointsCheckboxEl.checked = false;
+    previouslyMultiSelectedIds.forEach(id => {
+        const waypoint = waypoints.find(wp => wp.id === id);
+        if (waypoint) updateMarkerIconStyle(waypoint);
+    });
+    updateWaypointList();
+    updateMultiEditPanelVisibility();
+}
+
+function updateGimbalForPoiTrack(waypoint, forceUpdateUI = false) {
+    if (!waypoint || waypoint.headingControl !== 'poi_track' || waypoint.targetPoiId === null) return;
+    const targetPoi = pois.find(p => p.id === waypoint.targetPoiId);
+    if (!targetPoi) return;
+    const homeElevation = parseFloat(homeElevationMslInput.value) || 0;
+    const waypointAMSL = homeElevation + waypoint.altitude;
+    const poiAMSL = targetPoi.altitude;
+    const horizontalDistance = haversineDistance(waypoint.latlng, targetPoi.latlng);
+    const requiredPitch = calculateRequiredGimbalPitch(waypointAMSL, poiAMSL, horizontalDistance);
+    if (waypoint.gimbalPitch !== requiredPitch) {
+        waypoint.gimbalPitch = requiredPitch;
+        if (selectedWaypoint && selectedWaypoint.id === waypoint.id && (waypointControlsDiv.style.display === 'block' || forceUpdateUI)) {
+            if (gimbalPitchSlider) gimbalPitchSlider.value = waypoint.gimbalPitch;
+            if (gimbalPitchValueEl) gimbalPitchValueEl.textContent = waypoint.gimbalPitch + '°';
+        }
     }
+}
+
+function applyMultiEdit() {
+    // This function remains unchanged as its logic is self-contained.
+    if (selectedForMultiEdit.size === 0) return;
+    const newHeadingControl = multiHeadingControlSelect.value;
+    const newFixedHeading = parseInt(multiFixedHeadingSlider.value);
+    const newCameraAction = multiCameraActionSelect.value;
+    const changeGimbal = multiChangeGimbalPitchCheckbox.checked;
+    const newGimbalPitch = parseInt(multiGimbalPitchSlider.value);
+    const changeHover = multiChangeHoverTimeCheckbox.checked;
+    const newHoverTime = parseInt(multiHoverTimeSlider.value);
+    let changesMade = false;
+    waypoints.forEach(wp => {
+        if (selectedForMultiEdit.has(wp.id)) {
+            let wpChanged = false;
+            if (newHeadingControl) { wp.headingControl = newHeadingControl; wp.targetPoiId = (newHeadingControl === 'poi_track' && multiTargetPoiSelect.value) ? parseInt(multiTargetPoiSelect.value) : null; wp.fixedHeading = (newHeadingControl === 'fixed') ? newFixedHeading : 0; wpChanged = true; }
+            if (newCameraAction) { wp.cameraAction = newCameraAction; wpChanged = true; }
+            if (changeGimbal) { wp.gimbalPitch = newGimbalPitch; wpChanged = true; }
+            if (changeHover) { wp.hoverTime = newHoverTime; wpChanged = true; }
+            if (wpChanged) { changesMade = true; if (wp.headingControl === 'poi_track') updateGimbalForPoiTrack(wp); updateMarkerIconStyle(wp); }
+        }
+    });
+    if (changesMade) { updateWaypointList(); updateFlightStatistics(); }
+    multiHeadingControlSelect.value = ""; multiCameraActionSelect.value = ""; multiChangeGimbalPitchCheckbox.checked = false; multiGimbalPitchSlider.disabled = true; multiChangeHoverTimeCheckbox.checked = false; multiHoverTimeSlider.disabled = true;
+    clearMultiSelection();
 }
