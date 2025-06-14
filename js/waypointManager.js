@@ -5,44 +5,34 @@
 
 /**
  * Recalculates all waypoint IDs to be sequential (1, 2, 3...).
- * Also updates the global counter.
+ * This is crucial after any insertion or deletion to maintain data integrity.
  * @private
  */
 function _renumberAllWaypoints() {
     waypoints.forEach((wp, index) => {
         wp.id = index + 1;
     });
-    _recalculateGlobalWaypointCounter();
+    // After renumbering, update the global counter to be ready for the next new waypoint.
+    waypointCounter = waypoints.length + 1;
 }
 
 /**
- * Deletes a set of waypoints by their IDs and renumbers the rest.
- * @param {Set<number>} idsToDelete - A Set of waypoint IDs to delete.
+ * Deletes a set of waypoints by their IDs from the global array and map.
+ * @param {Set<number>} idsToDelete - A Set containing the waypoint IDs to be deleted.
  * @private
  */
 function _deleteWaypointsByIds(idsToDelete) {
     if (!idsToDelete || idsToDelete.size === 0) return;
 
-    // Remove markers from the map first
+    // Remove markers from the map first to avoid artifacts
     waypoints.forEach(wp => {
         if (idsToDelete.has(wp.id) && wp.marker) {
             map.removeLayer(wp.marker);
         }
     });
 
-    // Filter out the waypoints from the main array
+    // Filter out the waypoints from the main data array
     waypoints = waypoints.filter(wp => !idsToDelete.has(wp.id));
-
-    // Renumber all remaining waypoints to maintain a clean sequence
-    _renumberAllWaypoints();
-}
-
-/**
- * Recalculates the global waypoint counter to be one greater than the highest existing waypoint ID.
- * @private
- */
-function _recalculateGlobalWaypointCounter() {
-    waypointCounter = waypoints.length > 0 ? Math.max(0, ...waypoints.map(wp => wp.id)) + 1 : 1;
 }
 
 /**
@@ -52,6 +42,7 @@ function _recalculateGlobalWaypointCounter() {
  */
 function _createAndBindMarker(waypoint) {
     const isHomeForIcon = waypoints.length > 0 && waypoint.id === waypoints[0].id;
+    // createWaypointIcon is a global function from mapManager.js
     const marker = L.marker(waypoint.latlng, {
         draggable: true,
         icon: createWaypointIcon(waypoint, false, false, isHomeForIcon)
@@ -75,12 +66,17 @@ function _createAndBindMarker(waypoint) {
     waypoint.marker = marker;
 }
 
-
+/**
+ * Adds a new waypoint to the flight plan. Can insert at a specific index.
+ * @param {L.LatLng} latlng - The coordinates for the new waypoint.
+ * @param {object} [options={}] - Optional parameters for the waypoint.
+ * @param {number} [options.insertionIndex] - If provided, inserts the waypoint at this index.
+ */
 async function addWaypoint(latlng, options = {}) { 
     if (!map || !defaultAltitudeSlider || !gimbalPitchSlider) return;
     
     const newWaypoint = {
-        id: waypointCounter, // Always use the global counter for new waypoints
+        id: waypointCounter, // Use the current counter value
         latlng: L.latLng(latlng.lat, latlng.lng),
         altitude: options.altitude !== undefined ? options.altitude : parseInt(defaultAltitudeSlider.value),
         hoverTime: options.hoverTime !== undefined ? options.hoverTime : 0,
@@ -96,21 +92,18 @@ async function addWaypoint(latlng, options = {}) {
     
     waypointCounter++;
 
-    // Insert the waypoint at a specific index if provided (for survey grid updates)
-    if (options.insertionIndex !== undefined && options.insertionIndex < waypoints.length) {
+    // Insert the waypoint at a specific index or push to the end
+    if (options.insertionIndex !== undefined && options.insertionIndex <= waypoints.length) {
         waypoints.splice(options.insertionIndex, 0, newWaypoint);
-        _renumberAllWaypoints(); // Renumber everything after insertion
-        // Redraw all markers because IDs have changed
-        waypoints.forEach(wp => {
-            if (wp.marker) map.removeLayer(wp.marker);
-            _createAndBindMarker(wp);
-        });
     } else {
         waypoints.push(newWaypoint);
-        _createAndBindMarker(newWaypoint);
     }
     
-    if (options.calledFromLoad !== true) { 
+    // Create the visual marker for the new waypoint
+    _createAndBindMarker(newWaypoint);
+    
+    // Update UI only if not part of a larger batch operation
+    if (options.calledFromLoad !== true && options.batch === undefined) { 
         if (typeof updateAllUI === 'function') updateAllUI();
         if (options.select !== false) selectWaypoint(newWaypoint); 
     }
@@ -157,8 +150,9 @@ function clearWaypoints() {
     if(typeof updateAllUI === 'function') updateAllUI();
 }
 
+// Unchanged helper functions
 function toggleMultiSelectWaypoint(waypointId, isChecked) { const waypoint = waypoints.find(wp => wp.id === waypointId); if (!waypoint) return; if (isChecked) { selectedForMultiEdit.add(waypointId); if (selectedWaypoint) { const oldSelectedWpObject = selectedWaypoint; selectedWaypoint = null; if (waypointControlsDiv) waypointControlsDiv.style.display = 'none'; updateMarkerIconStyle(oldSelectedWpObject); } } else { selectedForMultiEdit.delete(waypointId); } updateMarkerIconStyle(waypoint); if (selectAllWaypointsCheckboxEl) selectAllWaypointsCheckboxEl.checked = waypoints.length > 0 && waypoints.every(wp => selectedForMultiEdit.has(wp.id)); updateWaypointList(); updateMultiEditPanelVisibility(); }
 function toggleSelectAllWaypoints(isChecked) { if (selectedWaypoint) { const oldSelectedWpObject = selectedWaypoint; selectedWaypoint = null; if (waypointControlsDiv) waypointControlsDiv.style.display = 'none'; updateMarkerIconStyle(oldSelectedWpObject); } selectedForMultiEdit.clear(); if (isChecked && waypoints.length > 0) { waypoints.forEach(wp => selectedForMultiEdit.add(wp.id)); } waypoints.forEach(wp => updateMarkerIconStyle(wp)); updateWaypointList(); updateMultiEditPanelVisibility(); }
 function clearMultiSelection() { const previouslyMultiSelectedIds = new Set(selectedForMultiEdit); selectedForMultiEdit.clear(); if (selectAllWaypointsCheckboxEl) selectAllWaypointsCheckboxEl.checked = false; previouslyMultiSelectedIds.forEach(id => { const waypoint = waypoints.find(wp => wp.id === id); if (waypoint) updateMarkerIconStyle(waypoint); }); updateWaypointList(); updateMultiEditPanelVisibility(); }
 function updateGimbalForPoiTrack(waypoint, forceUpdateUI = false) { if (!waypoint || waypoint.headingControl !== 'poi_track' || waypoint.targetPoiId === null) return; const targetPoi = pois.find(p => p.id === waypoint.targetPoiId); if (!targetPoi) return; const homeElevation = parseFloat(homeElevationMslInput.value) || 0; const waypointAMSL = homeElevation + waypoint.altitude; const poiAMSL = targetPoi.altitude; const horizontalDistance = haversineDistance(waypoint.latlng, targetPoi.latlng); const requiredPitch = calculateRequiredGimbalPitch(waypointAMSL, poiAMSL, horizontalDistance); if (waypoint.gimbalPitch !== requiredPitch) { waypoint.gimbalPitch = requiredPitch; if (selectedWaypoint && selectedWaypoint.id === waypoint.id && (waypointControlsDiv.style.display === 'block' || forceUpdateUI)) { if (gimbalPitchSlider) gimbalPitchSlider.value = waypoint.gimbalPitch; if (gimbalPitchValueEl) gimbalPitchValueEl.textContent = waypoint.gimbalPitch + '°'; } } }
-function applyMultiEdit() { /* ... unchanged ... */ }
+function applyMultiEdit() { if (selectedForMultiEdit.size === 0) return; const newHeadingControl = multiHeadingControlSelect.value; const newFixedHeading = parseInt(multiFixedHeadingSlider.value); const newCameraAction = multiCameraActionSelect.value; const changeGimbal = multiChangeGimbalPitchCheckbox.checked; const newGimbalPitch = parseInt(multiGimbalPitchSlider.value); const changeHover = multiChangeHoverTimeCheckbox.checked; const newHoverTime = parseInt(multiHoverTimeSlider.value); let changesMade = false; waypoints.forEach(wp => { if (selectedForMultiEdit.has(wp.id)) { let wpChanged = false; if (newHeadingControl) { wp.headingControl = newHeadingControl; wp.targetPoiId = (newHeadingControl === 'poi_track' && multiTargetPoiSelect.value) ? parseInt(multiTargetPoiSelect.value) : null; wp.fixedHeading = (newHeadingControl === 'fixed') ? newFixedHeading : 0; wpChanged = true; } if (newCameraAction) { wp.cameraAction = newCameraAction; wpChanged = true; } if (changeGimbal) { wp.gimbalPitch = newGimbalPitch; wpChanged = true; } if (changeHover) { wp.hoverTime = newHoverTime; wpChanged = true; } if (wpChanged) { changesMade = true; if (wp.headingControl === 'poi_track') updateGimbalForPoiTrack(wp); updateMarkerIconStyle(wp); } } }); if (changesMade) { updateWaypointList(); updateFlightStatistics(); } multiHeadingControlSelect.value = ""; multiCameraActionSelect.value = ""; multiChangeGimbalPitchCheckbox.checked = false; multiGimbalPitchSlider.disabled = true; multiChangeHoverTimeCheckbox.checked = false; multiHoverTimeSlider.disabled = true; clearMultiSelection(); }
