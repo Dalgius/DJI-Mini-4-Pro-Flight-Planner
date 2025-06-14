@@ -1,11 +1,11 @@
 // ===================================================================================
 // File: waypointManager.js
-// Version: 8.0 (Final, robust, and simplified logic for all waypoint operations)
+// Version: 8.1 (Final, Self-Contained and Corrected)
 // ===================================================================================
 
 /**
  * Recalculates all waypoint IDs to be sequential (1, 2, 3...).
- * This is crucial after any insertion or deletion to maintain data integrity.
+ * Also updates the global counter.
  * @private
  */
 function _renumberAllWaypoints() {
@@ -76,7 +76,7 @@ async function addWaypoint(latlng, options = {}) {
     if (!map || !defaultAltitudeSlider || !gimbalPitchSlider) return;
     
     const newWaypoint = {
-        id: waypointCounter, // Use the current counter value
+        id: waypointCounter, // Always use the global counter for new waypoints
         latlng: L.latLng(latlng.lat, latlng.lng),
         altitude: options.altitude !== undefined ? options.altitude : parseInt(defaultAltitudeSlider.value),
         hoverTime: options.hoverTime !== undefined ? options.hoverTime : 0,
@@ -128,6 +128,8 @@ function selectWaypoint(waypoint) {
 function deleteSelectedWaypoint() {
     if (!selectedWaypoint) return;
     _deleteWaypointsByIds(new Set([selectedWaypoint.id]));
+    _renumberAllWaypoints();
+    waypoints.forEach(wp => _createAndBindMarker(wp));
     selectedWaypoint = null;
     if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
     if(typeof updateAllUI === 'function') updateAllUI();
@@ -150,9 +152,98 @@ function clearWaypoints() {
     if(typeof updateAllUI === 'function') updateAllUI();
 }
 
-// Unchanged helper functions
-function toggleMultiSelectWaypoint(waypointId, isChecked) { const waypoint = waypoints.find(wp => wp.id === waypointId); if (!waypoint) return; if (isChecked) { selectedForMultiEdit.add(waypointId); if (selectedWaypoint) { const oldSelectedWpObject = selectedWaypoint; selectedWaypoint = null; if (waypointControlsDiv) waypointControlsDiv.style.display = 'none'; updateMarkerIconStyle(oldSelectedWpObject); } } else { selectedForMultiEdit.delete(waypointId); } updateMarkerIconStyle(waypoint); if (selectAllWaypointsCheckboxEl) selectAllWaypointsCheckboxEl.checked = waypoints.length > 0 && waypoints.every(wp => selectedForMultiEdit.has(wp.id)); updateWaypointList(); updateMultiEditPanelVisibility(); }
-function toggleSelectAllWaypoints(isChecked) { if (selectedWaypoint) { const oldSelectedWpObject = selectedWaypoint; selectedWaypoint = null; if (waypointControlsDiv) waypointControlsDiv.style.display = 'none'; updateMarkerIconStyle(oldSelectedWpObject); } selectedForMultiEdit.clear(); if (isChecked && waypoints.length > 0) { waypoints.forEach(wp => selectedForMultiEdit.add(wp.id)); } waypoints.forEach(wp => updateMarkerIconStyle(wp)); updateWaypointList(); updateMultiEditPanelVisibility(); }
-function clearMultiSelection() { const previouslyMultiSelectedIds = new Set(selectedForMultiEdit); selectedForMultiEdit.clear(); if (selectAllWaypointsCheckboxEl) selectAllWaypointsCheckboxEl.checked = false; previouslyMultiSelectedIds.forEach(id => { const waypoint = waypoints.find(wp => wp.id === id); if (waypoint) updateMarkerIconStyle(waypoint); }); updateWaypointList(); updateMultiEditPanelVisibility(); }
-function updateGimbalForPoiTrack(waypoint, forceUpdateUI = false) { if (!waypoint || waypoint.headingControl !== 'poi_track' || waypoint.targetPoiId === null) return; const targetPoi = pois.find(p => p.id === waypoint.targetPoiId); if (!targetPoi) return; const homeElevation = parseFloat(homeElevationMslInput.value) || 0; const waypointAMSL = homeElevation + waypoint.altitude; const poiAMSL = targetPoi.altitude; const horizontalDistance = haversineDistance(waypoint.latlng, targetPoi.latlng); const requiredPitch = calculateRequiredGimbalPitch(waypointAMSL, poiAMSL, horizontalDistance); if (waypoint.gimbalPitch !== requiredPitch) { waypoint.gimbalPitch = requiredPitch; if (selectedWaypoint && selectedWaypoint.id === waypoint.id && (waypointControlsDiv.style.display === 'block' || forceUpdateUI)) { if (gimbalPitchSlider) gimbalPitchSlider.value = waypoint.gimbalPitch; if (gimbalPitchValueEl) gimbalPitchValueEl.textContent = waypoint.gimbalPitch + '°'; } } }
-function applyMultiEdit() { if (selectedForMultiEdit.size === 0) return; const newHeadingControl = multiHeadingControlSelect.value; const newFixedHeading = parseInt(multiFixedHeadingSlider.value); const newCameraAction = multiCameraActionSelect.value; const changeGimbal = multiChangeGimbalPitchCheckbox.checked; const newGimbalPitch = parseInt(multiGimbalPitchSlider.value); const changeHover = multiChangeHoverTimeCheckbox.checked; const newHoverTime = parseInt(multiHoverTimeSlider.value); let changesMade = false; waypoints.forEach(wp => { if (selectedForMultiEdit.has(wp.id)) { let wpChanged = false; if (newHeadingControl) { wp.headingControl = newHeadingControl; wp.targetPoiId = (newHeadingControl === 'poi_track' && multiTargetPoiSelect.value) ? parseInt(multiTargetPoiSelect.value) : null; wp.fixedHeading = (newHeadingControl === 'fixed') ? newFixedHeading : 0; wpChanged = true; } if (newCameraAction) { wp.cameraAction = newCameraAction; wpChanged = true; } if (changeGimbal) { wp.gimbalPitch = newGimbalPitch; wpChanged = true; } if (changeHover) { wp.hoverTime = newHoverTime; wpChanged = true; } if (wpChanged) { changesMade = true; if (wp.headingControl === 'poi_track') updateGimbalForPoiTrack(wp); updateMarkerIconStyle(wp); } } }); if (changesMade) { updateWaypointList(); updateFlightStatistics(); } multiHeadingControlSelect.value = ""; multiCameraActionSelect.value = ""; multiChangeGimbalPitchCheckbox.checked = false; multiGimbalPitchSlider.disabled = true; multiChangeHoverTimeCheckbox.checked = false; multiHoverTimeSlider.disabled = true; clearMultiSelection(); }
+function toggleMultiSelectWaypoint(waypointId, isChecked) {
+    const waypoint = waypoints.find(wp => wp.id === waypointId);
+    if (!waypoint) return;
+    if (isChecked) {
+        selectedForMultiEdit.add(waypointId);
+        if (selectedWaypoint) {
+            const oldSelectedWpObject = selectedWaypoint;
+            selectedWaypoint = null;
+            if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
+            updateMarkerIconStyle(oldSelectedWpObject);
+        }
+    } else {
+        selectedForMultiEdit.delete(waypointId);
+    }
+    updateMarkerIconStyle(waypoint);
+    if (selectAllWaypointsCheckboxEl) selectAllWaypointsCheckboxEl.checked = waypoints.length > 0 && waypoints.every(wp => selectedForMultiEdit.has(wp.id));
+    updateWaypointList();
+    updateMultiEditPanelVisibility();
+}
+
+function toggleSelectAllWaypoints(isChecked) {
+    if (selectedWaypoint) {
+        const oldSelectedWpObject = selectedWaypoint;
+        selectedWaypoint = null;
+        if (waypointControlsDiv) waypointControlsDiv.style.display = 'none';
+        updateMarkerIconStyle(oldSelectedWpObject);
+    }
+    selectedForMultiEdit.clear();
+    if (isChecked && waypoints.length > 0) {
+        waypoints.forEach(wp => selectedForMultiEdit.add(wp.id));
+    }
+    waypoints.forEach(wp => updateMarkerIconStyle(wp));
+    updateWaypointList();
+    updateMultiEditPanelVisibility();
+}
+
+function clearMultiSelection() {
+    const previouslyMultiSelectedIds = new Set(selectedForMultiEdit);
+    selectedForMultiEdit.clear();
+    if (selectAllWaypointsCheckboxEl) selectAllWaypointsCheckboxEl.checked = false;
+    previouslyMultiSelectedIds.forEach(id => {
+        const waypoint = waypoints.find(wp => wp.id === id);
+        if (waypoint) updateMarkerIconStyle(waypoint);
+    });
+    updateWaypointList();
+    updateMultiEditPanelVisibility();
+}
+
+function updateGimbalForPoiTrack(waypoint, forceUpdateUI = false) {
+    if (!waypoint || waypoint.headingControl !== 'poi_track' || waypoint.targetPoiId === null) return;
+    const targetPoi = pois.find(p => p.id === waypoint.targetPoiId);
+    if (!targetPoi) return;
+    const homeElevation = parseFloat(homeElevationMslInput.value) || 0;
+    const waypointAMSL = homeElevation + waypoint.altitude;
+    const poiAMSL = targetPoi.altitude;
+    const horizontalDistance = haversineDistance(waypoint.latlng, targetPoi.latlng);
+    const requiredPitch = calculateRequiredGimbalPitch(waypointAMSL, poiAMSL, horizontalDistance);
+    if (waypoint.gimbalPitch !== requiredPitch) {
+        waypoint.gimbalPitch = requiredPitch;
+        if (selectedWaypoint && selectedWaypoint.id === waypoint.id && (waypointControlsDiv.style.display === 'block' || forceUpdateUI)) {
+            if (gimbalPitchSlider) gimbalPitchSlider.value = waypoint.gimbalPitch;
+            if (gimbalPitchValueEl) gimbalPitchValueEl.textContent = waypoint.gimbalPitch + '°';
+        }
+    }
+}
+
+function applyMultiEdit() {
+    if (selectedForMultiEdit.size === 0) return;
+    const newHeadingControl = multiHeadingControlSelect.value;
+    const newFixedHeading = parseInt(multiFixedHeadingSlider.value);
+    const newCameraAction = multiCameraActionSelect.value;
+    const changeGimbal = multiChangeGimbalPitchCheckbox.checked;
+    const newGimbalPitch = parseInt(multiGimbalPitchSlider.value);
+    const changeHover = multiChangeHoverTimeCheckbox.checked;
+    const newHoverTime = parseInt(multiHoverTimeSlider.value);
+    let changesMade = false;
+    waypoints.forEach(wp => {
+        if (selectedForMultiEdit.has(wp.id)) {
+            let wpChanged = false;
+            if (newHeadingControl) { wp.headingControl = newHeadingControl; wp.targetPoiId = (newHeadingControl === 'poi_track' && multiTargetPoiSelect.value) ? parseInt(multiTargetPoiSelect.value) : null; wp.fixedHeading = (newHeadingControl === 'fixed') ? newFixedHeading : 0; wpChanged = true; }
+            if (newCameraAction) { wp.cameraAction = newCameraAction; wpChanged = true; }
+            if (changeGimbal) { wp.gimbalPitch = newGimbalPitch; wpChanged = true; }
+            if (changeHover) { wp.hoverTime = newHoverTime; wpChanged = true; }
+            if (wpChanged) { changesMade = true; if (wp.headingControl === 'poi_track') updateGimbalForPoiTrack(wp); updateMarkerIconStyle(wp); }
+        }
+    });
+    if (changesMade) { updateWaypointList(); updateFlightStatistics(); }
+    multiHeadingControlSelect.value = "";
+    multiCameraActionSelect.value = "";
+    multiChangeGimbalPitchCheckbox.checked = false;
+    multiGimbalPitchSlider.disabled = true;
+    multiChangeHoverTimeCheckbox.checked = false;
+    multiHoverTimeSlider.disabled = true;
+    clearMultiSelection();
+}
