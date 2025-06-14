@@ -1,0 +1,144 @@
+// File: domCache.js
+
+// Depends on: config.js (for variable declarations)
+// Depends on: i18n.js (per la funzione translate all'inizializzazione)
+
+let initialApplyMultiEditBtnReference = null; 
+
+function cacheDOMElements() {
+    // Sidebar Controls - Flight Settings
+    defaultAltitudeSlider = document.getElementById('defaultAltitude');
+    defaultAltitudeValueEl = document.getElementById('defaultAltitudeValue');
+    flightSpeedSlider = document.getElementById('flightSpeed');
+    flightSpeedValueEl = document.getElementById('flightSpeedValue');
+    pathTypeSelect = document.getElementById('pathType');
+
+    // Sidebar Controls - Waypoint Specific
+    waypointControlsDiv = document.getElementById('waypointControls');
+    waypointAltitudeSlider = document.getElementById('waypointAltitude');
+    waypointAltitudeValueEl = document.getElementById('waypointAltitudeValue');
+    hoverTimeSlider = document.getElementById('hoverTime');
+    hoverTimeValueEl = document.getElementById('hoverTimeValue');
+    gimbalPitchSlider = document.getElementById('gimbalPitch');
+    gimbalPitchValueEl = document.getElementById('gimbalPitchValue');
+    fixedHeadingSlider = document.getElementById('fixedHeading');
+    fixedHeadingValueEl = document.getElementById('fixedHeadingValue');
+    headingControlSelect = document.getElementById('headingControl');
+    fixedHeadingGroupDiv = document.getElementById('fixedHeadingGroup');
+    targetPoiForHeadingGroupDiv = document.getElementById('targetPoiForHeadingGroup');
+    targetPoiSelect = document.getElementById('targetPoiSelect');
+    cameraActionSelect = document.getElementById('cameraActionSelect');
+    deleteSelectedWaypointBtn = document.getElementById('deleteSelectedWaypointBtn');
+
+    // Sidebar Controls - POI
+    poiNameInput = document.getElementById('poiName');
+    poiObjectHeightInputEl = document.getElementById('poiObjectHeight');
+    poiTerrainElevationInputEl = document.getElementById('poiTerrainElevation');
+    poiFinalAltitudeDisplayEl = document.getElementById('poiFinalAltitudeDisplay');
+    refetchPoiTerrainBtnEl = document.getElementById('refetchPoiTerrainBtn');
+    
+    // Language selector
+    langSelect = document.getElementById('langSelect');
+
+    // Sidebar Display - Lists
+    waypointListEl = document.getElementById('waypointList');
+    poiListEl = document.getElementById('poiList');
+    surveyMissionsListEl = document.getElementById('surveyMissionsList'); // <-- NUOVO
+
+    // Sidebar Display - Flight Statistics
+    totalDistanceEl = document.getElementById('totalDistance');
+    flightTimeEl = document.getElementById('flightTime');
+    waypointCountEl = document.getElementById('waypointCount');
+    poiCountEl = document.getElementById('poiCount');
+
+    // Sidebar Controls - Multi-Waypoint Edit
+    multiWaypointEditControlsDiv = document.getElementById('multiWaypointEditControls');
+    selectAllWaypointsCheckboxEl = document.getElementById('selectAllWaypointsCheckbox');
+    multiHeadingControlSelect = document.getElementById('multiHeadingControl');
+    multiFixedHeadingGroupDiv = document.getElementById('multiFixedHeadingGroup');
+    multiTargetPoiForHeadingGroupDiv = document.getElementById('multiTargetPoiForHeadingGroup');
+    multiTargetPoiSelect = document.getElementById('multiTargetPoiSelect');
+    multiFixedHeadingSlider = document.getElementById('multiFixedHeading');
+    multiFixedHeadingValueEl = document.getElementById('multiFixedHeadingValue');
+    multiCameraActionSelect = document.getElementById('multiCameraActionSelect');
+    multiChangeGimbalPitchCheckbox = document.getElementById('multiChangeGimbalPitchCheckbox');
+    multiGimbalPitchSlider = document.getElementById('multiGimbalPitch');
+    multiGimbalPitchValueEl = document.getElementById('multiGimbalPitchValue');
+    multiChangeHoverTimeCheckbox = document.getElementById('multiChangeHoverTimeCheckbox');
+    multiHoverTimeSlider = document.getElementById('multiHoverTime');
+    multiHoverTimeValueEl = document.getElementById('multiHoverTimeValue');
+    
+    applyMultiEditBtn = document.getElementById('applyMultiEditBtn');
+    initialApplyMultiEditBtnReference = applyMultiEditBtn; 
+    
+    clearMultiSelectionBtn = document.getElementById('clearMultiSelectionBtn');
+
+    // Sidebar Controls - Terrain & Orbit Tools
+    homeElevationMslInput = document.getElementById('homeElevationMsl');
+    desiredAGLInput = document.getElementById('desiredAGL');
+    adaptToAGLBtnEl = document.getElementById('adaptToAGLBtn');
+    desiredAMSLInputEl = document.getElementById('desiredAMSL'); 
+    adaptToAMSLBtnEl = document.getElementById('adaptToAMSLBtn');   
+    getHomeElevationBtn = document.getElementById('getHomeElevationBtn');
+    createOrbitBtn = document.getElementById('createOrbitBtn');
+    currentPathModeInfoEl = document.getElementById('currentPathModeInfo'); 
+    currentPathModeValueEl = document.getElementById('currentPathModeValue'); 
+
+    // Sidebar Controls - Import/Export
+    importJsonBtn = document.getElementById('importJsonBtn');
+    exportJsonBtn = document.getElementById('exportJsonBtn');
+    exportKmzBtn = document.getElementById('exportKmzBtn');
+    exportGoogleEarthBtn = document.getElementById('exportGoogleEarthBtn');
+    fileInputEl = document.getElementById('fileInput');
+
+    // Survey Grid Button and Modal Elements
+    createSurveyGridBtn = document.getElementById('createSurveyGridBtn');
+    surveyGridModalOverlayEl = document.getElementById('surveyGridModalOverlay');
+    surveyGridModalTitleEl = document.getElementById('surveyGridModalTitle'); 
+    surveyGridInstructionsEl = document.getElementById('surveyGridInstructions');
+    surveyGridAltitudeInputEl = document.getElementById('surveyGridAltitudeInput');
+    surveySidelapInputEl = document.getElementById('surveySidelapInput'); 
+    surveyFrontlapInputEl = document.getElementById('surveyFrontlapInput'); 
+    surveyGridAngleInputEl = document.getElementById('surveyGridAngleInput');
+    surveyAreaStatusEl = document.getElementById('surveyAreaStatus');
+    startDrawingSurveyAreaBtnEl = document.getElementById('startDrawingSurveyAreaBtn');
+    finalizeSurveyAreaBtnEl = document.getElementById('finalizeSurveyAreaBtn');
+    confirmSurveyGridBtnEl = document.getElementById('confirmSurveyGridBtn');
+    cancelSurveyGridBtnEl = document.getElementById('cancelSurveyGridBtn');
+    drawGridAngleBtnEl = document.getElementById('drawGridAngleBtn');
+
+    // Map Control Buttons
+    satelliteToggleBtn = document.getElementById('satelliteToggleBtn');
+    fitMapBtn = document.getElementById('fitMapBtn');
+    myLocationBtn = document.getElementById('myLocationBtn');
+
+    // General Action Buttons
+    clearWaypointsBtn = document.getElementById('clearWaypointsBtn');
+
+    // Modal & Overlay Elements
+    loadingOverlayEl = document.getElementById('loadingOverlay');
+    customAlertOverlayEl = document.getElementById('customAlertOverlay');
+    customAlertTitleEl = document.getElementById('customAlertTitle');
+    customAlertMessageEl = document.getElementById('customAlertMessage');
+    customAlertOkButtonEl = document.getElementById('customAlertOkButton');
+    orbitModalOverlayEl = document.getElementById('orbitModalOverlay');
+    orbitPoiSelectEl = document.getElementById('orbitPoiSelect');
+    orbitRadiusInputEl = document.getElementById('orbitRadiusInput');
+    orbitPointsInputEl = document.getElementById('orbitPointsInput');
+    confirmOrbitBtnEl = document.getElementById('confirmOrbitBtn');
+    cancelOrbitBtnEl = document.getElementById('cancelOrbitBtn');
+
+    // Initial UI state
+    if (defaultAltitudeSlider && defaultAltitudeValueEl) defaultAltitudeValueEl.textContent = defaultAltitudeSlider.value + 'm';
+    if (flightSpeedSlider && flightSpeedValueEl) flightSpeedValueEl.textContent = flightSpeedSlider.value + ' m/s';
+    if (multiFixedHeadingSlider && multiFixedHeadingValueEl) multiFixedHeadingValueEl.textContent = multiFixedHeadingSlider.value + '°';
+    if (multiGimbalPitchSlider && multiGimbalPitchValueEl) multiGimbalPitchValueEl.textContent = multiGimbalPitchSlider.value + '°';
+    if (multiHoverTimeSlider && multiHoverTimeValueEl) multiHoverTimeValueEl.textContent = multiHoverTimeSlider.value + 's';
+    if (gimbalPitchSlider && gimbalPitchValueEl) gimbalPitchValueEl.textContent = gimbalPitchSlider.value + '°';
+    if (poiFinalAltitudeDisplayEl) poiFinalAltitudeDisplayEl.textContent = "0.0 m";
+    
+    // RIMOSSA la chiamata da qui
+    if (typeof updatePathModeDisplay === "function") {
+        updatePathModeDisplay();
+    }
+}
