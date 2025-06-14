@@ -1,8 +1,7 @@
 // File: importExportManager.js
 
 // Global dependencies (expected from other files):
-// waypoints, pois, surveyMissions, flightSpeedSlider, etc. (from config.js)
-// ...e altre funzioni dagli altri moduli
+// ...
 
 if (typeof calculateBearing === 'undefined') {
     function calculateBearing(point1LatLng, point2LatLng) {
@@ -122,9 +121,8 @@ async function loadFlightPlan(plan) {
 
     let maxImportedPoiId = 0;
     let maxImportedWaypointId = 0;
-    let maxImportedSurveyId = 0; // <-- NUOVO
+    let maxImportedSurveyId = 0;
 
-    // Restore settings
     if (plan.settings) {
         if (defaultAltitudeSlider) {
             defaultAltitudeSlider.value = plan.settings.defaultAltitude || 30;
@@ -143,7 +141,6 @@ async function loadFlightPlan(plan) {
         if(desiredAMSLInputEl && plan.settings.desiredAMSL) desiredAMSLInputEl.value = plan.settings.desiredAMSL;
     }
 
-    // Restore POIs
     if (plan.pois && Array.isArray(plan.pois)) {
         for (const pData of plan.pois) { 
             if (!validateCoordinates(pData.lat, pData.lng)) {
@@ -158,7 +155,6 @@ async function loadFlightPlan(plan) {
         }
     }
 
-    // Restore Waypoints
     if (plan.waypoints && Array.isArray(plan.waypoints)) {
         plan.waypoints.forEach(wpData => { 
             if (!validateCoordinates(wpData.lat, wpData.lng)) {
@@ -171,7 +167,6 @@ async function loadFlightPlan(plan) {
         });
     }
 
-    // --- INIZIO MODIFICA: Ripristino delle Survey Missions ---
     if (plan.surveyMissions && Array.isArray(plan.surveyMissions)) {
         plan.surveyMissions.forEach(missionData => {
             const mission = {
@@ -179,7 +174,6 @@ async function loadFlightPlan(plan) {
                 polygon: missionData.polygon,
                 parameters: missionData.parameters,
                 waypointIds: missionData.waypointIds,
-                // Aggiungi il layer del poligono sulla mappa
                 polygonLayer: L.polygon(missionData.polygon.map(p => L.latLng(p.lat, p.lng)), { 
                     color: '#1abc9c', 
                     weight: 2, 
@@ -190,17 +184,14 @@ async function loadFlightPlan(plan) {
             if (mission.id > maxImportedSurveyId) maxImportedSurveyId = mission.id;
         });
     }
-    // --- FINE MODIFICA ---
 
-    // Update counters to avoid ID conflicts
     waypointCounter = Math.max(waypointCounter, maxImportedWaypointId + 1);
     poiCounter = Math.max(poiCounter, maxImportedPoiId + 1);
-    surveyMissionCounter = Math.max(surveyMissionCounter, maxImportedSurveyId + 1); // <-- NUOVO
+    surveyMissionCounter = Math.max(surveyMissionCounter, maxImportedSurveyId + 1);
     
-    // Update entire UI
     if(typeof updateAllUI === 'function') {
-        updateAllUI(); // This should handle all necessary UI updates
-    } else { // Fallback to individual updates if updateAllUI doesn't exist
+        updateAllUI();
+    } else {
         updatePOIList();
         updateWaypointList();
         updateFlightPath(); 
@@ -227,7 +218,6 @@ function exportFlightPlanToJson() {
         return; 
     }
     
-    // --- INIZIO MODIFICA: Aggiornamento della struttura del piano esportato ---
     const plan = {
         waypoints: waypoints.map(wp => ({
             id: wp.id, lat: wp.latlng.lat, lng: wp.latlng.lng,
@@ -243,10 +233,9 @@ function exportFlightPlanToJson() {
             altitude: p.altitude, terrainElevationMSL: p.terrainElevationMSL,
             objectHeightAboveGround: p.objectHeightAboveGround
         })),
-        // Aggiungi le missioni di rilievo all'esportazione
         surveyMissions: surveyMissions.map(mission => ({
             id: mission.id,
-            polygon: mission.polygon, // Already in a simple format
+            polygon: mission.polygon,
             parameters: mission.parameters,
             waypointIds: mission.waypointIds
         })),
@@ -260,7 +249,6 @@ function exportFlightPlanToJson() {
             desiredAMSL: desiredAMSLInputEl ? parseInt(desiredAMSLInputEl.value) : 100 
         }
     };
-    // --- FINE MODIFICA ---
     
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(plan, null, 2));
     const dl = document.createElement('a');
@@ -385,17 +373,18 @@ function exportToDjiWpmlKmz() {
         waylinesWpmlContent += `      </wpml:waypointHeadingParam>\n`;
 
         let turnMode;
-        if (wp.waypointType === 'grid' || wp.hoverTime > 0) {
+        // --- INIZIO MODIFICA: La logica ora rispetta missionPathType ---
+        if (wp.hoverTime > 0) {
+            // Se c'è un tempo di stazionamento, la fermata è obbligatoria
             turnMode = 'toPointAndStopWithDiscontinuityCurvature';
-        } else if (wp.waypointType === 'orbit') {
+        } else if (missionPathType === 'straight') {
+            // Se l'utente ha scelto "Rettilineo", usa sempre la fermata (tranne per il primo e l'ultimo punto, dove è implicita)
+            turnMode = 'toPointAndStopWithDiscontinuityCurvature';
+        } else { // missionPathType === 'curved'
+            // Se l'utente ha scelto "Curvato", usa la logica di passaggio per i punti centrali
             turnMode = (index === 0 || index === waypoints.length - 1) ? 'toPointAndStopWithContinuityCurvature' : 'toPointAndPassWithContinuityCurvature';
-        } else {
-            if (missionPathType === 'straight') {
-                turnMode = 'toPointAndStopWithDiscontinuityCurvature';
-            } else {
-                turnMode = (index === 0 || index === waypoints.length - 1) ? 'toPointAndStopWithContinuityCurvature' : 'toPointAndPassWithContinuityCurvature';
-            }
         }
+        // --- FINE MODIFICA ---
         
         waylinesWpmlContent += `      <wpml:waypointTurnParam>\n`;
         waylinesWpmlContent += `        <wpml:waypointTurnMode>${turnMode}</wpml:waypointTurnMode>\n`;
