@@ -1,6 +1,6 @@
 // ===================================================================================
 // File: surveyGridManager.js
-// Version: 7.0 (Simplified, relies on waypointManager for all waypoint operations)
+// Version: 8.0 (Simplified, relies on waypointManager for all waypoint operations)
 // ===================================================================================
 
 const CONSTANTS = { MIN_POLYGON_POINTS: 3, MAX_POLYGON_POINTS: 50, CAMERA: { sensorWidth_mm: 8.976, sensorHeight_mm: 6.716, focalLength_mm: 6.88 }, VALIDATION: { altitude: { min: 1, max: 500 }, sidelap: { min: 10, max: 95 }, frontlap: { min: 10, max: 95 }, speed: { min: 0.1, max: 30 }, angle: { min: -360, max: 360 } }, COLORS: { DRAWING: '#0064ff', EDITING: '#f39c12', FINALIZED: '#009600', MISSION: '#1abc9c' } };
@@ -91,23 +91,19 @@ function handleConfirmSurveyGridGeneration() {
             mission = surveyMissions.find(m => m.id === surveyState.isEditingMissionId);
             if (!mission) return;
             insertionIndex = waypoints.findIndex(wp => wp.id === mission.waypointIds[0]);
-            if (typeof _deleteWaypointsByIds === 'function') {
-                _deleteWaypointsByIds(new Set(mission.waypointIds));
-            }
+            _deleteWaypointsByIds(new Set(mission.waypointIds));
             mission.parameters = params;
-            mission.waypointIds = [];
         } else {
             mission = _createNewMission(params);
             insertionIndex = waypoints.length;
         }
         
-        // Add new waypoints one by one at the correct position
+        mission.waypointIds = [];
         waypointsData.forEach((wpData, index) => {
             const options = { ...wpData.options, insertionIndex: insertionIndex + index, select: false, batch: true };
             addWaypoint(wpData.latlng, options);
         });
 
-        // After all waypoints are added, renumber and update the mission's ID list
         _renumberAllWaypoints();
         mission.waypointIds = waypoints.slice(insertionIndex, insertionIndex + waypointsData.length).map(wp => wp.id);
         
@@ -126,16 +122,16 @@ function deleteSurveyMission(missionId) {
     if (missionIndex === -1) return;
     const mission = surveyMissions[missionIndex];
     if (confirm(translate('alert_deleteSurveyMissionConfirm', { missionName: `${translate('missionLabel')} ${mission.id}`, wpCount: mission.waypointIds.length }))) {
-        if (typeof _deleteWaypointsByIds === 'function') {
-            _deleteWaypointsByIds(new Set(mission.waypointIds));
-        }
+        _deleteWaypointsByIds(new Set(mission.waypointIds));
+        _renumberAllWaypoints();
+        waypoints.forEach(wp => _createAndBindMarker(wp));
         surveyMissions.splice(missionIndex, 1);
         if (mission.polygonLayer) map.removeLayer(mission.polygonLayer);
         updateAllUI();
     }
 }
 
-function updateAllUI() { updateWaypointList(); updateFlightPath(); updateFlightStatistics(); if (typeof updateSurveyMissionsList === 'function') updateSurveyMissionsList(); fitMapToWaypoints(); }
+function updateAllUI() { if(typeof updateWaypointList === 'function') updateWaypointList(); if(typeof updateFlightPath === 'function') updateFlightPath(); if(typeof updateFlightStatistics === 'function') updateFlightStatistics(); if (typeof updateSurveyMissionsList === 'function') updateSurveyMissionsList(); if(typeof fitMapToWaypoints === 'function') fitMapToWaypoints(); }
 
 // ... The rest of the file (drawing handlers and helpers) is unchanged and included for completeness ...
 function clearTemporaryDrawing() { if (surveyState.tempPolygonLayer) { map.removeLayer(surveyState.tempPolygonLayer); surveyState.tempPolygonLayer = null; } surveyState.tempVertexMarkers.forEach(marker => { marker.off(); map.removeLayer(marker); }); surveyState.tempVertexMarkers = []; if (surveyState.tempAngleLineLayer) { map.removeLayer(surveyState.tempAngleLineLayer); surveyState.tempAngleLineLayer = null; } }
@@ -157,3 +153,4 @@ function _enterDrawingMode(mode = 'area') { map.dragging.disable(); if (typeof h
 function _exitMapDrawingState() { map.dragging.enable(); map.getContainer().style.cursor = ''; map.off('click', onMapClick); map.off('mousedown', onAngleDrawStart); map.off('mousemove', onAngleDrawMove); map.off('mouseup', onAngleDrawEnd); if (typeof handleMapClick === 'function' && !map.hasEventListeners('click')) map.on('click', handleMapClick); surveyState.isDrawingArea = false; surveyState.isDrawingAngle = false; surveyState.angleDrawStartPoint = null; if (surveyState.tempAngleLineLayer) map.removeLayer(surveyState.tempAngleLineLayer); }
 function _resetAndExitDrawingMode() { _exitMapDrawingState(); clearTemporaryDrawing(); surveyState.polygonPoints = []; surveyState.isEditingMissionId = null; }
 function _drawTempPolygon(isEdit = false, isFinalized = false) { if (surveyState.tempPolygonLayer) map.removeLayer(surveyState.tempPolygonLayer); if (surveyState.polygonPoints.length < 2) return; const color = isFinalized ? CONSTANTS.COLORS.FINALIZED : (isEdit ? CONSTANTS.COLORS.EDITING : CONSTANTS.COLORS.DRAWING); const opts = { color, weight: 2, fillColor: color, fillOpacity: 0.2 }; surveyState.tempPolygonLayer = (surveyState.polygonPoints.length < 3) ? L.polyline(surveyState.polygonPoints, opts).addTo(map) : L.polygon(surveyState.polygonPoints, opts).addTo(map); }
+function validateSurveyGridInputs(altitude, sidelap, frontlap, angle, speed) { const errors = []; if (isNaN(altitude) || altitude < CONSTANTS.VALIDATION.altitude.min || altitude > CONSTANTS.VALIDATION.altitude.max) errors.push(`Altitude: ${CONSTANTS.VALIDATION.altitude.min}-${CONSTANTS.VALIDATION.altitude.max}m`); if (isNaN(sidelap) || sidelap < CONSTANTS.VALIDATION.sidelap.min || sidelap > CONSTANTS.VALIDATION.sidelap.max) errors.push(`Sidelap: ${CONSTANTS.VALIDATION.sidelap.min}-${CONSTANTS.VALIDATION.sidelap.max}%`); if (isNaN(frontlap) || frontlap < CONSTANTS.VALIDATION.frontlap.min || frontlap > CONSTANTS.VALIDATION.frontlap.max) errors.push(`Frontlap: ${CONSTANTS.VALIDATION.frontlap.min}-${CONSTANTS.VALIDATION.frontlap.max}%`); if (isNaN(angle) || angle < CONSTANTS.VALIDATION.angle.min || angle > CONSTANTS.VALIDATION.angle.max) errors.push(`Angle: ${CONSTANTS.VALIDATION.angle.min}°-${CONSTANTS.VALIDATION.angle.max}°`); if (isNaN(speed) || speed < CONSTANTS.VALIDATION.speed.min || speed > CONSTANTS.VALIDATION.speed.max) errors.push(`Speed: ${CONSTANTS.VALIDATION.speed.min}-${CONSTANTS.VALIDATION.speed.max}m/s`); return errors; }
